@@ -1,8 +1,13 @@
-
-#include <linux/sched.h>
+#define _GNU_SOURCE 
+#include <sched.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <stdio.h>
 #include "netns_socket.h"
 
 int create_socket_netns(int ns_fd)
