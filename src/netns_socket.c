@@ -32,6 +32,6 @@ int create_socket_netns(int ns_fd)
         printf("Back to origin netns failed!\n");
         exit(1);
     }
-
+    close(orig_netns);
     return newfd;
 }
