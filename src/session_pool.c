@@ -1,0 +1,176 @@
+#include <stdio.h>
+#include "session_pool.h"
+#include "session.h"
+
+//helper func
+uint16_t allocate_id(struct BackendSessionIDQueue* id_q);
+void release_id(struct BackendSessionIDQueue* id_q, uint16_t id);
+void print_pool(struct BackendSessionPool* s_pool);
+void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
+static void fill_id_queue(struct BackendSessionIDQueue* id_q);
+static void inc_sess_num(struct BackendSessionPool* pool);
+static void dec_sess_num(struct BackendSessionPool* pool);
+
+
+//ops
+struct BackendSession* high_speed_create(int dev_id, struct ControlMsg* cmsg);
+int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
+struct BackendSession* high_speed_search_sess(struct BackendSessionPool* s_pool, uint16_t id);
+int high_speed_delete_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
+int high_speed_data_process(struct BackendSession* sess, uint8_t* in, 
+        uint32_t in_size, uint8_t* out, uint32_t* out_size);
+void high_speed_destroy_pool(struct BackendSessionPool* s_pool);
+
+
+struct BackendSessionPoolOps high_speed_pool_ops = {
+    .create = high_speed_create,
+    .insert_sess = high_speed_insert_sess,
+    .search_sess = high_speed_search_sess,
+    .delete_sess = high_speed_delete_sess,
+    .data_process = high_speed_data_process,
+    .destroy_pool = high_speed_destroy_pool
+};
+
+//helper func
+static void fill_id_queue(struct BackendSessionIDQueue* id_q)
+{
+    uint16_t q_num = 1024;
+    for (uint16_t i = 1; i <= q_num; i++)
+    {
+        struct BackendSessionID* id_e = (struct BackendSessionID*)malloc(
+            sizeof(struct BackendSessionID));
+        if (!id_e) {
+            printf("Memory allocate failed!\n");
+            exit(1);
+        }
+        id_e->id = i;
+        TAILQ_INSERT_TAIL(id_q, id_e, entry);
+        // printf("push %p %d\n", id_e, id_e->id);
+    }
+}
+
+uint16_t allocate_id(struct BackendSessionIDQueue* id_q)
+{
+    uint16_t res = 0;
+
+    if(!TAILQ_EMPTY(id_q))
+    {   
+        struct BackendSessionID *id_e = TAILQ_FIRST(id_q);
+        res = id_e->id;
+        // printf("pop %p %d\n", id_e, res);
+        TAILQ_REMOVE(id_q, id_e, entry);
+        free(id_e);
+    } 
+    return res;
+}
+
+void release_id(struct BackendSessionIDQueue* id_q, uint16_t id)
+{   
+    struct BackendSessionID* id_e = (struct BackendSessionID*)malloc(
+            sizeof(struct BackendSessionID));
+    if (!id_e) {
+        printf("Memory allocate failed!\n");
+        exit(1);
+    }
+    id_e->id = id;
+    TAILQ_INSERT_TAIL(id_q, id_e, entry);
+    // printf("push %p %d\n", id_e, id_e->id);
+}
+
+int high_speed_init_pool(struct BackendSessionPool* pool)
+{
+    pool->pool_name = "high_speed_pool";
+    pool->capacity = 1024;
+    pool->sess_num = 0;
+
+    TAILQ_INIT(&pool->id_queue);
+    fill_id_queue(&pool->id_queue);
+
+    TAILQ_INIT(&pool->act_queue);
+
+    pool->htable = NULL;
+    pool->ops = &high_speed_pool_ops;
+    return 0;
+}
+
+static void inc_sess_num(struct BackendSessionPool* pool)
+{
+    pool->sess_num++;
+}
+
+static void dec_sess_num(struct BackendSessionPool* pool)
+{
+    pool->sess_num--;
+}
+
+void print_pool(struct BackendSessionPool* s_pool) {
+    struct BackendSession *s;
+
+    for (s = s_pool->htable; s != NULL; s = s->hh.next) {
+        printf("sess id %d\n", s->backend_sess_id);
+    }
+}
+
+void high_speed_delete_all_sess(struct BackendSessionPool* s_pool)
+{
+    struct BackendSession *current_sess, *tmp;
+
+    HASH_ITER(hh, s_pool->htable, current_sess, tmp) {
+        HASH_DEL(s_pool->htable, current_sess);  /* delete it */
+        free(current_sess);                      /* free it */
+    }
+}
+
+//ops
+struct BackendSession* high_speed_create(int dev_id, struct ControlMsg* cmsg)
+{
+
+    return NULL;
+}
+
+int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess)
+{
+    struct BackendSession* s;
+    HASH_FIND(hh, s_pool->htable, &sess->backend_sess_id, sizeof(uint16_t), s);
+    if(s == NULL)
+    {
+        HASH_ADD(hh, s_pool->htable, backend_sess_id, sizeof(uint16_t), sess);
+        inc_sess_num(s_pool);
+        printf("add %d\n", sess->backend_sess_id);
+    }
+    return 0;
+}
+
+struct BackendSession* high_speed_search_sess(struct BackendSessionPool* s_pool, uint16_t id)
+{
+    struct BackendSession* s = NULL;
+    HASH_FIND(hh, s_pool->htable, &id, sizeof(uint16_t), s);
+    return s;
+}
+
+int high_speed_delete_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess)
+{
+    HASH_DEL(s_pool->htable, sess);
+    dec_sess_num(s_pool);
+    free(sess);
+    return 0;
+}
+
+int high_speed_data_process(struct BackendSession* sess, uint8_t* in, 
+        uint32_t in_size, uint8_t* out, uint32_t* out_size)
+{
+    return 0;
+}
+
+void high_speed_destroy_pool(struct BackendSessionPool* s_pool)
+{
+    s_pool->pool_name = NULL;
+    s_pool->capacity = 0;
+    s_pool->sess_num = 0;
+    s_pool->ops = NULL;
+    high_speed_delete_all_sess(s_pool);
+
+    //todo, clear queue
+}
+
+
