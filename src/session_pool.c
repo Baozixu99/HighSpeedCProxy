@@ -13,7 +13,6 @@ static void dec_sess_num(struct BackendSessionPool* pool);
 
 
 //ops
-struct BackendSession* high_speed_create(int dev_id, struct ControlMsg* cmsg);
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
 struct BackendSession* high_speed_search_sess(struct BackendSessionPool* s_pool, uint16_t id);
 int high_speed_delete_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
@@ -23,7 +22,6 @@ void high_speed_destroy_pool(struct BackendSessionPool* s_pool);
 
 
 struct BackendSessionPoolOps high_speed_pool_ops = {
-    .create = high_speed_create,
     .insert_sess = high_speed_insert_sess,
     .search_sess = high_speed_search_sess,
     .delete_sess = high_speed_delete_sess,
@@ -122,11 +120,6 @@ void high_speed_delete_all_sess(struct BackendSessionPool* s_pool)
 }
 
 //ops
-struct BackendSession* high_speed_create(int dev_id, struct ControlMsg* cmsg)
-{
-
-    return NULL;
-}
 
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess)
 {

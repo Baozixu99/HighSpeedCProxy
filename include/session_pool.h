@@ -21,8 +21,6 @@ struct BackendSessionPool {
 
 struct BackendSessionPoolOps {
 
-    struct BackendSession* (*create)(int dev_id, struct ControlMsg* cmsg);
-
     int (*insert_sess)(struct BackendSessionPool* s_pool, struct BackendSession* sess);
 
     struct BackendSession* (*search_sess)(struct BackendSessionPool* s_pool, uint16_t id);

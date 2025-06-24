@@ -6,6 +6,8 @@
 #include "uthash.h"
 #include "channel.h"
 
+struct ControlMsg;
+
 struct SessMsgSeg {
     uint16_t len;
     uint16_t type;
@@ -69,5 +71,10 @@ struct BackendSessionID {
     TAILQ_ENTRY(BackendSessionID) entry;
 };
 TAILQ_HEAD(BackendSessionIDQueue, BackendSessionID);
+
+struct BackendSession* create_session(int dev_id, struct ControlMsg* cmsg);
+int session_send(struct BackendSession* sess, const uint8_t* data, uint32_t size);
+int session_recv(struct BackendSession* sess, uint8_t* data, uint32_t size);
+void delete_session(struct BackendSession* sess);
 
 #endif
