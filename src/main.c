@@ -2,17 +2,22 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <unistd.h>
+
 #include "netns_socket.h"
 #include "dev.h"
 #include "session.h"
 #include "session_pool.h"
 #include "channel.h"
+#include "message.h"
 
 #define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
 
-void print_pool(struct BackendSessionPool* s_pool);
-void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
+extern void print_pool(struct BackendSessionPool* s_pool);
+extern void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
+
+struct epoll_event events[MAX_EVENTS];
 
 void epoll_run(int epoll_fd)
 {
@@ -78,11 +83,9 @@ void epoll_run(int epoll_fd)
                     //todo,remove sockfd and close session
                     close(sockfd);
                 } else {
-                    if (errno != EAGAIN && errno != EWOULDBLOCK) 
-                    {
+                 
                         //todo,remove sockfd and close session
                         close(sockfd);
-                    }
                 }
             }
         }
