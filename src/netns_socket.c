@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#include <sys/epoll.h>
 
 #include "netns_socket.h"
 
@@ -46,14 +45,4 @@ int create_socket_netns(int ns_fd)
 void set_nonblocking(int sockfd) {
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
-}
-
-void add_socket_to_epoll(int epoll_fd, int sock_fd, uint32_t events) {
-    struct epoll_event event;
-    event.data.fd = sock_fd;
-    event.events = events;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_fd, &event) == -1) {
-        printf("epoll_ctl: add failed!");
-        exit(EXIT_FAILURE);
-    }
 }
