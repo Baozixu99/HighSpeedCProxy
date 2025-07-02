@@ -38,7 +38,7 @@
 void poller_run(struct poller* reactor)
 {
     struct epoll_event events[MAX_EVENTS + 1];
-    int nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, -1);
+    int nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, 0);
     if (nready < 0) 
     {
         printf("epoll_wait error, exit\n");
@@ -58,12 +58,17 @@ void poller_run(struct poller* reactor)
     }
 }
 
-void channel_set(struct channel *ch, int fd, CALLBACK *callback, void *arg)
+void channel_set(struct channel* ch, int fd, CALLBACK* callback, void *arg)
 {
     ch->sock_fd = fd;
     ch->callback = callback;
     ch->events = 0;
     ch->arg = arg;
+}
+
+void channel_set_sess(struct channel* ch, struct BackendSession* sess)
+{
+    ch->sess = sess;
 }
 
 int event_add(int ep_fd, int events, struct channel *ch)
@@ -161,7 +166,7 @@ int poller_init(struct poller* reactor)
     if (reactor == NULL) return -1;
     memset(reactor, 0, sizeof(struct poller));
 
-    reactor->epfd = epoll_create(1);
+    reactor->epfd = epoll_create(MAX_EVENTS);
     if (reactor->epfd <= 0)
     {
         printf("create epfd in %s err %s\n", __func__, strerror(errno));

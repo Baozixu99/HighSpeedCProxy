@@ -1,6 +1,8 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
+#include "session.h"
+
 typedef int (*CALLBACK)(int, int, void *);
 struct channel{
     int sock_fd;
@@ -8,6 +10,7 @@ struct channel{
     void* arg;   //poller(reactor)
     int status;   //1 MOD, 0 ADD
     CALLBACK callback;
+    struct BackendSession* sess;
 };
 
 #endif
