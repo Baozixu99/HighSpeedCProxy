@@ -8,7 +8,7 @@ struct poller {
 };
 
 void poller_run(struct poller* reactor);
-void channel_set(struct channel *ch, int fd, CALLBACK *callback, void *arg);
+void channel_set(struct channel* ch, int fd, CALLBACK callback, void *arg);
 void channel_set_sess(struct channel* ch, struct BackendSession* sess);
 int event_add(int ep_fd, int events, struct channel *ch);
 int event_del(int ep_fd, struct channel *ch);

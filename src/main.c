@@ -13,14 +13,14 @@
 extern void print_pool(struct BackendSessionPool* s_pool);
 extern void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
 
-void run(int epoll_fd)
+void run()
 {
     while (1)
     {
         //todo, poll/push share memory
         engine_run();
 
-        poller_run(epoll_fd);
+        // poller_run();
     }
        
 }

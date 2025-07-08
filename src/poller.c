@@ -50,7 +50,7 @@ void poller_run(struct poller* reactor)
         if ((events[i].events & EPOLLERR) || 
             (events[i].events & EPOLLHUP))
         {
-                printf (stderr, "epoll error\n");
+                printf ("epoll error\n");
                 // todo, close fd,session
                 // close (events[i].data.fd);
                 continue;
@@ -66,7 +66,7 @@ void poller_run(struct poller* reactor)
     }
 }
 
-void channel_set(struct channel* ch, int fd, CALLBACK* callback, void *arg)
+void channel_set(struct channel* ch, int fd, CALLBACK callback, void *arg)
 {
     ch->sock_fd = fd;
     ch->callback = callback;
@@ -117,7 +117,7 @@ int recv_cb(int fd, int events, void *arg)
 {
     struct channel *ch = (struct channel *) arg;
     struct poller* reactor = (struct poller *)(ch->arg);
-    int len;
+    int len = -1;
 
     char buf[5];
     memset(buf, 0, sizeof(buf));
@@ -162,7 +162,7 @@ int send_cb(int fd, int events, void *arg) {
     struct channel *ch = (struct channel *) arg;
     struct poller* reactor = (struct poller *)(ch->arg);
 
-    int len;
+    int len = -1;
     // todo, send data
     // channel_set(ch, fd, recv_cb, reactor);
     // event_add(reactor->epfd, EPOLLIN | EPOLLET, ch);
