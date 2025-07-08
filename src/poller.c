@@ -47,6 +47,14 @@ void poller_run(struct poller* reactor)
     for (int i = 0; i < nready; i++) 
     {
         struct channel *ch = (struct channel *) events[i].data.ptr;
+        if ((events[i].events & EPOLLERR) || 
+            (events[i].events & EPOLLHUP))
+        {
+                printf (stderr, "epoll error\n");
+                // todo, close fd,session
+                // close (events[i].data.fd);
+                continue;
+        }
         if ((events[i].events & EPOLLIN) && (ch->events & EPOLLIN)) 
         {
                 ch->callback(ch->sock_fd, events[i].events, ch);
@@ -132,7 +140,8 @@ int recv_cb(int fd, int events, void *arg)
         else
         {
             // len == -1
-            if(errno == EAGAIN)
+            if(errno == EAGAIN ||
+               errno == EWOULDBLOCK)
             {
                 printf("read complete...\n");
                 break;
