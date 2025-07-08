@@ -3,6 +3,7 @@
 
 #include "dev.h"
 #include "session_pool.h"
+#include "backend_proto.h"
 
 
 struct SharedMemoryPool;
