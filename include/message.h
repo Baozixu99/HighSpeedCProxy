@@ -3,6 +3,29 @@
 
 #include <stdint.h>
 
+#define PROXY_PROTO_VERSION_1                           1
+#define PROXY_MSG_TYPE_DEV                              0
+#define PROXY_MSG_TYPE_STRGY                            1
+#define PROXY_MSG_TYPE_SESS                             2
+#define PROXY_MSG_TYPE_DATA                             3
+
+#define PROXY_MSG_TYPE_DEV_DISABLE                       0
+#define PROXY_MSG_TYPE_DEV_ENABLE                        1
+#define PROXY_MSG_TYPE_DEV_QUERY                         2
+#define PROXY_MSG_TYPE_DEV_SIGNAL_COMMAND                0
+#define PROXY_MSG_TYPE_DEV_SIGNAL_RESPONSE               1
+
+#define PROXY_MSG_TYPE_STRGY_ENABLE                      1
+#define PROXY_MSG_TYPE_STRGY_QUERY                       2
+#define PROXY_MSG_TYPE_STRGY_SIGNAL_COMMAND              0
+#define PROXY_MSG_TYPE_STRGY_SIGNAL_RESPONSE             1
+
+#define PROXY_MSG_TYPE_SESS_CLOSE                        0
+#define PROXY_MSG_TYPE_SESS_CREATE                       1
+#define PROXY_MSG_TYPE_SESS_SIGNAL_COMMAND               0
+#define PROXY_MSG_TYPE_SESS_SIGNAL_RESPONSE              1
+
+
 typedef struct {
     uint8_t version;             // 协议版本，目前不用管，设置为1
     uint8_t proxy_msg_type;      // 代理消息类型，分为设备消息（0）、策略消息（1）、会话消息（2）和数据消息（3）
