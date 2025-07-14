@@ -26,6 +26,9 @@
 #define PROXY_MSG_TYPE_SESS_SIGNAL_RESPONSE              1
 
 
+#define PROXY_MSG_HDR_SIZE                               8
+#define PROXY_MSG_MIN_SIZE                               1
+#define PROXY_MSG_MAX_SIZE                               4088
 typedef struct {
     uint8_t version;             // 协议版本，目前不用管，设置为1
     uint8_t proxy_msg_type;      // 代理消息类型，分为设备消息（0）、策略消息（1）、会话消息（2）和数据消息（3）
