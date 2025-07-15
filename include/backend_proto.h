@@ -15,11 +15,16 @@
 #define PROXY_MSG_LEN_VALID(x) (((x) >= PROXY_MSG_MIN_SIZE)   || \
                                  ((x) <= PROXY_MSG_MAX_SIZE))
 
-#define FRONTEND_ADMIN_SESSION_ID                            0
-#define BACKEND_ADMIN_SESSION_ID                             0
-#define FRONTEND_HANDOVER_SESSION_ID                         0xFFFF
-#define BACKEND_HANDOVER_SESSION_ID                          0xFFFF
+#define PROXY_ADMIN_SESSION_ID                               0
+#define FRONTEND_ADMIN_SESSION_ID                            PROXY_ADMIN_SESSION_ID
+#define BACKEND_ADMIN_SESSION_ID                             PROXY_ADMIN_SESSION_ID
 
+#define PROXY_HANDOVER_SESSION_ID                            0xFFFF
+#define FRONTEND_HANDOVER_SESSION_ID                         PROXY_HANDOVER_SESSION_ID
+#define BACKEND_HANDOVER_SESSION_ID                          PROXY_HANDOVER_SESSION_ID
+
+#define APP_SESSION_ID_VALID(x) (((x) != PROXY_ADMIN_SESSION_ID)   || \
+                                 ((x) != PROXY_HANDOVER_SESSION_ID))
 
 
 int backend_proxy_msg_prosess(uint8_t *msg);
@@ -34,6 +39,7 @@ int backend_proxy_strgy_msg_response(uint8_t *msg);
 int backend_proxy_sess_msg_process(uint8_t *msg);
 int backend_proxy_sess_msg_response(uint8_t *msg);
 
+int backend_proxy_data_msg_prosess(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg);
 int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg);
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg);
 
