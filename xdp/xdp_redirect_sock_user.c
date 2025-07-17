@@ -164,53 +164,6 @@ static void __exit_with_error(int error, const char *file, const char *func,
 #define exit_with_error(error) __exit_with_error(error, __FILE__, __func__, \
 						 __LINE__)
 
-static void swap_mac_addresses(void *data)
-{
-	struct ether_header *eth = (struct ether_header *)data;
-	struct ether_addr *src_addr = (struct ether_addr *)&eth->ether_shost;
-	struct ether_addr *dst_addr = (struct ether_addr *)&eth->ether_dhost;
-	struct ether_addr tmp;
-
-	tmp = *src_addr;
-	*src_addr = *dst_addr;
-	*dst_addr = tmp;
-}
-
-static void hex_dump(void *pkt, size_t length, u64 addr)
-{
-	const unsigned char *address = (unsigned char *)pkt;
-	const unsigned char *line = address;
-	size_t line_size = 32;
-	unsigned char c;
-	char buf[32];
-	int i = 0;
-
-	if (!DEBUG_HEXDUMP)
-		return;
-
-	sprintf(buf, "addr=%llu", addr);
-	printf("length = %zu\n", length);
-	printf("%s | ", buf);
-	while (length-- > 0) {
-		printf("%02X ", *address++);
-		if (!(++i % line_size) || (length == 0 && i % line_size)) {
-			if (length == 0) {
-				while (i++ % line_size)
-					printf("__ ");
-			}
-			printf(" | ");	/* right close */
-			while (line < address) {
-				c = *line++;
-				printf("%c", (c < 33 || c == 255) ? 0x2E : c);
-			}
-			printf("\n");
-			if (length > 0)
-				printf("%s | ", buf);
-		}
-	}
-	printf("\n");
-}
-
 static void process_packet(void *packet, size_t len)
 {
     
@@ -226,6 +179,8 @@ static void process_packet(void *packet, size_t len)
     printf("  Ethertype: 0x%04x\n", ntohs(eth->h_proto));
     printf("\n");
 }
+
+
 static struct xsk_umem_info *xsk_configure_umem(void *buffer, u64 size)
 {
 	struct xsk_umem_info *umem;
@@ -309,15 +264,6 @@ static void parse_params()
 	}
 }
 
-static void kick_tx(struct xsk_socket_info *xsk)
-{
-	int ret;
-
-	ret = sendto(xsk_socket__fd(xsk->xsk), NULL, 0, MSG_DONTWAIT, NULL, 0);
-	if (ret >= 0 || errno == ENOBUFS || errno == EAGAIN || errno == EBUSY)
-		return;
-	exit_with_error(errno);
-}
 
 static void rx_drop(struct xsk_socket_info *xsk, struct pollfd *fds)
 {
@@ -359,7 +305,7 @@ static void rx_drop(struct xsk_socket_info *xsk, struct pollfd *fds)
 	xsk->rx_npkts += rcvd;
 }
 
-static void rx_drop_all(void)
+void rx(void)
 {
 	struct pollfd pfd;
 	int i, ret;
@@ -371,6 +317,16 @@ static void rx_drop_all(void)
 	for (;;) {
 		rx_drop(xsks, &pfd);
 	}
+}
+
+static void kick_tx(struct xsk_socket_info *xsk)
+{
+	int ret;
+
+	ret = sendto(xsk_socket__fd(xsk->xsk), NULL, 0, MSG_DONTWAIT, NULL, 0);
+	if (ret >= 0 || errno == ENOBUFS || errno == EAGAIN || errno == EBUSY)
+		return;
+	exit_with_error(errno);
 }
 
 static inline void complete_tx_only(struct xsk_socket_info *xsk)
@@ -446,15 +402,10 @@ static void tx_only(struct xsk_socket_info *xsk, u32 frame_nb)
 	complete_tx_only(xsk);
 }
 
-static void tx_only_all(void)
+void tx(void)
 {
-	struct pollfd pfd;
 	u32 frame_nb = 0;
-	int i, ret;
-
-	pfd.fd = xsk_socket__fd(xsks->xsk);
-	pfd.events = POLLOUT;
-
+	int i;
 	for (i = 0; i < NUM_FRAMES; i++){
 		(void)gen_eth_frame(umem, i * opt_xsk_frame_size);
 	}
@@ -468,7 +419,7 @@ static void tx_only_all(void)
 * 
 * sudo ./xdp_redirect_user
 */
-int main()
+int xdp_redirect()
 {
 	parse_params();
 	/* Reserve memory for the umem. Use hugepages if unaligned chunk mode */
@@ -483,12 +434,12 @@ int main()
 	umem = xsk_configure_umem(bufs, NUM_FRAMES * opt_xsk_frame_size);
 	xsks = xsk_configure_socket(umem);
 
-	signal(SIGINT, int_exit);
-	signal(SIGTERM, int_exit);
-	signal(SIGABRT, int_exit);
+	// signal(SIGINT, int_exit);
+	// signal(SIGTERM, int_exit);
+	// signal(SIGABRT, int_exit);
 
-	// rx_drop_all();
-	tx_only_all();
-	// int xdp_sock_fd = xsk_socket__fd(xsks->xsk);
-	return 0;
+	// rx();
+	// tx();
+	int xdp_sock_fd = xsk_socket__fd(xsks->xsk);
+	return xdp_sock_fd;
 }
