@@ -40,12 +40,10 @@
 #define BATCH_SIZE 64
 
 #define DEBUG_HEXDUMP 1
-#define MAX_SOCKS 4
+#define MAX_SOCKS 1
 
 typedef __u64 u64;
 typedef __u32 u32;
-
-static unsigned long prev_time;
 
 enum benchmark_type {
 	BENCH_L2FWD = 0,
@@ -101,6 +99,31 @@ static int num_socks = 1;
 struct xsk_socket_info *xsks;
 static void *bufs;
 static struct xsk_umem_info *umem;
+static const char pkt_data[] =
+	"\x00\x50\x56\xC0\x00\x08"  // 目标MAC: 00-50-56-C0-00-08
+	"\x00\x0C\x29\xF1\x8A\x0F"  // 源MAC: 00:0c:29:f1:8a:0f
+	"\x08\x00"                  // 以太类型: IPv4 (0x0800)
+	"\x45\x00"                  // IPv4版本和头部长度(20字节)
+	"\x00\x2E"                  // 总长度: 46字节
+	"\x00\x00\x00\x00"          // 标识/标志/片偏移
+	"\x40\x11"                  // TTL:64, 协议:UDP(0x11)
+	"\x7A\x8D"                  // [新]IP头部校验和: 0x7A8D (计算过程见下文)
+	"\xC0\xA8\xB3\x89"          // 源IP: 192.168.179.137 (0xC0A8B389)
+	"\xC0\xA8\xB3\x01"          // 目标IP: 192.168.179.1 (0xC0A8B301)
+	"\x22\xB8"                  // 源端口: 8888 (0x22B8)
+	"\x22\xB8"                  // 目标端口: 8888 (0x22B8)
+	"\x00\x1A"                  // UDP长度: 26字节
+	"\x1E\xA5"                  // [新]UDP校验和: 0x1EA5 (计算过程见下文)
+	"\x34\x33\x1F\x69\x40\x6B"  // UDP载荷(保持不变)
+	"\x54\x59\xB6\x14\x2D\x11"
+	"\x44\xBF\xAF\xD9\xBE\xAA";
+
+static size_t gen_eth_frame(struct xsk_umem_info *umem, u64 addr)
+{
+	memcpy(xsk_umem__get_data(umem->buffer, addr), pkt_data,
+	       sizeof(pkt_data) - 1);
+	return sizeof(pkt_data) - 1;
+}
 
 static void remove_xdp_program(void)
 {
@@ -296,61 +319,68 @@ static void kick_tx(struct xsk_socket_info *xsk)
 	exit_with_error(errno);
 }
 
-static inline void complete_tx_l2fwd(struct xsk_socket_info *xsk,
-				     struct pollfd *fds)
-{
-	struct xsk_umem_info *umem = xsk->umem;
-	u32 idx_cq = 0, idx_fq = 0;
-	unsigned int rcvd;
-	size_t ndescs;
-
-	if (!xsk->outstanding_tx)
-		return;
-
-	if (!opt_need_wakeup || xsk_ring_prod__needs_wakeup(&xsk->tx))
-		kick_tx(xsk);
-
-	ndescs = (xsk->outstanding_tx > BATCH_SIZE) ? BATCH_SIZE :
-		xsk->outstanding_tx;
-
-	/* re-add completed Tx buffers */
-	rcvd = xsk_ring_cons__peek(&umem->cq, ndescs, &idx_cq);
-	if (rcvd > 0) {
-		unsigned int i;
-		int ret;
-
-		ret = xsk_ring_prod__reserve(&umem->fq, rcvd, &idx_fq);
-		while (ret != rcvd) {
-			if (ret < 0)
-				exit_with_error(-ret);
-			if (xsk_ring_prod__needs_wakeup(&umem->fq))
-				ret = poll(fds, num_socks, opt_timeout);
-			ret = xsk_ring_prod__reserve(&umem->fq, rcvd, &idx_fq);
-		}
-
-		for (i = 0; i < rcvd; i++)
-			*xsk_ring_prod__fill_addr(&umem->fq, idx_fq++) =
-				*xsk_ring_cons__comp_addr(&umem->cq, idx_cq++);
-
-		xsk_ring_prod__submit(&xsk->umem->fq, rcvd);
-		xsk_ring_cons__release(&xsk->umem->cq, rcvd);
-		xsk->outstanding_tx -= rcvd;
-		xsk->tx_npkts += rcvd;
-	}
-}
-
-
-static void l2fwd(struct xsk_socket_info *xsk, struct pollfd *fds)
+static void rx_drop(struct xsk_socket_info *xsk, struct pollfd *fds)
 {
 	unsigned int rcvd, i;
-	u32 idx_rx = 0, idx_tx = 0;
+	u32 idx_rx = 0, idx_fq = 0;
 	int ret;
-
-	complete_tx_l2fwd(xsk, fds);
 
 	rcvd = xsk_ring_cons__peek(&xsk->rx, BATCH_SIZE, &idx_rx);
 	if (!rcvd) {
-		/*
+		if (xsk_ring_prod__needs_wakeup(&xsk->umem->fq))
+			ret = poll(fds, num_socks, opt_timeout);
+		return;
+	}
+
+	ret = xsk_ring_prod__reserve(&xsk->umem->fq, rcvd, &idx_fq);
+	while (ret != rcvd) {
+		if (ret < 0)
+			exit_with_error(-ret);
+		if (xsk_ring_prod__needs_wakeup(&xsk->umem->fq))
+			ret = poll(fds, num_socks, opt_timeout);
+		ret = xsk_ring_prod__reserve(&xsk->umem->fq, rcvd, &idx_fq);
+	}
+
+	for (i = 0; i < rcvd; i++) {
+		u64 addr = xsk_ring_cons__rx_desc(&xsk->rx, idx_rx)->addr;
+		u32 len = xsk_ring_cons__rx_desc(&xsk->rx, idx_rx++)->len;
+		u64 orig = xsk_umem__extract_addr(addr);
+
+		addr = xsk_umem__add_offset_to_addr(addr);
+		char *pkt = xsk_umem__get_data(xsk->umem->buffer, addr);
+
+		hex_dump(pkt, len, addr);
+		process_packet(pkt, len);
+		*xsk_ring_prod__fill_addr(&xsk->umem->fq, idx_fq++) = orig;
+	}
+
+	xsk_ring_prod__submit(&xsk->umem->fq, rcvd);
+	xsk_ring_cons__release(&xsk->rx, rcvd);
+	xsk->rx_npkts += rcvd;
+}
+
+static void rx_drop_all(void)
+{
+	struct pollfd pfd;
+	int i, ret;
+
+	// TODO: modify to suit epoll for eventloop and run-to-complete mode
+	pfd.fd = xsk_socket__fd(xsks->xsk);
+	pfd.events = POLLIN;
+	
+	for (;;) {
+		rx_drop(xsks, &pfd);
+	}
+}
+
+static inline void complete_tx_only(struct xsk_socket_info *xsk)
+{
+	unsigned int rcvd;
+	u32 idx;
+
+	if (!xsk->outstanding_tx)
+		return;
+	/*
 		* it is the case that there is no data ready,when the kernel
 		* has detected that there are no more buffers on the FILL ring
 		* and no buffers left on the RX HW ring of the NIC. In this case,
@@ -360,62 +390,83 @@ static void l2fwd(struct xsk_socket_info *xsk, struct pollfd *fds)
 		* and then call poll() so that the kernel driver can put these buffers
 		* on the HW ring and start to receive packets.
 		*/ 
-		if (xsk_ring_prod__needs_wakeup(&xsk->umem->fq))
-			ret = poll(fds, num_socks, opt_timeout);
-		return;
+	if (!opt_need_wakeup || xsk_ring_prod__needs_wakeup(&xsk->tx))
+		kick_tx(xsk);
+
+	rcvd = xsk_ring_cons__peek(&xsk->umem->cq, BATCH_SIZE, &idx);
+	if (rcvd > 0) {
+		xsk_ring_cons__release(&xsk->umem->cq, rcvd);
+		xsk->outstanding_tx -= rcvd;
+		xsk->tx_npkts += rcvd;
 	}
 
-	ret = xsk_ring_prod__reserve(&xsk->tx, rcvd, &idx_tx);
-	while (ret != rcvd) {
-		if (ret < 0)
-			exit_with_error(-ret);
-		complete_tx_l2fwd(xsk, fds);
-		if (xsk_ring_prod__needs_wakeup(&xsk->tx))
-			kick_tx(xsk);
-		ret = xsk_ring_prod__reserve(&xsk->tx, rcvd, &idx_tx);
-	}
+	/* re-add completed Tx buffers, put cq to fq, is need? */
+	// rcvd = xsk_ring_cons__peek(&umem->cq, ndescs, &idx_cq);
+	// if (rcvd > 0) {
+	// 	unsigned int i;
+	// 	int ret;
 
-	for (i = 0; i < rcvd; i++) {
-		u64 addr = xsk_ring_cons__rx_desc(&xsk->rx, idx_rx)->addr;
-		u32 len = xsk_ring_cons__rx_desc(&xsk->rx, idx_rx++)->len;
-		u64 orig = addr;
+	// 	ret = xsk_ring_prod__reserve(&umem->fq, rcvd, &idx_fq);
+	// 	while (ret != rcvd) {
+	// 		if (ret < 0)
+	// 			exit_with_error(-ret);
+	// 		if (xsk_ring_prod__needs_wakeup(&umem->fq))
+	// 			ret = poll(fds, num_socks, opt_timeout);
+	// 		ret = xsk_ring_prod__reserve(&umem->fq, rcvd, &idx_fq);
+	// 	}
 
-		addr = xsk_umem__add_offset_to_addr(addr);
-		char *pkt = xsk_umem__get_data(xsk->umem->buffer, addr);
+	// 	for (i = 0; i < rcvd; i++)
+	// 		*xsk_ring_prod__fill_addr(&umem->fq, idx_fq++) =
+	// 			*xsk_ring_cons__comp_addr(&umem->cq, idx_cq++);
 
-		swap_mac_addresses(pkt);
-
-		hex_dump(pkt, len, addr);
-		process_packet(pkt, len);
-
-		xsk_ring_prod__tx_desc(&xsk->tx, idx_tx)->addr = orig;
-		xsk_ring_prod__tx_desc(&xsk->tx, idx_tx++)->len = len;
-	}
-
-	xsk_ring_prod__submit(&xsk->tx, rcvd);
-	xsk_ring_cons__release(&xsk->rx, rcvd);
-
-	xsk->rx_npkts += rcvd;
-	xsk->outstanding_tx += rcvd;
+	// 	xsk_ring_prod__submit(&xsk->umem->fq, rcvd);
+	// 	xsk_ring_cons__release(&xsk->umem->cq, rcvd);
 }
 
-static void l2fwd_all(void)
+static void tx_only(struct xsk_socket_info *xsk, u32 frame_nb)
+{
+	u32 idx;
+
+	if (xsk_ring_prod__reserve(&xsk->tx, BATCH_SIZE, &idx) == BATCH_SIZE) {
+		unsigned int i;
+
+		for (i = 0; i < BATCH_SIZE; i++) {
+			xsk_ring_prod__tx_desc(&xsk->tx, idx + i)->addr	=
+				(frame_nb + i) << XSK_UMEM__DEFAULT_FRAME_SHIFT;
+			xsk_ring_prod__tx_desc(&xsk->tx, idx + i)->len =
+				sizeof(pkt_data) - 1;
+		}
+
+		xsk_ring_prod__submit(&xsk->tx, BATCH_SIZE);
+		xsk->outstanding_tx += BATCH_SIZE;
+		frame_nb += BATCH_SIZE;
+		frame_nb %= NUM_FRAMES;
+	}
+
+	complete_tx_only(xsk);
+}
+
+static void tx_only_all(void)
 {
 	struct pollfd pfd;
+	u32 frame_nb = 0;
 	int i, ret;
 
-	// TODO: modify to suit epoll for eventloop and run-to-complete mode
 	pfd.fd = xsk_socket__fd(xsks->xsk);
-	pfd.events = POLLOUT | POLLIN;
-	
+	pfd.events = POLLOUT;
+
+	for (i = 0; i < NUM_FRAMES; i++){
+		(void)gen_eth_frame(umem, i * opt_xsk_frame_size);
+	}
+
 	for (;;) {
-		l2fwd(xsks, &pfd);
+		tx_only(xsks, frame_nb);
 	}
 }
 
 /*
 * 
-* sudo ./xdp_redirect_user -i lo -S
+* sudo ./xdp_redirect_user
 */
 int main()
 {
@@ -436,7 +487,8 @@ int main()
 	signal(SIGTERM, int_exit);
 	signal(SIGABRT, int_exit);
 
+	// rx_drop_all();
+	tx_only_all();
 	// int xdp_sock_fd = xsk_socket__fd(xsks->xsk);
-	l2fwd_all();
 	return 0;
 }
