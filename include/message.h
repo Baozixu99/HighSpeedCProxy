@@ -9,31 +9,18 @@
 #define PROXY_MSG_TYPE_SESS                              2
 #define PROXY_MSG_TYPE_DATA                              3
 
+
+
 #define PROXY_PROTO_DEV_VERSION_1                        1
 #define PROXY_PROTO_STRGY_VERSION_1                      1
 #define PROXY_PROTO_SESS_VERSION_1                       1
 
 
-#define PROXY_MSG_TYPE_DEV_DISABLE                       0
-#define PROXY_MSG_TYPE_DEV_ENABLE                        1
-#define PROXY_MSG_TYPE_DEV_QUERY                         2
-#define PROXY_MSG_TYPE_DEV_SIGNAL_COMMAND                0
-#define PROXY_MSG_TYPE_DEV_SIGNAL_RESPONSE               1
-
-#define PROXY_MSG_TYPE_STRGY_ENABLE                      1
-#define PROXY_MSG_TYPE_STRGY_QUERY                       2
-#define PROXY_MSG_TYPE_STRGY_SIGNAL_COMMAND              0
-#define PROXY_MSG_TYPE_STRGY_SIGNAL_RESPONSE             1
-
-#define PROXY_MSG_TYPE_SESS_CLOSE                        0
-#define PROXY_MSG_TYPE_SESS_CREATE                       1
-#define PROXY_MSG_TYPE_SESS_SIGNAL_COMMAND               0
-#define PROXY_MSG_TYPE_SESS_SIGNAL_RESPONSE              1
-
 
 #define PROXY_MSG_HDR_SIZE                               8
 #define PROXY_MSG_MIN_SIZE                               1
 #define PROXY_MSG_MAX_SIZE                               4088
+
 typedef struct {
     uint8_t version;             // 协议版本，目前不用管，设置为1
     uint8_t proxy_msg_type;      // 代理消息类型，分为设备消息（0）、策略消息（1）、会话消息（2）和数据消息（3）
@@ -59,16 +46,27 @@ typedef struct {
 
 
 typedef enum {
-    DEVICE_MSG_DISABLE = 0,  // 禁用
-    DEVICE_MSG_ENABLE,       // 启用
-    DEVICE_MSG_QUERY         // 查询
+    DEV_MSG_DISABLE = 0,  // 禁用
+    DEV_MSG_ENABLE,       // 启用
+    DEV_MSG_QUERY         // 查询
 } DevMsgType;
 
 // 检查设备消息类型是否合法
-#define IS_VALID_DEVICE_MSG_TYPE(dev_msg_type) \
-    ((dev_msg_type) == DEVICE_MSG_DISABLE || \
-     (dev_msg_type) == DEVICE_MSG_ENABLE || \
-     (dev_msg_type) == DEVICE_MSG_QUERY)
+#define IS_VALID_DEV_MSG_TYPE(dev_msg_type) \
+    ((dev_msg_type) == DEV_MSG_DISABLE || \
+     (dev_msg_type) == DEV_MSG_ENABLE || \
+     (dev_msg_type) == DEV_MSG_QUERY)
+
+
+// 设备消息载荷长度
+#define DEV_MSG_PAYLOAD_LEN(dev_msg_type, action_type) \
+((dev_msg_type == DEV_MSG_ENABLE) ? \
+    ((action_type == ACTION_TYPE_COMMAND) ? 2 : ((action_type == ACTION_TYPE_RESPONSE) ? 2 : -1)) : \
+((dev_msg_type == DEV_MSG_DISABLE) ? \
+    ((action_type == ACTION_TYPE_COMMAND) ? 2 : ((action_type == ACTION_TYPE_RESPONSE) ? 2 : -1)) : \
+((dev_msg_type == DEV_MSG_QUERY) ? \
+    ((action_type == ACTION_TYPE_COMMAND) ? 0 : ((action_type == ACTION_TYPE_RESPONSE) ? 4 : -1)) : \
+-1)))
 
 
 typedef struct {
@@ -92,6 +90,20 @@ typedef enum {
     STRGY_MSG_QUERY          // 查询
 } StrgyMsgType;
 
+
+// 检查策略消息类型是否合法
+#define IS_VALID_STRAGY_MSG_TYPE(strgy_msg_type) \
+    ((strgy_msg_type) == STRGY_MSG_SET || \
+     (strgy_msg_type) == STRGY_MSG_QUERY)
+
+// 策略消息载荷长度
+#define STRGY_MSG_PAYLOAD_LEN(strgy_msg_type, action_type) \
+((strgy_msg_type == STRGY_MSG_SET) ? \
+    ((action_type == SIGNALING_TYPE_COMMAND) ? 2 : ((action_type == SIGNALING_TYPE_RESPONSE) ? 2 : -1)) : \
+((strgy_msg_type == STRGY_MSG_QUERY) ? \
+    ((action_type == SIGNALING_TYPE_COMMAND) ? 0 : ((action_type == SIGNALING_TYPE_RESPONSE) ? 4 : -1)) : \
+-1))
+
 typedef struct {
     StrgyMsgHeader header;   // 消息头部
     uint16_t cmd_type;        // 命令类型。0启用指定策略，1查询当前策略
@@ -113,12 +125,60 @@ typedef struct {
 } __attribute__((packed)) SessMsgHeader;
 
 typedef enum {
-    SESS_MSG_OPEN = 0,       // 新建
-    SESS_MSG_CLOSE           // 关闭
+    SESS_MSG_CREATE = 0,       // 新建
+    SESS_MSG_CLOSE             // 关闭
 } SessMsgType;
 
+
+typedef enum {
+    SESS_IPV4_PROTO = 4,       // IPv4
+    SESS_IPV6_PROTO = 6        // IPv6
+} SessIpProtoVersion;
+
+
+typedef enum {
+    SESS_UDP_PROTO = 0,       // UDP
+    SESS_TCP_PROTO = 1        // TCP
+} SessTranProto;
+
+// 检查会话消息类型是否合法
+#define IS_VALID_SESS_MSG_TYPE(sess_msg_type) \
+    ((sess_msg_type) == SESS_MSG_CREATE || \
+     (sess_msg_type) == SESS_MSG_CLOSE)
+
+
+// 检查IP版本是否合法
+#define IS_VALID_SESS_IP_VERSION(ip_version) \
+    ((ip_version) == SESS_IPV4_PROTO || \
+     (ip_version) == SESS_IPV6_PROTO)
+
+// 会话消息载荷长度
+#define SESS_MSG_PAYLOAD_LEN(sess_msg_type, action_type, ip_version) \
+({ \
+    int _len = -1;  /* 初始值：非法长度 */ \
+    if ((sess_msg_type) == SESS_MSG_CLOSE) { \
+        if ((action_type) == ACTION_TYPE_COMMAND) { \
+            _len = 0;  /* 关闭+指令 → 无内容 */ \
+        } else if ((action_type) == ACTION_TYPE_RESPONSE) { \
+            _len = 2;  /* 关闭+回应 → 2字节（状态码+原因） */ \
+        } \
+    } else if ((sess_msg_type) == SESS_MSG_CREATE) { \
+        if ((action_type) == ACTION_TYPE_RESPONSE) { \
+            _len = 2;  /* 新建+回应 → 2字节（状态码+原因） */ \
+        } else if ((action_type) == ACTION_TYPE_COMMAND) { \
+            if ((ip_version) == SESS_IPV4_PROTO) { \
+                _len = 10; /* IPv4 → 10字节会话信息 */ \
+            } else if ((ip_version) == SESS_IPV6_PROTO) { \
+                _len = 22; /* IPv6 → 22字节会话信息 */ \
+            } \
+        } \
+    } \
+    _len;  /* 返回计算结果 */ \
+})
+
+
 typedef struct {
-    uint8_t ip_proto;        // IP协议版本，分为IPv4（0）和IPv6（1）
+    uint8_t ip_proto_ver;        // IP协议版本，分为IPv4（4）和IPv6（6）
     uint16_t trans_proto;    // 传输层类型，分为UDP（0）和TCP（1）；
     uint16_t dev_id;         // 设备ID，选择为0xFF时，代表进入垂直切换模式。
     uint8_t  data[0];        // 占位。根据IP版本选择IPv4PortTurple或者IPv6PortTurple解读。
