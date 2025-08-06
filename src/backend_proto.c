@@ -81,11 +81,29 @@ int backend_proxy_msg_prosess(uint8_t *msg){
     return BACKEND_PROXY_PROSESS_OK;
 }
 
+
+
 int backend_proxy_msg_response(uint8_t *msg){
     return BACKEND_PROXY_PROSESS_OK;
 }
 
 int backend_proxy_dev_msg_prosess(uint8_t *msg){
+    DevMsgHeader *dev_msg_hdr;
+    uint16_t version, msg_id, payload_len;
+    DevMsgType msg_type;
+    ActionType action_type;
+
+    dev_msg_hdr = (DevMsgHeader *)msg;
+
+    if(NULL == dev_msg_hdr)
+        return BACKEND_PROXY_PROSESS_ERROR;
+
+    version = dev_msg_hdr->version;
+    msg_type = dev_msg_hdr->msg_type;
+    msg_id = dev_msg_hdr->msg_id;
+    action_type = dev_msg_hdr->action_type;
+    payload_len = dev_msg_hdr->payload_len;
+
     return BACKEND_PROXY_PROSESS_OK;
 }
 

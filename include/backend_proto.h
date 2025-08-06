@@ -33,6 +33,9 @@ int backend_proxy_msg_response(uint8_t *msg);
 int backend_proxy_dev_msg_prosess(uint8_t *msg);
 int backend_proxy_dev_msg_response(uint8_t *msg);
 
+int backend_proxy_dev_msg_prosess_ver1(uint8_t *msg);
+
+
 int backend_proxy_strgy_msg_process(uint8_t *msg);
 int backend_proxy_strgy_msg_response(uint8_t *msg);
 
@@ -42,5 +45,7 @@ int backend_proxy_sess_msg_response(uint8_t *msg);
 int backend_proxy_data_msg_prosess(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg);
 int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg);
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg);
+
+struct BackendSession *backend_proxy_search_sess(uint32_t backend_sess_id);
 
 #endif

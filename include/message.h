@@ -3,11 +3,16 @@
 
 #include <stdint.h>
 
-#define PROXY_PROTO_VERSION_1                           1
-#define PROXY_MSG_TYPE_DEV                              0
-#define PROXY_MSG_TYPE_STRGY                            1
-#define PROXY_MSG_TYPE_SESS                             2
-#define PROXY_MSG_TYPE_DATA                             3
+#define PROXY_PROTO_VERSION_1                            1
+#define PROXY_MSG_TYPE_DEV                               0
+#define PROXY_MSG_TYPE_STRGY                             1
+#define PROXY_MSG_TYPE_SESS                              2
+#define PROXY_MSG_TYPE_DATA                              3
+
+#define PROXY_PROTO_DEV_VERSION_1                        1
+#define PROXY_PROTO_STRGY_VERSION_1                      1
+#define PROXY_PROTO_SESS_VERSION_1                       1
+
 
 #define PROXY_MSG_TYPE_DEV_DISABLE                       0
 #define PROXY_MSG_TYPE_DEV_ENABLE                        1
@@ -38,6 +43,12 @@ typedef struct {
 } __attribute__((packed)) ProxyMsgHeader;
 
 
+typedef enum {
+    ACTION_TYPE_COMMAND = 0,  // 指令
+    ACTION_TYPE_RESPONSE      // 回应
+} ActionType;
+
+
 typedef struct {
     uint16_t version;        // 协议版本，目前不用管，设置为1
     uint16_t msg_type;       // 消息类型，分为禁用（0）、启用（1）和查询（2）
@@ -45,6 +56,19 @@ typedef struct {
     uint16_t action_type;    // 指令（0）或者回应（1）。 
     uint16_t payload_len;    // 负载长度
 } __attribute__((packed)) DevMsgHeader;
+
+
+typedef enum {
+    DEVICE_MSG_DISABLE = 0,  // 禁用
+    DEVICE_MSG_ENABLE,       // 启用
+    DEVICE_MSG_QUERY         // 查询
+} DevMsgType;
+
+// 检查设备消息类型是否合法
+#define IS_VALID_DEVICE_MSG_TYPE(dev_msg_type) \
+    ((dev_msg_type) == DEVICE_MSG_DISABLE || \
+     (dev_msg_type) == DEVICE_MSG_ENABLE || \
+     (dev_msg_type) == DEVICE_MSG_QUERY)
 
 
 typedef struct {
@@ -60,20 +84,26 @@ typedef struct {
     uint16_t msg_id;        // 消息ID，用于匹配请求和响应
     uint16_t action_type;   // 指令（0）或者回应（1）。 
     uint16_t payload_len;   // 负载长度。
-} __attribute__((packed)) PolicyMsgHeader;
+} __attribute__((packed)) StrgyMsgHeader;
+
+
+typedef enum {
+    STRGY_MSG_SET = 0,       // 设置
+    STRGY_MSG_QUERY          // 查询
+} StrgyMsgType;
 
 typedef struct {
-    PolicyMsgHeader header;   // 消息头部
+    StrgyMsgHeader header;   // 消息头部
     uint16_t cmd_type;        // 命令类型。0启用指定策略，1查询当前策略
-    uint16_t policy_para;     // 策略参数（0：Round Robin；1：选取当前可用带宽最高设备；2.选取当前延时最低设备）
-} __attribute__((packed))PolicyCMDMessage;
+    uint16_t strgy_para;     // 策略参数（0：Round Robin；1：选取当前可用带宽最高设备；2.选取当前延时最低设备）
+} __attribute__((packed))StrgyCMDMessage;
 
 
 typedef struct {
     uint8_t status;     // 状态码
     uint8_t error;      //  错误原因
     uint8_t data[];     //  占位。data指向「查询」指令的「回应」会返回策略码。
-} __attribute__((packed))PolicyMsgReport;
+} __attribute__((packed))StrgyMsgReport;
 
 typedef struct {
     uint16_t version;        // 协议版本，目前不用管，设置为1
@@ -81,6 +111,11 @@ typedef struct {
     uint16_t action_type;    // 指令（0）或者回应（1）。
     uint16_t payload_len;    // 负载长度
 } __attribute__((packed)) SessMsgHeader;
+
+typedef enum {
+    SESS_MSG_OPEN = 0,       // 新建
+    SESS_MSG_CLOSE           // 关闭
+} SessMsgType;
 
 typedef struct {
     uint8_t ip_proto;        // IP协议版本，分为IPv4（0）和IPv6（1）
