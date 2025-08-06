@@ -92,6 +92,10 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
     uint16_t version, msg_id, payload_len;
     DevMsgType msg_type;
     ActionType action_type;
+    int ret;
+    uint8_t *msg_data;
+
+    ret = BACKEND_PROXY_PROSESS_ERROR;
 
     dev_msg_hdr = (DevMsgHeader *)msg;
 
@@ -103,13 +107,30 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
     msg_id = dev_msg_hdr->msg_id;
     action_type = dev_msg_hdr->action_type;
     payload_len = dev_msg_hdr->payload_len;
+    msg_data = msg + sizeof(DevMsgHeader);
 
 /*
- * 
+ * Before processing device messages, the protocol stack should check the validity of parameters.
+ *
+ * Currently, the protocol stack only processes Version 1 device messages.
+ * Furthermore, the backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
+ */
+    if(PROXY_PROTO_DEV_VERSION_1 == version){
+        ret = backend_proxy_dev_msg_prosess_ver1(msg_type, msg_id, action_type, payload_len, msg_data);
+    } 
+
+    return ret;
+}
+
+
+int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_data){  
+/*    
+ * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
  */
 
     return BACKEND_PROXY_PROSESS_OK;
 }
+
 
 int backend_proxy_dev_msg_response(uint8_t *msg){
     return BACKEND_PROXY_PROSESS_OK;
