@@ -22,8 +22,8 @@
 #define PROXY_MSG_MAX_SIZE                               4088
 
 typedef struct {
-    uint8_t version;             // 协议版本，目前不用管，设置为1
-    uint8_t proxy_msg_type;      // 代理消息类型，分为设备消息（0）、策略消息（1）、会话消息（2）和数据消息（3）
+    uint8_t version;             // Protocol version, not used currently, set to 1
+    uint8_t proxy_msg_type;      // Proxy message type, divided into device message (0), strategy message (1), session message (2), and data message (3)
     uint16_t frontend_sess_id;   // 消息ID，用于匹配请求和响应
     uint16_t backend_sess_id;    // 消息ID，用于匹配请求和响应
     uint16_t payload_len;        // 负载长度，取值范围为1~4088，确保不超过一个物理页。
@@ -82,30 +82,30 @@ typedef struct {
     uint16_t msg_id;        // 消息ID，用于匹配请求和响应
     uint16_t action_type;   // 指令（0）或者回应（1）。 
     uint16_t payload_len;   // 负载长度。
-} __attribute__((packed)) StrgyMsgHeader;
+} __attribute__((packed)) StratMsgHeader;
 
 
 typedef enum {
-    STRGY_MSG_SET = 0,       // 设置
-    STRGY_MSG_QUERY          // 查询
+    STRAT_MSG_SET = 0,       // 设置
+    STRAT_MSG_QUERY          // 查询
 } StrgyMsgType;
 
 
 // 检查策略消息类型是否合法
-#define IS_VALID_STRAGY_MSG_TYPE(strgy_msg_type) \
-    ((strgy_msg_type) == STRGY_MSG_SET || \
-     (strgy_msg_type) == STRGY_MSG_QUERY)
+#define IS_VALID_STRAT_MSG_TYPE(strat_msg_type) \
+    ((strat_msg_type) == STRAT_MSG_SET || \
+     (strat_msg_type) == STRAT_MSG_QUERY)
 
 // 策略消息载荷长度
-#define STRGY_MSG_PAYLOAD_LEN(strgy_msg_type, action_type) \
-((strgy_msg_type == STRGY_MSG_SET) ? \
-    ((action_type == SIGNALING_TYPE_COMMAND) ? 2 : ((action_type == SIGNALING_TYPE_RESPONSE) ? 2 : -1)) : \
-((strgy_msg_type == STRGY_MSG_QUERY) ? \
-    ((action_type == SIGNALING_TYPE_COMMAND) ? 0 : ((action_type == SIGNALING_TYPE_RESPONSE) ? 4 : -1)) : \
+#define STRAT_MSG_PAYLOAD_LEN(strat_msg_type, action_type) \
+((strat_msg_type == STRAT_MSG_SET) ? \
+    ((action_type == ACTION_TYPE_COMMAND) ? 2 : ((action_type == ACTION_TYPE_RESPONSE) ? 2 : -1)) : \
+((strat_msg_type == STRAT_MSG_QUERY) ? \
+    ((action_type == ACTION_TYPE_COMMAND) ? 0 : ((action_type == ACTION_TYPE_RESPONSE) ? 4 : -1)) : \
 -1))
 
 typedef struct {
-    StrgyMsgHeader header;   // 消息头部
+    StratMsgHeader header;   // 消息头部
     uint16_t cmd_type;        // 命令类型。0启用指定策略，1查询当前策略
     uint16_t strgy_para;     // 策略参数（0：Round Robin；1：选取当前可用带宽最高设备；2.选取当前延时最低设备）
 } __attribute__((packed))StrgyCMDMessage;
