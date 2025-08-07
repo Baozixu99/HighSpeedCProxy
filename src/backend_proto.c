@@ -113,7 +113,6 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
  * Before processing device messages, the protocol stack should check the validity of parameters.
  *
  * Currently, the protocol stack only processes Version 1 device messages.
- * Furthermore, the backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
  */
     if(PROXY_PROTO_DEV_VERSION_1 == version){
         ret = backend_proxy_dev_msg_prosess_ver1(msg_type, msg_id, action_type, payload_len, msg_data);
@@ -123,11 +122,40 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
 }
 
 
-int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_data){  
+int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){  
+    int corr_len;
+    uint16_t dev_msg_resp;
 /*    
  * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
  */
+    if(ACTION_TYPE_COMMAND != action_type){
+        error_print("Backend protocol stack only process the device message which the signaling type!");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
 
+/* 
+ * Check whether the payload length matches the message type and signaling type.
+ */
+    corr_len = DEV_MSG_PAYLOAD_LEN(msg_type, action_type);
+
+    if(corr_len != (int)payload_len){
+            error_print("payload len is not valid!");
+            return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+
+
+    return BACKEND_PROXY_PROSESS_OK;
+}
+
+
+int backend_proxy_dev_msg_prosess_enable_ver1(uint8_t *msg_payload, uint32_t payload_len){
+    return BACKEND_PROXY_PROSESS_OK;
+}
+int backend_proxy_dev_msg_prosess_disable_ver1(uint8_t *msg_payload, uint32_t payload_len){
+    return BACKEND_PROXY_PROSESS_OK;
+}
+int backend_proxy_dev_msg_prosess_query_ver1(uint8_t *msg_payload, uint32_t payload_len){
     return BACKEND_PROXY_PROSESS_OK;
 }
 

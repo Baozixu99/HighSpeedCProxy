@@ -4,10 +4,7 @@
 #include "dev.h"
 #include "session_pool.h"
 #include "backend_proto.h"
-
-
-struct SharedMemoryPool;
-struct SharedMemoryPoolLock;
+#include "shared_mem_io.h"
 
 
 typedef struct {
@@ -23,6 +20,10 @@ typedef struct {
     // 内存池锁
     struct SharedMemoryPoolLock* mem_pool_lock;
 } BackendEngine;
+
+
+extern BackendEngine *p_g_bk_eng;
+
 
 void engine_init();
 void engine_run();

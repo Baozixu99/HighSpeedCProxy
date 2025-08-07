@@ -5,6 +5,7 @@
 #include <sys/queue.h>
 
 #define MAX_DEV_NAME 32  // 设备名称最大长度
+#define MAX_HS_DEV_NUM 8
 
 struct IPv4Address {
     uint8_t data[4];  
@@ -56,6 +57,11 @@ struct HighSpeedNetDevice {
     struct IPAddress address;         
     // 性能统计信息
     struct HighSpeedNetDevStat stat;
+};
+
+
+struct HighSpeedNetDeviceSet {
+    struct HighSpeedNetDevice hs_net_dev[MAX_HS_DEV_NUM];
 };
 
 #endif /* DEV_H */

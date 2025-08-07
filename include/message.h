@@ -31,8 +31,8 @@ typedef struct {
 
 
 typedef enum {
-    ACTION_TYPE_COMMAND = 0,  // 指令
-    ACTION_TYPE_RESPONSE      // 回应
+    ACTION_TYPE_COMMAND = 0,  // Command
+    ACTION_TYPE_RESPONSE      // Response
 } ActionType;
 
 
@@ -137,8 +137,9 @@ typedef enum {
 
 
 typedef enum {
-    SESS_UDP_PROTO = 0,       // UDP
-    SESS_TCP_PROTO = 1        // TCP
+    SESS_UDP_PROTO = 0,            // UDP
+    SESS_TCP_PROTO = 1,            // TCP
+    SESS_FASTPATH_PROTO = 2        // XDP/eBPF
 } SessTranProto;
 
 // Check if the session message type is valid

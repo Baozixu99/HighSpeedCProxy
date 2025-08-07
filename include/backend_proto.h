@@ -33,7 +33,10 @@ int backend_proxy_msg_response(uint8_t *msg);
 int backend_proxy_dev_msg_prosess(uint8_t *msg);
 int backend_proxy_dev_msg_response(uint8_t *msg);
 
-int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg);
+int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload);
+int backend_proxy_dev_msg_prosess_enable_ver1(uint8_t *msg_payload, uint32_t payload_len);
+int backend_proxy_dev_msg_prosess_disable_ver1(uint8_t *msg_payload, uint32_t payload_len);
+int backend_proxy_dev_msg_prosess_query_ver1(uint8_t *msg_payload, uint32_t payload_len);
 
 
 int backend_proxy_strgy_msg_process(uint8_t *msg);
