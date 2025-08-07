@@ -6,6 +6,7 @@
 #include "backend_proto.h"
 #include "shared_mem_io.h"
 
+#define HS_NET_DEV_CFG "hs_net_dev.cfg"
 
 typedef struct {
     // 网络设备集合

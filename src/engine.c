@@ -10,6 +10,9 @@ BackendEngine *get_global_backend_engine(){
 }
 
 int engine_init_hs_net_dev(BackendEngine *eng){
+    struct HighSpeedNetDeviceSet *set;
+
+
     return BACKEND_PROXY_PROSESS_OK;
 }
 

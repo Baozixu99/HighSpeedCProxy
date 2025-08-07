@@ -4,8 +4,8 @@
 #include <stdint.h> 
 #include <sys/queue.h>
 
-#define MAX_DEV_NAME 32  // 设备名称最大长度
-#define MAX_HS_DEV_NUM 8
+#define MAX_DEV_NAME 32  // Maximum length of device name
+#define MAX_HS_DEV_NUM 16
 
 struct IPv4Address {
     uint8_t data[4];  
@@ -25,40 +25,40 @@ struct IPAddress {
     union IPAddressData data;
 };
 
+
 struct HighSpeedNetDevStat {
-    uint64_t rx_packets;   // 接收数据包数量
-    uint64_t rx_bytes;     // 接收字节数
-    uint64_t rx_errors;    // 接收错误数
-    uint64_t tx_packets;   // 发送数据包数量
-    uint64_t tx_bytes;     // 发送字节数
-    uint64_t tx_errors;    // 发送错误数
-    uint64_t rtt_mean;     // 往返时间平均值（ms）
-    uint64_t rtt_std;      // 往返时间标准差
+    uint64_t rx_packets; // Number of received packets
+    uint64_t rx_bytes; // Number of received bytes
+    uint64_t rx_errors; // Number of receive errors
+    uint64_t tx_packets; // Number of transmitted packets
+    uint64_t tx_bytes; // Number of transmitted bytes
+    uint64_t tx_errors; // Number of transmit errors
+    uint64_t rtt_mean; // Mean round-trip time (ms)
+    uint64_t rtt_std; // Standard deviation of round-trip time
 };
 
 struct TcpConnection {
     int conn_fd;  
-    TAILQ_ENTRY(TcpConnection) entry;  // 链表节点
+    TAILQ_ENTRY(TcpConnection) entry;  // Linked list node
 };
 
 TAILQ_HEAD(ConnectionQueue, TcpConnection);
 
+
 struct HighSpeedNetDevice {
-    // 设备标识信息
+// Device identification information
     int dev_id;
     int dev_type;
     int ns_id;
-    
-    // 设备属性信息
+    int active;
+// Device attribute information
     char name[MAX_DEV_NAME];
-    
-    // 网络连接信息
+// Network connection information
     struct ConnectionQueue conn_q;
-    struct IPAddress address;         
-    // 性能统计信息
+    struct IPAddress address;
+// Performance statistics information
     struct HighSpeedNetDevStat stat;
 };
-
 
 struct HighSpeedNetDeviceSet {
     struct HighSpeedNetDevice hs_net_dev[MAX_HS_DEV_NUM];
