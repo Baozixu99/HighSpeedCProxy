@@ -3,6 +3,7 @@
 
 #include "message.h"
 #include "session.h"
+#include "common_utils.h"
 
 #define BACKEND_PROXY_PROSESS_OK               0
 #define BACKEND_PROXY_PROSESS_ERROR            1
