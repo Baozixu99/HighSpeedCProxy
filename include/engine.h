@@ -27,4 +27,14 @@ extern BackendEngine *p_g_bk_eng;
 
 void engine_init();
 void engine_run();
+
+BackendEngine *get_global_backend_engine();
+
+int engine_init_hs_net_dev(BackendEngine *eng);
+int engine_init_sess_pool(BackendEngine *eng);
+int engine_init_mem_pool(BackendEngine *eng);
+int engine_init_mem_pool_lock(BackendEngine *eng);
+
+
+
 #endif

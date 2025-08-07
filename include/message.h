@@ -2,6 +2,7 @@
 #define MESSAGE_H
 
 #include <stdint.h>
+#include <string.h>
 
 #define PROXY_PROTO_VERSION_1                            1
 #define PROXY_MSG_TYPE_DEV                               0
