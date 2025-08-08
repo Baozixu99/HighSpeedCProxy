@@ -9,6 +9,7 @@
 #include "message.h"
 #include "engine.h"
 #include "poller.h"
+#include "iniparser.h"
 
 extern void print_pool(struct BackendSessionPool* s_pool);
 extern void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
