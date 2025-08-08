@@ -132,8 +132,9 @@ typedef enum {
 
 
 typedef enum {
-    SESS_IPV4_PROTO = 4,       // IPv4
-    SESS_IPV6_PROTO = 6        // IPv6
+    SESS_NON_IP_PROTO = 0,       // None-IP protocol
+    SESS_IPV4_PROTO   = 4,       // IPv4
+    SESS_IPV6_PROTO   = 6        // IPv6
 } SessIpProtoVersion;
 
 

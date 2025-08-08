@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define ENABLE_DEBUG                        1
+#define UTILS_ENABLE_DEBUG                        1
 
-void error_print(uint8_t *error);
+void error_print(char *error);
 
 #endif
