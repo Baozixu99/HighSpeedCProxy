@@ -17,9 +17,17 @@ BackendEngine *get_global_backend_engine(){
   * ip_addr = IP address
   * dev_id = device ID
   * dev_type = device type
+  * dev_status = device status
   * ns_id = namespace ID
-  * active = device status
-*/
+  *
+  * Example:
+  * [ens01]
+  * ip_addr =        192.168.10.10
+  * dev_id  =        0
+  * dev_type =       0
+  * dev_status =     1
+  * ns_id =          100
+  */
 
 int engine_init_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet *set = NULL;
@@ -27,10 +35,10 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     dictionary *ini;
     int dev_num, dev_name_len, cnt = 0;
     const char *dev_name, *ip_addr;
-    int ip_type;
+    int ip_type, dev_id, dev_type, dev_status, ns_id;
     struct in_addr in4_addr;
     struct in6_addr in6_addr;
-    union IPAddressData *ip_data;
+    union IPAddress *ip_data;
 
     char dev_pro_item[MAX_DEV_NAME + MAX_DEVICE_PROPERTY_NAME_LENGTH];
 
@@ -86,9 +94,11 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device without an IP address configured in the INI file!\n");
             goto hs_net_error;
         }
+
+
 /*
- * Check whether the string under ip_addr item is valid or not.
- * If it is valid, convert it to IPv4 or IPv6 address.
+ *Check if the string in the ip_addr item is valid.
+ * If valid, convert it to an IPv4 or IPv6 address.
  */
         ip_type = DEV_IP_TYPE(ip_addr);
         if(SESS_NON_IP_PROTO == ip_type){
@@ -103,9 +113,78 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             ip_data = &hs_dev->address;
             COPY_IN6_TO_IPV6(&ip_data->ipv6_addr, &in6_addr);
         }
-//        sprintf() 
-    }
 
+/*
+ * Check if the content of the dev_id item is valid.
+ * If valid, convert it to an integer.
+ */
+        memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        snprintf(dev_pro_item, dev_name_len + strlen("dev_id"), "%s:dev_id", dev_name);
+        dev_id = iniparser_getint(ini, dev_pro_item, -1);
+
+        if(-1 == dev_id){
+            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+            or not configured in the INI file.\n");
+            goto hs_net_error;
+        }
+
+        hs_dev->dev_id = dev_id;
+
+/*
+ * Check if the content of the dev_type item is valid.
+ * If valid, convert it to an integer.
+ */
+        memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        snprintf(dev_pro_item, dev_name_len + strlen("dev_type"), "%s:dev_type", dev_name);
+        dev_type = iniparser_getint(ini, dev_pro_item, -1);
+
+        if(!IS_VALID_HS_NET_DEV_TYPE(dev_type)){
+            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev type is either incorrectly configured \
+            or not configured in the INI file.\n");
+            goto hs_net_error;
+        }
+
+        hs_dev->dev_type = dev_type;
+/*
+ * Check if the content of the dev_status item is valid.
+ * If valid, convert it to an integer.
+ */
+        memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        snprintf(dev_pro_item, dev_name_len + strlen("dev_status"), "%s:dev_status", dev_name);
+        dev_status = iniparser_getint(ini, dev_pro_item, -1);
+
+        if(!IS_VALID_HS_NET_DEV_STATUS(dev_status)){
+            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev status is either incorrectly configured \
+            or not configured in the INI file.\n");
+            goto hs_net_error;
+        }
+
+        hs_dev->dev_status = dev_status;
+
+/*
+ * Check if the content of the ns_id item is valid.
+ * If valid, convert it to an integer.
+ */
+        memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        snprintf(dev_pro_item, dev_name_len + strlen("ns_id"), "%s:ns_id", dev_name);
+        ns_id = iniparser_getint(ini, dev_pro_item, -1);
+        if(-1 == ns_id){
+            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+            or not configured in the INI file.\n");
+            goto hs_net_error;
+        }
+
+        hs_dev->ns_id = ns_id;
+
+        TAILQ_INIT(&hs_dev->conn_q);
+
+    }//  for(; cnt < dev_num; cnt++)
+
+/*
+ * Reclaim memory resources.
+ */
+    iniparser_freedict(ini);
+    free(set);
 
     return BACKEND_PROXY_PROSESS_OK;
 hs_net_error:

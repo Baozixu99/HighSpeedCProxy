@@ -12,6 +12,53 @@
 
 struct IPv4Address;
 struct IPv6Address;
+
+
+/*
+ * High Speed Network device type enumeration
+ * Contains five common types of network devices
+ */
+typedef enum {
+    TRADITIONAL_ETHERNET = 0,   // Traditional Ethernet device
+    TSN,                        // Time-Sensitive Networking device
+    WIFI,                       // WiFi wireless network device
+    LTE_MODULE,                 // 4G module (LTE technology standard)
+    NR_MODULE                   // 5G module (NR technology standard)
+} HSNetDevType;
+
+
+
+/**
+ * Macro to check if a device type is one of the defined network device types
+ * @param dev_type The device type to check
+ * @return 1 if valid, 0 otherwise
+ */
+#define IS_VALID_HS_NET_DEV_TYPE(dev_type) \
+    ((dev_type) == TRADITIONAL_ETHERNET || \
+     (dev_type) == TSN || \
+     (dev_type) == WIFI || \
+     (dev_type) == LTE_MODULE || \
+     (dev_type) == NR_MODULE)
+
+
+/*
+ * High Speed Network Device status enumeration
+ * Represents the possible operational states of a device
+ */
+typedef enum {
+    HS_NET_DEV_INACTIVE = 0,         // High speed network device is inactive and operating normally
+    HS_NET_DEV_ACTIVE,               // High speed network device is active and operating normally
+} HSNetDevStatus;
+
+/**
+ * Macro to check if a HSNetDevStatus value is valid
+ * @param dev_status The HSNetDevStatus value to check
+ * @return 1 if valid (one of the defined enum values), 0 otherwise
+ */
+#define IS_VALID_HS_NET_DEV_STATUS(dev_status) \
+    ((dev_status) == HS_NET_DEV_INACTIVE || (dev_status) == HS_NET_DEV_ACTIVE)
+
+
 /*
  * Macro: Copy IPv4 address from struct in_addr to custom struct IPv4Address
  * Parameters:
@@ -88,15 +135,11 @@ struct IPv6Address {
     uint8_t data[16]; 
 };
 
-union IPAddressData {
+union IPAddress {
     struct IPv4Address ipv4_addr;
     struct IPv6Address ipv6_addr; 
 };
 
-struct IPAddress {
-    int dev_id; 
-    union IPAddressData data;
-};
 
 
 struct HighSpeedNetDevStat {
@@ -123,12 +166,12 @@ struct HighSpeedNetDevice {
     int dev_id;
     int dev_type;
     int ns_id;
-    int active;
+    int dev_status;
 // Device attribute information
     char name[MAX_DEV_NAME];
 // Network connection information
     struct ConnectionQueue conn_q;
-    struct IPAddress address;
+    union IPAddress address;
 // Performance statistics information
     struct HighSpeedNetDevStat stat;
 };
