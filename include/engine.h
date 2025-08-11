@@ -56,21 +56,25 @@
 
 #define DEV_IS_VALID_IP(ip_str) (DEV_IS_IPV4(ip_str) || DEV_IS_IPV6(ip_str))
 
+struct BackendEngOps; 
 
 typedef struct {
-    // 网络设备集合
-    struct HighSpeedNetDeviceSet* dev_set;
-    
-    // 会话池
-    struct BackendSessionPool* sess_pool;
-    
-    // 内存池
-    struct SharedMemoryPool* mem_pool;
-    
-    // 内存池锁
-    struct SharedMemoryPoolLock* mem_pool_lock;
+    struct HighSpeedNetDeviceSet *dev_set; // High speed network device set
+    struct BackendSessionPool *sess_pool; // Session pool
+    struct SharedMemoryPool *mem_pool; // Shared memory pool
+    struct SharedMemoryPoolLock *mem_pool_lock; // Shared memory pool lock
+    struct BackendEngOps *ops;
 } BackendEngine;
 
+
+struct BackendEngOps {
+    int (*enable_dev)(struct HighSpeedNetDeviceSet *dev_set);                        // Enable devices in the high-speed network device set
+    int (*disable_dev)(struct HighSpeedNetDeviceSet *dev_set);                       // Disable devices in the high-speed network device set
+    int (*query_dev)(struct HighSpeedNetDeviceSet *dev_set, uint32_t *mask);         // Query information/status of devices in the high-speed network device set
+    int (*choose_dev)(BackendEngine *eng, struct HighSpeedNetDeviceSet *dev_set);    // Choose the most appropriate high-speed network device to establish a session over it
+    int (*configure_dev_selector)(BackendEngine *eng);                               // Configure the device selection function/strategy for the high-speed network device set
+    int (*query_dev_selector_id)(BackendEngine *eng);                                // Query the ID of the current device selector in the backend engine
+};
 
 extern BackendEngine *p_g_bk_eng;
 
@@ -91,4 +95,5 @@ void engine_destory_sess_pool(BackendEngine *eng);
 void engine_destory_mem_pool(BackendEngine *eng);
 void engine_destory_mem_pool_lock(BackendEngine *eng);
 
+int engine_choose_hs_net(BackendEngine *eng, int *selected_dev_id);
 #endif

@@ -30,7 +30,7 @@ objs: $(OBJS)
 rebuild: distclean 
                 
 clean:
-	rm -fr src/*.o
+	rm -fr src/*.o $(TARGET)
     
 distclean: clean
 	rm -fr $(TARGET)
