@@ -44,14 +44,14 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 
     set = malloc(sizeof(struct HighSpeedNetDeviceSet));
     if(NULL == set){
-        error_print("engine_init_hs_net_dev returns an error, because of allocating memory for device set failed!\n");
+        error_print("engine_init_hs_net_dev() returns an error, because of allocating memory for device set failed!\n");
         goto hs_net_error;
     }
 
 //    ini = iniparser_load(HS_NET_DEV_CFG);
     ini = iniparser_load("hs_net_dev.ini");
     if (NULL == ini) {
-        error_print("engine_init_hs_net_dev returns an error, because of opening INI file failed!\n");
+        error_print("engine_init_hs_net_dev() returns an error, because of opening INI file failed!\n");
         goto hs_net_error;
     }
 
@@ -60,13 +60,13 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  */
     dev_num = iniparser_getnsec(ini);
     if(0 == dev_num){
-        error_print("engine_init_hs_net_dev returns an error because no high-speed network device information exists in the INI file!\n");
+        error_print("engine_init_hs_net_dev() returns an error because no high-speed network device information exists in the INI file!\n");
         goto hs_net_error;
     }
 
 
     if(dev_num > MAX_HS_DEV_NUM){
-        error_print("engine_init_hs_net_dev returns an error because the number of high-speed network device exceeds MAX_HS_DEV_NUM!\n");
+        error_print("engine_init_hs_net_dev() returns an error because the number of high-speed network device exceeds MAX_HS_DEV_NUM!\n");
         goto hs_net_error;
     }
 
@@ -80,7 +80,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  * Make sure the length of the device name in the INI file does not exceed MAX_DEV_NAME.
  */
         if(dev_name_len > MAX_DEV_NAME){
-            error_print("engine_init_hs_net_dev returns an error because the high-speed network device names in the INI file are not valid!\n");
+            error_print("engine_init_hs_net_dev() returns an error because the high-speed network device names in the INI file are not valid!\n");
             goto hs_net_error;
         }
 
@@ -91,7 +91,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         snprintf(dev_pro_item, dev_name_len + strlen("ip_addr"), "%s:ip_addr", dev_name);
         ip_addr = iniparser_getstring(ini, dev_pro_item, NULL);
         if(NULL == ip_addr){
-            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device without an IP address configured in the INI file!\n");
+            error_print("engine_init_hs_net_dev() returns an error because there is at least one high-speed network device without an IP address configured in the INI file!\n");
             goto hs_net_error;
         }
 
@@ -102,7 +102,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  */
         ip_type = DEV_IP_TYPE(ip_addr);
         if(SESS_NON_IP_PROTO == ip_type){
-            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device with an invalid IP address string configured in the INI file!\n");
+            error_print("engine_init_hs_net_dev() returns an error because there is at least one high-speed network device with an invalid IP address string configured in the INI file!\n");
             goto hs_net_error;
         }else if(SESS_IPV4_PROTO == ip_type){
             inet_pton(AF_INET, ip_addr, &in4_addr);
@@ -123,7 +123,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         dev_id = iniparser_getint(ini, dev_pro_item, -1);
 
         if(-1 == dev_id){
-            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+            error_print("engine_init_hs_net_dev() returns an error because there is at least one high-speed network device for which the dev ID is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
@@ -139,7 +139,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         dev_type = iniparser_getint(ini, dev_pro_item, -1);
 
         if(!IS_VALID_HS_NET_DEV_TYPE(dev_type)){
-            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev type is either incorrectly configured \
+            error_print("engine_init_hs_net_dev() returns an error because there is at least one high-speed network device for which the dev type is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
@@ -154,7 +154,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         dev_status = iniparser_getint(ini, dev_pro_item, -1);
 
         if(!IS_VALID_HS_NET_DEV_STATUS(dev_status)){
-            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev status is either incorrectly configured \
+            error_print("engine_init_hs_net_dev() returns an error because there is at least one high-speed network device for which the dev status is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
@@ -169,7 +169,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         snprintf(dev_pro_item, dev_name_len + strlen("ns_id"), "%s:ns_id", dev_name);
         ns_id = iniparser_getint(ini, dev_pro_item, -1);
         if(-1 == ns_id){
-            error_print("engine_init_hs_net_dev returns an error because there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+            error_print("engine_init_hs_net_dev() returns an error because there is at least one high-speed network device for which the dev ID is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
@@ -198,15 +198,67 @@ hs_net_error:
 }
 
 int engine_init_sess_pool(BackendEngine *eng){
+    struct BackendSessionPool *sess_pool = NULL;
+
+/*
+ * Initialize the session pool.
+ */
+    sess_pool = (struct BackendSessionPool*)malloc(sizeof(struct BackendSessionPool));
+    if(NULL == sess_pool){
+        error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the session pool.\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+    high_speed_init_pool(sess_pool);
+
+    eng->sess_pool = high_speed_pool = sess_pool;
+
     return BACKEND_PROXY_PROSESS_OK;
 }
 
 
-int engine_init_mem_pool(BackendEngine *eng){
+int engine_init_shared_mem_pool(BackendEngine *eng){
+    struct SharedMemoryPool *mem_pool;
+    int ret;
+/*
+ * Initialize the shared memory pool.
+ */
+    mem_pool = malloc(sizeof(struct SharedMemoryPool));
+    if(NULL == mem_pool){
+        error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the shared memory pool.\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+    ret = init_shared_mem_pool(mem_pool);
+    if(BACKEND_PROXY_PROSESS_OK != ret){
+        error_print("engine_init_sess_pool() returns an error because it cannot initialize the shared memory pool successfully.\n");
+        free(mem_pool);
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROSESS_OK;
 }
 
-int engine_init_mem_pool_lock(BackendEngine *eng){
+
+int engine_init_shared_mem_pool_lock(BackendEngine *eng){
+    struct SharedMemoryPoolLock *mem_pool_lock;
+    int ret;
+/*
+ * Initialize the shared memory pool lock.
+ */
+    mem_pool_lock = malloc(sizeof(struct SharedMemoryPoolLock));
+    if(NULL == mem_pool_lock){
+        error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the shared memory pool lock.\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+    ret = init_shared_mem_pool_lock(mem_pool_lock);
+    if(BACKEND_PROXY_PROSESS_OK != ret){
+        error_print("engine_init_sess_pool() returns an error because it cannot initialize the shared memory pool lock successfully.\n");
+        free(mem_pool_lock);
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROSESS_OK;
 }
 
@@ -221,28 +273,28 @@ void engine_init()
     ret = engine_init_hs_net_dev(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROSESS_OK != ret){
-        error_print("engine_init_hs_net_dev returns error!");
+        error_print("engine_init_hs_net_dev() returns error!");
         return;
     }
 
     ret = engine_init_sess_pool(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROSESS_OK != ret){
-        error_print("engine_init_sess_pool returns error!");
+        error_print("engine_init_sess_pool() returns error!");
         return;
     }
 
-    ret = engine_init_mem_pool(p_g_bk_eng);
+    ret = engine_init_shared_mem_pool(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROSESS_OK != ret){
-        error_print("engine_init_mem_pool returns error!");
+        error_print("engine_init_shared_mem_pool() returns error!");
         return;
     }
 
-    ret = engine_init_mem_pool_lock(p_g_bk_eng);
+    ret = engine_init_shared_mem_pool_lock(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROSESS_OK != ret){
-        error_print("engine_init_mem_pool_lock returns error!");
+        error_print("engine_init_shared_mem_pool_lock() returns error!");
         return;
     }
 }

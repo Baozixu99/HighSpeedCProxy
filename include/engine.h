@@ -83,8 +83,8 @@ BackendEngine *get_global_backend_engine();
 
 int engine_init_hs_net_dev(BackendEngine *eng);
 int engine_init_sess_pool(BackendEngine *eng);
-int engine_init_mem_pool(BackendEngine *eng);
-int engine_init_mem_pool_lock(BackendEngine *eng);
+int engine_init_shared_mem_pool(BackendEngine *eng);
+int engine_init_shared_mem_pool_lock(BackendEngine *eng);
 
 void engine_destory_hs_net_dev(BackendEngine *eng);
 void engine_destory_sess_pool(BackendEngine *eng);
