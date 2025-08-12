@@ -6,9 +6,6 @@ BackendEngine *p_g_bk_eng;
 BackendEngine g_bk_eng;
 
 
-
-
-
  /*
   * Set of operational functions for the backend engine in high-speed network devices.
   *
@@ -50,7 +47,14 @@ int query_hs_net_selector(BackendEngine *eng, uint32_t *sel_id){
 }
 
 
-struct BackendEngOps hs_backend_eng_ops;
+struct BackendEngOps hs_backend_eng_ops  = {
+    .enable_dev         =   enable_hs_net_dev,
+    .disable_dev        =   disable_hs_net_dev,
+    .query_dev          =   query_hs_net_dev,
+    .choose_dev         =   choose_hs_net_dev,
+    .conf_dev_selector  =   conf_hs_net_selector,
+    .query_dev_sel_id   =   query_hs_net_selector
+};
 
 
 BackendEngine *get_global_backend_engine(){
@@ -58,11 +62,67 @@ BackendEngine *get_global_backend_engine(){
 }
 
 
+int engine_init_eng_ops(BackendEngine *eng){
+    if(NULL == eng){
+        error_print("engine_init_eng_ops () returns an error because the pointer is NULL!\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+    eng->ops = &hs_backend_eng_ops;
+    return BACKEND_PROXY_PROSESS_OK;
+}
+
 /*
  * Set of high-speed device selector functions.
  */
+HSDevSelector *p_hs_dev_sel;
+HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
+
+int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
+    int target_id = 0;
+    *dev_id = target_id;
+    return BACKEND_PROXY_PROSESS_OK;
+}
+
+int choose_dev_latency_first(BackendEngine *eng, uint32_t *dev_id){
+    int target_id = 0;
+    *dev_id = target_id;
+    return BACKEND_PROXY_PROSESS_OK;
+}
+
+int choose_dev_throughput_first(BackendEngine *eng, uint32_t *dev_id){
+    int target_id = 0;
+    *dev_id = target_id;
+    return BACKEND_PROXY_PROSESS_OK;
+}
 
 
+int engine_init_selector(BackendEngine *eng){
+    HSDevSelector *sel;
+
+    if(NULL == eng){
+        error_print("engine_init_eng_ops () returns an error because the pointer is NULL!\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+    memset(&hs_dev_sel, 0, sizeof(hs_dev_sel));
+
+    sel = &hs_dev_sel[0];
+    snprintf(sel->sel_name, strlen("round_robin") + 1, "round_robin");
+    sel->choose_dev = choose_dev_round_robin;
+
+    sel = &hs_dev_sel[1];
+    snprintf(sel->sel_name, strlen("latency_first") + 1, "latency_first");
+    sel->choose_dev = choose_dev_latency_first;
+
+    sel = &hs_dev_sel[2];
+    snprintf(sel->sel_name, strlen("throughput_first") + 1, "throughput_first");
+    sel->choose_dev = choose_dev_throughput_first;
+
+    p_hs_dev_sel = &hs_dev_sel[0];
+
+    return BACKEND_PROXY_PROSESS_OK;
+}
  /*
   * The high-speed network device configuration item in the INI file must comply with the following format:
   * [Device Name]
@@ -232,11 +292,15 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 
     }//  for(; cnt < dev_num; cnt++)
 
+    eng->dev_set = set;
+    eng->dev_num = cnt;
+
+
 /*
  * Reclaim memory resources.
  */
     iniparser_freedict(ini);
-    free(set);
+
 
     return BACKEND_PROXY_PROSESS_OK;
 hs_net_error:
