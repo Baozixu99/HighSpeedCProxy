@@ -6,9 +6,61 @@ BackendEngine *p_g_bk_eng;
 BackendEngine g_bk_eng;
 
 
+
+
+
+ /*
+  * Set of operational functions for the backend engine in high-speed network devices.
+  *
+  * @enable_hs_net_dev: Enables high-speed network devices according to the mask parameter.
+  * @disable_hs_net_dev: Disables high-speed network devices according to the mask parameter.
+  * @query_hs_net_dev: Queries all active high-speed network devices and records the result in the mask parameter.
+  * @conf_hs_net_selector: Configure the algorithm for the high-speed network device selector by passing the selector ID.
+  * @query_hs_net_selector: Query the selector ID of the active algorithm for the high-speed network device selector.
+  *
+  */
+
+int enable_hs_net_dev(BackendEngine *eng, uint32_t mask){
+    return BACKEND_PROXY_PROSESS_ERROR;
+}
+
+
+int disable_hs_net_dev(BackendEngine *eng, uint32_t mask){
+    return BACKEND_PROXY_PROSESS_ERROR;
+}
+
+
+int query_hs_net_dev(BackendEngine *eng, uint32_t *mask){
+    return BACKEND_PROXY_PROSESS_ERROR;
+}
+
+
+int choose_hs_net_dev(BackendEngine *eng, uint32_t *dev_id){
+    return BACKEND_PROXY_PROSESS_ERROR;
+}
+
+
+int conf_hs_net_selector(BackendEngine *eng, uint32_t sel_id){
+    return BACKEND_PROXY_PROSESS_ERROR;
+}
+
+
+int query_hs_net_selector(BackendEngine *eng, uint32_t *sel_id){
+    return BACKEND_PROXY_PROSESS_ERROR;
+}
+
+
+struct BackendEngOps hs_backend_eng_ops;
+
+
 BackendEngine *get_global_backend_engine(){
     return p_g_bk_eng;
 }
+
+
+/*
+ * Set of high-speed device selector functions.
+ */
 
 
  /*

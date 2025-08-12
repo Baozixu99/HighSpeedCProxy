@@ -68,13 +68,23 @@ typedef struct {
 
 
 struct BackendEngOps {
-    int (*enable_dev)(struct HighSpeedNetDeviceSet *dev_set);                        // Enable devices in the high-speed network device set
-    int (*disable_dev)(struct HighSpeedNetDeviceSet *dev_set);                       // Disable devices in the high-speed network device set
-    int (*query_dev)(struct HighSpeedNetDeviceSet *dev_set, uint32_t *mask);         // Query information/status of devices in the high-speed network device set
-    int (*choose_dev)(BackendEngine *eng, struct HighSpeedNetDeviceSet *dev_set);    // Choose the most appropriate high-speed network device to establish a session over it
-    int (*configure_dev_selector)(BackendEngine *eng);                               // Configure the device selection function/strategy for the high-speed network device set
-    int (*query_dev_selector_id)(BackendEngine *eng);                                // Query the ID of the current device selector in the backend engine
+    int (*enable_dev)(BackendEngine *eng, uint32_t mask);                            // Enable devices in the high-speed network device set
+    int (*disable_dev)(BackendEngine *eng, uint32_t mask);                           // Disable devices in the high-speed network device set
+    int (*query_dev)(BackendEngine *eng, uint32_t *mask);                            // Query information/status of devices in the high-speed network device set
+    int (*choose_dev)(BackendEngine *eng, uint32_t *dev_id);                         // Choose the most appropriate high-speed network device over which to establish a session, and record its device ID
+    int (*conf_dev_selector)(BackendEngine *eng, int sel_id);                        // Configure the device selection function/strategy for the high-speed network device set
+    int (*query_dev_sel_id)(BackendEngine *eng, int *sel_id);                        // Query the ID of the current device selector in the backend engine
 };
+
+#define HS_DEV_SELECTOR_NAME_LEN                                       10
+#define HS_DEV_SELECTOR_NUM                                            3
+
+typedef struct{
+    char sel_name[HS_DEV_SELECTOR_NAME_LEN];
+    int (*choose_dev)(BackendEngine *eng, uint32_t *dev_id);
+} HSDevSelector;
+
+extern HSDevSelector *p_hs_dev_sel;
 
 extern BackendEngine *p_g_bk_eng;
 

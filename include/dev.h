@@ -7,7 +7,7 @@
 #include <netinet/in.h>
 
 #define MAX_DEV_NAME                            32  // Maximum length of device name
-#define MAX_HS_DEV_NUM                          16
+#define MAX_HS_DEV_NUM                          32
 #define MAX_DEVICE_PROPERTY_NAME_LENGTH         8
 
 struct IPv4Address;
