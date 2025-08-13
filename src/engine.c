@@ -22,10 +22,22 @@ HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
 int enable_hs_net_dev(BackendEngine *eng, uint32_t mask){
     struct HighSpeedNetDeviceSet *set;
     uint32_t cnt;
+    uint8_t bit_pos;
 
-    if(NULL == eng){
-        error_print("enable_hs_net_dev() returns an error because the engine pointer is NULL!\n");
+    if(NULL == eng || 0 == eng->dev_num){
+        error_print("enable_hs_net_dev() returns an error because the engine pointer is NULL, or \
+                     there is no high-speed network device configured in the INI file!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    bit_pos = 0;
+    while(bit_pos < MAX_HS_DEV_NUM){
+    /*
+     * Enable the high-speed network device by 
+     */
+        if (mask & (1u << bit_pos)) {
+        }
     }
 
     return BACKEND_PROXY_PROCESS_OK;
@@ -130,18 +142,66 @@ int engine_init_eng_ops(BackendEngine *eng){
  */
 
 int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
-    static uint32_t target_id = 0;
+    uint32_t target_id = 0, active_mask;
+    static int last_pos = -1;
+    int cnt, dev_num;
+    bool find_dev = false;
+    struct HighSpeedNetDeviceSet *set;
+    struct HighSpeedNetDevice *net_dev;
+
 
     if(NULL == eng || NULL == dev_id){
         error_print("choose_dev_round_robin() returns an error because at least one pointer is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    *dev_id = target_id;
-    target_id++;
 
-    if(eng->dev_num == target_id)
-        target_id = 0;
+ 
+    dev_num = eng->dev_num;
+    if(0 == dev_num){
+        error_print("choose_dev_round_robin() returns an error because there is no high-speed network device owned by the backend engine!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    active_mask = eng->active_mask;
+    cnt = 0;
+/*
+ * If last_pos equals -1, it means the choose_dev_round_robin function is called for the first time.
+ * Otherwise (for non-first calls), execute the regular logic for round-robin device selection
+ */
+    if(-1 == last_pos){
+        while(cnt < dev_num){
+            if(active_mask &= 1u << cnt){
+                find_dev = true;
+                last_pos = cnt;
+                break;
+            }
+            cnt++;
+        }
+    }// if(-1 == last_pos)
+    else{
+        while(cnt< dev_num){
+            last_pos++;
+            if(dev_num == last_pos)
+                last_pos = 0;
+
+            if(active_mask &= 1u << last_pos){
+                find_dev = true;
+                break;
+            }
+            cnt++;
+        }
+    }// else
+
+    if(false == find_dev){
+        error_print("choose_dev_round_robin() returns an error because no active high-speed network device is found!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    set = eng->dev_set;
+    net_dev = &set->hs_net_dev[last_pos];
+    target_id = net_dev->dev_id;
+    *dev_id = target_id;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -260,6 +320,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 /*
  * Initialize high speed network device one by one.
  */
+    eng->active_mask = 0;
     for(; cnt < dev_num; cnt++){
         dev_name = iniparser_getsecname(ini, cnt);
         dev_name_len = strlen(dev_name);
@@ -346,8 +407,11 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             goto hs_net_error;
         }
 
-        hs_dev->dev_status = dev_status;
+        if(HS_NET_DEV_ACTIVE == dev_status){
+            eng->active_mask |= 1u << cnt;
+        }
 
+        hs_dev->dev_status = dev_status;
 /*
  * Check if the content of the ns_id item is valid.
  * If valid, convert it to an integer.
