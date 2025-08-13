@@ -18,32 +18,40 @@ BackendEngine g_bk_eng;
   */
 
 int enable_hs_net_dev(BackendEngine *eng, uint32_t mask){
-    return BACKEND_PROXY_PROSESS_ERROR;
+    struct HighSpeedNetDeviceSet *set;
+    uint32_t cnt;
+
+    if(NULL == eng){
+        error_print("enable_hs_net_dev() returns an error because the engine pointer is NULL!\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROSESS_OK;
 }
 
 
 int disable_hs_net_dev(BackendEngine *eng, uint32_t mask){
-    return BACKEND_PROXY_PROSESS_ERROR;
+    return BACKEND_PROXY_PROSESS_OK;
 }
 
 
 int query_hs_net_dev(BackendEngine *eng, uint32_t *mask){
-    return BACKEND_PROXY_PROSESS_ERROR;
+    return BACKEND_PROXY_PROSESS_OK;
 }
 
 
 int choose_hs_net_dev(BackendEngine *eng, uint32_t *dev_id){
-    return BACKEND_PROXY_PROSESS_ERROR;
+    return BACKEND_PROXY_PROSESS_OK;
 }
 
 
 int conf_hs_net_selector(BackendEngine *eng, uint32_t sel_id){
-    return BACKEND_PROXY_PROSESS_ERROR;
+    return BACKEND_PROXY_PROSESS_OK;
 }
 
 
 int query_hs_net_selector(BackendEngine *eng, uint32_t *sel_id){
-    return BACKEND_PROXY_PROSESS_ERROR;
+    return BACKEND_PROXY_PROSESS_OK;
 }
 
 
@@ -64,7 +72,7 @@ BackendEngine *get_global_backend_engine(){
 
 int engine_init_eng_ops(BackendEngine *eng){
     if(NULL == eng){
-        error_print("engine_init_eng_ops () returns an error because the pointer is NULL!\n");
+        error_print("engine_init_eng_ops() returns an error because the pointer is NULL!\n");
         return BACKEND_PROXY_PROSESS_ERROR;
     }
 
@@ -79,19 +87,42 @@ HSDevSelector *p_hs_dev_sel;
 HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
 
 int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
-    int target_id = 0;
+    static uint32_t target_id = 0;
+
+    if(NULL == eng || NULL == dev_id){
+        error_print("choose_dev_round_robin() returns an error because at least one pointer is NULL!\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
     *dev_id = target_id;
+    target_id++;
+
+    if(eng->dev_num == target_id)
+        target_id = 0;
+
     return BACKEND_PROXY_PROSESS_OK;
 }
 
 int choose_dev_latency_first(BackendEngine *eng, uint32_t *dev_id){
     int target_id = 0;
+
+    if(NULL == eng || NULL == dev_id){
+        error_print("choose_dev_latency_first() returns an error because at least one pointer is NULL!\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
     *dev_id = target_id;
     return BACKEND_PROXY_PROSESS_OK;
 }
 
 int choose_dev_throughput_first(BackendEngine *eng, uint32_t *dev_id){
     int target_id = 0;
+
+    if(NULL == eng || NULL == dev_id){
+        error_print("choose_dev_throughput_first() returns an error because at least one pointer is NULL!\n");
+        return BACKEND_PROXY_PROSESS_ERROR;
+    }
+
     *dev_id = target_id;
     return BACKEND_PROXY_PROSESS_OK;
 }
@@ -101,7 +132,7 @@ int engine_init_selector(BackendEngine *eng){
     HSDevSelector *sel;
 
     if(NULL == eng){
-        error_print("engine_init_eng_ops () returns an error because the pointer is NULL!\n");
+        error_print("engine_init_eng_ops() returns an error because the pointer is NULL!\n");
         return BACKEND_PROXY_PROSESS_ERROR;
     }
 
@@ -120,6 +151,7 @@ int engine_init_selector(BackendEngine *eng){
     sel->choose_dev = choose_dev_throughput_first;
 
     p_hs_dev_sel = &hs_dev_sel[0];
+    eng->selector_id = 0;
 
     return BACKEND_PROXY_PROSESS_OK;
 }
