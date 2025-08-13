@@ -5,6 +5,8 @@
 BackendEngine *p_g_bk_eng;
 BackendEngine g_bk_eng;
 
+HSDevSelector *p_hs_dev_sel;
+HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
 
  /*
   * Set of operational functions for the backend engine in high-speed network devices.
@@ -23,35 +25,78 @@ int enable_hs_net_dev(BackendEngine *eng, uint32_t mask){
 
     if(NULL == eng){
         error_print("enable_hs_net_dev() returns an error because the engine pointer is NULL!\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int disable_hs_net_dev(BackendEngine *eng, uint32_t mask){
-    return BACKEND_PROXY_PROSESS_OK;
+    struct HighSpeedNetDeviceSet *set;
+    uint32_t cnt;
+
+    if(NULL == eng){
+        error_print("disable_hs_net_dev() returns an error because the engine pointer is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int query_hs_net_dev(BackendEngine *eng, uint32_t *mask){
-    return BACKEND_PROXY_PROSESS_OK;
+    struct HighSpeedNetDeviceSet *set;
+    uint32_t cnt;
+
+    if(NULL == eng || NULL == mask){
+        error_print("query_hs_net_dev() returns an error because the engine or mask pointer is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int choose_hs_net_dev(BackendEngine *eng, uint32_t *dev_id){
-    return BACKEND_PROXY_PROSESS_OK;
+    struct HighSpeedNetDeviceSet *set;
+    HSDevSelector *sel;
+    int selector_id, ret;
+    uint32_t target_id;
+
+    if(NULL == eng || NULL == dev_id){
+        error_print("choose_hs_net_dev() returns an error because the engine or dev_id pointer is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    selector_id = eng->selector_id;
+    sel = &hs_dev_sel[selector_id];
+
+    if(NULL == sel->choose_dev){
+        error_print("choose_hs_net_dev() returns an error because the choose_dev is not initialized!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+/*
+ * Call the selector function to choose the most appropriate device, and return its dev ID.
+ * If the selector function returns unsuccessfully (i.e., its return value does not indicate success) or the target device ID is out of bounds, return an error.
+ */
+    ret = sel->choose_dev(eng, &target_id);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret || target_id >= eng->dev_num){
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int conf_hs_net_selector(BackendEngine *eng, uint32_t sel_id){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int query_hs_net_selector(BackendEngine *eng, uint32_t *sel_id){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
@@ -73,25 +118,23 @@ BackendEngine *get_global_backend_engine(){
 int engine_init_eng_ops(BackendEngine *eng){
     if(NULL == eng){
         error_print("engine_init_eng_ops() returns an error because the pointer is NULL!\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     eng->ops = &hs_backend_eng_ops;
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 /*
  * Set of high-speed device selector functions.
  */
-HSDevSelector *p_hs_dev_sel;
-HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
 
 int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
     static uint32_t target_id = 0;
 
     if(NULL == eng || NULL == dev_id){
         error_print("choose_dev_round_robin() returns an error because at least one pointer is NULL!\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     *dev_id = target_id;
@@ -100,7 +143,7 @@ int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
     if(eng->dev_num == target_id)
         target_id = 0;
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int choose_dev_latency_first(BackendEngine *eng, uint32_t *dev_id){
@@ -108,11 +151,11 @@ int choose_dev_latency_first(BackendEngine *eng, uint32_t *dev_id){
 
     if(NULL == eng || NULL == dev_id){
         error_print("choose_dev_latency_first() returns an error because at least one pointer is NULL!\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     *dev_id = target_id;
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int choose_dev_throughput_first(BackendEngine *eng, uint32_t *dev_id){
@@ -120,11 +163,11 @@ int choose_dev_throughput_first(BackendEngine *eng, uint32_t *dev_id){
 
     if(NULL == eng || NULL == dev_id){
         error_print("choose_dev_throughput_first() returns an error because at least one pointer is NULL!\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     *dev_id = target_id;
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
@@ -133,7 +176,7 @@ int engine_init_selector(BackendEngine *eng){
 
     if(NULL == eng){
         error_print("engine_init_eng_ops() returns an error because the pointer is NULL!\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     memset(&hs_dev_sel, 0, sizeof(hs_dev_sel));
@@ -153,7 +196,7 @@ int engine_init_selector(BackendEngine *eng){
     p_hs_dev_sel = &hs_dev_sel[0];
     eng->selector_id = 0;
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
  /*
   * The high-speed network device configuration item in the INI file must comply with the following format:
@@ -334,7 +377,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     iniparser_freedict(ini);
 
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 hs_net_error:
     if(NULL != ini)
         iniparser_freedict(ini);
@@ -342,7 +385,7 @@ hs_net_error:
     if(NULL != set)
         free(set);
 
-    return BACKEND_PROXY_PROSESS_ERROR;
+    return BACKEND_PROXY_PROCESS_ERROR;
 }
 
 int engine_init_sess_pool(BackendEngine *eng){
@@ -354,14 +397,14 @@ int engine_init_sess_pool(BackendEngine *eng){
     sess_pool = (struct BackendSessionPool*)malloc(sizeof(struct BackendSessionPool));
     if(NULL == sess_pool){
         error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the session pool.\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     high_speed_init_pool(sess_pool);
 
     eng->sess_pool = high_speed_pool = sess_pool;
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
@@ -374,17 +417,17 @@ int engine_init_shared_mem_pool(BackendEngine *eng){
     mem_pool = malloc(sizeof(struct SharedMemoryPool));
     if(NULL == mem_pool){
         error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the shared memory pool.\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     ret = init_shared_mem_pool(mem_pool);
-    if(BACKEND_PROXY_PROSESS_OK != ret){
+    if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_sess_pool() returns an error because it cannot initialize the shared memory pool successfully.\n");
         free(mem_pool);
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
@@ -397,17 +440,17 @@ int engine_init_shared_mem_pool_lock(BackendEngine *eng){
     mem_pool_lock = malloc(sizeof(struct SharedMemoryPoolLock));
     if(NULL == mem_pool_lock){
         error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the shared memory pool lock.\n");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     ret = init_shared_mem_pool_lock(mem_pool_lock);
-    if(BACKEND_PROXY_PROSESS_OK != ret){
+    if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_sess_pool() returns an error because it cannot initialize the shared memory pool lock successfully.\n");
         free(mem_pool_lock);
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
@@ -420,28 +463,28 @@ void engine_init()
 
     ret = engine_init_hs_net_dev(p_g_bk_eng);
 
-    if(BACKEND_PROXY_PROSESS_OK != ret){
+    if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_hs_net_dev() returns error!");
         return;
     }
 
     ret = engine_init_sess_pool(p_g_bk_eng);
 
-    if(BACKEND_PROXY_PROSESS_OK != ret){
+    if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_sess_pool() returns error!");
         return;
     }
 
     ret = engine_init_shared_mem_pool(p_g_bk_eng);
 
-    if(BACKEND_PROXY_PROSESS_OK != ret){
+    if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_shared_mem_pool() returns error!");
         return;
     }
 
     ret = engine_init_shared_mem_pool_lock(p_g_bk_eng);
 
-    if(BACKEND_PROXY_PROSESS_OK != ret){
+    if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_shared_mem_pool_lock() returns error!");
         return;
     }

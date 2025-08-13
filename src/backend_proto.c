@@ -25,7 +25,7 @@ int backend_proxy_msg_prosess(uint8_t *msg){
  */
     if(!PROXY_MSG_TYPE_VALID(msg_type)){
         error_print("Unsupported message type!");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }// Unsupported message type.
 
 /*
@@ -33,7 +33,7 @@ int backend_proxy_msg_prosess(uint8_t *msg){
  */
     if(!PROXY_MSG_LEN_VALID(msg_type)){
         error_print("Message length error!");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }// Unsupported message type.
 
     msg_ptr = (uint8_t *)proxy_msg_hdr;
@@ -44,7 +44,7 @@ int backend_proxy_msg_prosess(uint8_t *msg){
      */
         if (frontend_sess_id != FRONTEND_ADMIN_SESSION_ID || backend_sess_id != BACKEND_ADMIN_SESSION_ID){
             error_print("Only admin sessions can deliver and process device messages!");
-            return BACKEND_PROXY_PROSESS_ERROR;
+            return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = backend_proxy_dev_msg_prosess(msg_ptr);
     }else if(PROXY_MSG_TYPE_STRGY == msg_type){
@@ -53,7 +53,7 @@ int backend_proxy_msg_prosess(uint8_t *msg){
      */
         if (frontend_sess_id != FRONTEND_ADMIN_SESSION_ID || backend_sess_id != BACKEND_ADMIN_SESSION_ID){
             error_print("Only admin sessions can deliver and process strategy messages!");
-            return BACKEND_PROXY_PROSESS_ERROR;
+            return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = backend_proxy_strgy_msg_process(msg_ptr);
     }else if(PROXY_MSG_TYPE_SESS == msg_type){
@@ -63,7 +63,7 @@ int backend_proxy_msg_prosess(uint8_t *msg){
  */
          if (frontend_sess_id != FRONTEND_HANDOVER_SESSION_ID || backend_sess_id != BACKEND_HANDOVER_SESSION_ID){
             error_print("The front end id in handover request message should be FRONTEND_HANDOVER_SESSION_ID， and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID!");
-            return BACKEND_PROXY_PROSESS_ERROR;
+            return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = backend_proxy_sess_msg_process(msg_ptr);
     }else{
@@ -73,18 +73,18 @@ int backend_proxy_msg_prosess(uint8_t *msg){
  */
          if (!APP_SESSION_ID_VALID(frontend_sess_id) || !APP_SESSION_ID_VALID(backend_sess_id)){
             error_print("Both the frontend session ID and backend session ID in the proxy data message must pass the application session ID validation!");
-            return BACKEND_PROXY_PROSESS_ERROR;
+            return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = backend_proxy_data_msg_prosess(frontend_sess_id, backend_sess_id, msg_ptr);
     }
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 
 int backend_proxy_msg_response(uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_dev_msg_prosess(uint8_t *msg){
@@ -95,12 +95,12 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
     int ret;
     uint8_t *msg_data;
 
-    ret = BACKEND_PROXY_PROSESS_ERROR;
+    ret = BACKEND_PROXY_PROCESS_ERROR;
 
     dev_msg_hdr = (DevMsgHeader *)msg;
 
     if(NULL == dev_msg_hdr)
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
 
     version = dev_msg_hdr->version;
     msg_type = dev_msg_hdr->msg_type;
@@ -130,7 +130,7 @@ int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint3
  */
     if(ACTION_TYPE_COMMAND != action_type){
         error_print("Backend protocol stack only process the device message which the signaling type!");
-        return BACKEND_PROXY_PROSESS_ERROR;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
 /* 
@@ -140,57 +140,55 @@ int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint3
 
     if(corr_len != (int)payload_len){
             error_print("payload len is not valid!");
-            return BACKEND_PROXY_PROSESS_ERROR;
+            return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-
-
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int backend_proxy_dev_msg_prosess_enable_ver1(uint8_t *msg_payload, uint32_t payload_len){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 int backend_proxy_dev_msg_prosess_disable_ver1(uint8_t *msg_payload, uint32_t payload_len){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 int backend_proxy_dev_msg_prosess_query_ver1(uint8_t *msg_payload, uint32_t payload_len){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int backend_proxy_dev_msg_response(uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_strgy_msg_process(uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_strgy_msg_response(uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_sess_msg_process(uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_sess_msg_response(uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int backend_proxy_data_msg_prosess(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg){
     int ret;
 
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
-    return BACKEND_PROXY_PROSESS_OK;
+    return BACKEND_PROXY_PROCESS_OK;
 }
