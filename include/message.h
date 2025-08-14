@@ -168,6 +168,7 @@ typedef struct {
     uint16_t version;        // Protocol version, not in use currently, set to 1
     uint16_t msg_type;       // Message type, values: Create (0), Close (1)
     uint16_t action_type;    // Signaling type: Command (0) / Response (1)
+    uint16_t ip_version;     // IP version: SESS_IPV4_PROTO (4) / SESS_IPV6_PROTO(6)
     uint16_t payload_len;    // Payload length
 } __attribute__((packed)) SessMsgHeader;
 
@@ -201,31 +202,7 @@ typedef enum {
     ((ip_version) == SESS_IPV4_PROTO || \
      (ip_version) == SESS_IPV6_PROTO)
 
-#if 0
-// Payload length of session message
-#define SESS_MSG_PAYLOAD_LEN(sess_msg_type, action_type, ip_version) \
-({ \
-    int _len = -1;  /* Initial value: invalid length */ \
-    if ((sess_msg_type) == SESS_MSG_CLOSE) { \
-        if ((action_type) == ACTION_TYPE_COMMAND) { \
-            _len = 0;  /* Close + Command → No content */ \
-        } else if ((action_type) == ACTION_TYPE_RESPONSE) { \
-            _len = 2;  /* Close + Response → 2 bytes (status code + reason) */ \
-        } \
-    } else if ((sess_msg_type) == SESS_MSG_CREATE) { \
-        if ((action_type) == ACTION_TYPE_RESPONSE) { \
-            _len = 2;  /* Create + Response → 2 bytes (status code + reason) */ \
-        } else if ((action_type) == ACTION_TYPE_COMMAND) { \
-            if ((ip_version) == SESS_IPV4_PROTO) { \
-                _len = 10; /* IPv4 → 10 bytes of session information */ \
-            } else if ((ip_version) == SESS_IPV6_PROTO) { \
-                _len = 22; /* IPv6 → 22 bytes of session information */ \
-            } \
-        } \
-    } \
-    _len;  /* Return the calculated result */ \
-})
-#endif
+
 
 /**
  * Calculate the payload length of a session message based on its type, action type, and IP protocol version.

@@ -150,8 +150,8 @@ int backend_proxy_dev_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint3
  */
     corr_len = DEV_MSG_PAYLOAD_LEN(msg_type, action_type);
 
-    if(corr_len != (int)payload_len){
-            error_print("payload len is not valid!");
+    if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
+            error_print("backend_proxy_dev_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
             return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -247,6 +247,34 @@ int backend_proxy_strgy_msg_process(uint8_t *msg){
 
 
 int backend_proxy_strgy_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){
+    int corr_len;
+    int ret = BACKEND_PROXY_PROCESS_ERROR;
+
+    /* 
+ * Check whether the payload length matches the message type and signaling type.
+ */
+    corr_len = STRGY_MSG_PAYLOAD_LEN(msg_type, action_type);
+
+    if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
+            error_print("backend_proxy_strgy_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    switch(msg_type) {
+        case STRGY_MSG_SET:
+            ret = backend_proxy_strgy_msg_process_set_ver1(payload_len, msg_payload);
+            break;
+        case STRGY_MSG_QUERY:
+            ret = backend_proxy_strgy_msg_process_query_ver1(payload_len, msg_payload);
+            break;
+        default:
+/*
+ * Nothing to do, because the validation of the msg_type is checked before.
+ */
+            break;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -264,11 +292,42 @@ int backend_proxy_strgy_msg_response(uint8_t *msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-
+/*
+ * Session message processing functions.
+ * backend_proxy_sess_msg_process
+ *     |->backend_proxy_sess_msg_process_ver1
+ *         |->backend_proxy_sess_msg_process_create_ver1
+ *         |->backend_proxy_sess_msg_process_close_ver1
+ */
 
 int backend_proxy_sess_msg_process(uint8_t *msg){
+    StrgyMsgHeader *strgymsg_hdr;
+    uint16_t version, msg_id, payload_len;
+    SessMsgType msg_type;
+    ActionType action_type;
+    int ret;
+    uint8_t *msg_data;
+
+    ret = BACKEND_PROXY_PROCESS_ERROR;
+
+    strgymsg_hdr = (StrgyMsgHeader *)msg;
+
+    if(NULL == strgymsg_hdr){
+        error_print("backend_proxy_strgy_msg_process() returns an error because the msg pointer is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
+
+
+int backend_proxy_sess_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+int backend_proxy_sess_msg_process_create_ver1(uint32_t payload_len, uint8_t *msg_payload);
+int backend_proxy_sess_msg_process_close_ver1(uint32_t payload_len, uint8_t *msg_payload);
 
 
 
