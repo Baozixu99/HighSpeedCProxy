@@ -58,14 +58,17 @@ int backend_proxy_msg_process(uint8_t *msg){
         ret = backend_proxy_strgy_msg_process(msg_ptr);
     }else if(PROXY_MSG_TYPE_SESS == msg_type){
 /*
- * If the frontend wants to establish a session between the frontend and backend, the frontend_sess_id in the handover request should be 
- * FRONTEND_HANDOVER_SESSION_ID, and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID in proxy message.
+ * If the frontend wants to establish a session between the frontend and backend, the backend_sess_id in the handover request should be 
+ * FRONTEND_HANDOVER_SESSION_ID in proxy message.
  */
+
+ #if 0
          if (frontend_sess_id != FRONTEND_HANDOVER_SESSION_ID || backend_sess_id != BACKEND_HANDOVER_SESSION_ID){
             error_print("The front end id in handover request message should be FRONTEND_HANDOVER_SESSION_ID， and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
-        ret = backend_proxy_sess_msg_process(msg_ptr);
+#endif
+        ret = backend_proxy_sess_msg_process(frontend_sess_id, backend_sess_id, msg_ptr);
     }else{
 /*
  * When msg_type is PROXY_MSG_TYPE_DATA, the frontend_sess_id and backend_sess_id should be checked to determine whether the session (if it exists) 
@@ -300,34 +303,74 @@ int backend_proxy_strgy_msg_response(uint8_t *msg){
  *         |->backend_proxy_sess_msg_process_close_ver1
  */
 
-int backend_proxy_sess_msg_process(uint8_t *msg){
-    StrgyMsgHeader *strgymsg_hdr;
-    uint16_t version, msg_id, payload_len;
+int backend_proxy_sess_msg_process(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg){
+    SessMsgHeader *sess_msg_hdr;
+    uint16_t version, payload_len;
     SessMsgType msg_type;
     ActionType action_type;
+    SessIpProtoVersion ip_version;
     int ret;
     uint8_t *msg_data;
 
     ret = BACKEND_PROXY_PROCESS_ERROR;
 
-    strgymsg_hdr = (StrgyMsgHeader *)msg;
+    sess_msg_hdr = (SessMsgHeader *)msg;
 
-    if(NULL == strgymsg_hdr){
-        error_print("backend_proxy_strgy_msg_process() returns an error because the msg pointer is NULL!\n");
+    if(NULL == sess_msg_hdr){
+        error_print("backend_proxy_sess_msg_process() returns an error because the msg pointer is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    version = sess_msg_hdr->version;
+    msg_type = sess_msg_hdr->msg_type;
+    action_type = sess_msg_hdr->action_type;
+    ip_version = sess_msg_hdr->ip_version;
+    payload_len = sess_msg_hdr->payload_len;
+    msg_data = msg + sizeof(SessMsgHeader);
+ #if 0
+         if (frontend_sess_id != FRONTEND_HANDOVER_SESSION_ID || backend_sess_id != BACKEND_HANDOVER_SESSION_ID){
+            error_print("The front end id in handover request message should be FRONTEND_HANDOVER_SESSION_ID， and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+#endif
+
+/*    
+ * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
+ */
+    if(ACTION_TYPE_COMMAND != action_type){
+        error_print("backend_proxy_sess_msg_process() returns an error, returns an error, \
+                     because the backend protocol stack only processes the device message of the signaling type!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * Before processing device messages, the protocol stack should check the validity of parameters.
+ *
+ * Currently, the protocol stack only processes Version 1 device messages.
+ */
+    if(PROXY_PROTO_SESS_VERSION_1 == version){
+        ret = backend_proxy_sess_msg_process_ver1(frontend_sess_id, backend_sess_id, msg_type, ip_version, action_type, payload_len, msg_data);
+    } 
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
-int backend_proxy_sess_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){
+int backend_proxy_sess_msg_process_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint32_t msg_type, 
+                                        uint32_t action_type, uint16_t ip_version, uint32_t payload_len, 
+                                        uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
-int backend_proxy_sess_msg_process_create_ver1(uint32_t payload_len, uint8_t *msg_payload);
-int backend_proxy_sess_msg_process_close_ver1(uint32_t payload_len, uint8_t *msg_payload);
+int backend_proxy_sess_msg_process_create_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint16_t ip_version, uint32_t payload_len, uint8_t *msg_payload){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+int backend_proxy_sess_msg_process_close_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint32_t payload_len, uint8_t *msg_payload){
+    return BACKEND_PROXY_PROCESS_OK;
+}
 
 
 

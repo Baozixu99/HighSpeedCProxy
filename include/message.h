@@ -240,7 +240,6 @@ typedef enum {
 
 
 typedef struct {
-    uint8_t ip_proto_ver;    // IP protocol version, values: IPv4 (4) and IPv6 (6)
     uint16_t trans_proto;    // Transport layer type, values: UDP (0) and TCP (1);
     uint16_t dev_id;         // Device ID; when set to 0xFF, indicates entering vertical handover mode.
     uint8_t  data[0];        // Placeholder. Interpreted as IPv4PortTurple or IPv6PortTurple based on IP version.

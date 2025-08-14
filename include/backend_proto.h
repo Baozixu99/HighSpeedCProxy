@@ -47,11 +47,13 @@ int backend_proxy_strgy_msg_process_set_ver1(uint32_t payload_len, uint8_t *msg_
 int backend_proxy_strgy_msg_process_query_ver1(uint32_t payload_len, uint8_t *msg_payload);
 
 
-int backend_proxy_sess_msg_process(uint8_t *msg);
+int backend_proxy_sess_msg_process(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg);
 int backend_proxy_sess_msg_response(uint8_t *msg);
-int backend_proxy_sess_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload);
-int backend_proxy_sess_msg_process_create_ver1(uint32_t payload_len, uint8_t *msg_payload);
-int backend_proxy_sess_msg_process_close_ver1(uint32_t payload_len, uint8_t *msg_payload);
+int backend_proxy_sess_msg_process_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint32_t msg_type, 
+                                        uint32_t action_type, uint16_t ip_version, uint32_t payload_len, 
+                                        uint8_t *msg_payload);
+int backend_proxy_sess_msg_process_create_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint16_t ip_version, uint32_t payload_len, uint8_t *msg_payload);
+int backend_proxy_sess_msg_process_close_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint32_t payload_len, uint8_t *msg_payload);
 
 
 
