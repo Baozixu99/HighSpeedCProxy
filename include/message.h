@@ -60,6 +60,7 @@ typedef enum {
      (dev_msg_type) == DEV_MSG_QUERY)
 
 
+#if 0
 // Payload length of device message
 #define DEV_MSG_PAYLOAD_LEN(dev_msg_type, action_type) \
 ((dev_msg_type == DEV_MSG_ENABLE) ? \
@@ -69,7 +70,34 @@ typedef enum {
 ((dev_msg_type == DEV_MSG_QUERY) ? \
     ((action_type == ACTION_TYPE_COMMAND) ? 0 : ((action_type == ACTION_TYPE_RESPONSE) ? 4 : -1)) : \
 -1)))
+#endif
 
+#if 1
+#define DEV_MSG_PAYLOAD_LEN(dev_msg_type, action_type) \
+( \
+    /* Check if device message type is valid */ \
+    (dev_msg_type == DEV_MSG_ENABLE) ? \
+        ( \
+            /* Check if action type is valid */ \
+            (action_type == ACTION_TYPE_COMMAND)  ? 2 : \
+            (action_type == ACTION_TYPE_RESPONSE) ? 2 : \
+            -1  /* Invalid action type */ \
+        ) : \
+    (dev_msg_type == DEV_MSG_DISABLE) ? \
+        ( \
+            (action_type == ACTION_TYPE_COMMAND)  ? 2 : \
+            (action_type == ACTION_TYPE_RESPONSE) ? 2 : \
+            -1  /* Invalid action type */ \
+        ) : \
+    (dev_msg_type == DEV_MSG_QUERY) ? \
+        ( \
+            (action_type == ACTION_TYPE_COMMAND)  ? 0 : \
+            (action_type == ACTION_TYPE_RESPONSE) ? 4 : \
+            -1  /* Invalid action type */ \
+        ) : \
+    -1  /* Invalid device message type */ \
+)
+#endif
 
 typedef struct {
     uint8_t status;    // Status code
@@ -84,7 +112,7 @@ typedef struct {
     uint16_t msg_id;        // Message ID, used to match commands and responses
     uint16_t action_type;   // Signaling type: Command (0) / Response (1) 
     uint16_t payload_len;   // Payload length
-} __attribute__((packed)) StratMsgHeader;
+} __attribute__((packed)) StrgyMsgHeader;
 
 
 typedef enum {
@@ -107,7 +135,7 @@ typedef enum {
 -1))
 
 typedef struct {
-    StratMsgHeader header;   // Strategy message header
+    StrgyMsgHeader header;   // Strategy message header
     uint16_t cmd_type;       // Command type. 0: Enable specified strategy; 1: Query current strategy
     uint16_t strat_para;     //  Strategy parameter (0: Round Robin; 1: Select device with highest current available bandwidth; 2: Select device with lowest current latency)
 } __attribute__((packed))StrgyCMDMessage;

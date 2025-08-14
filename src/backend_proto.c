@@ -87,6 +87,14 @@ int backend_proxy_msg_response(uint8_t *msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+/*
+ * Device message processing functions.
+ * backend_proxy_dev_msg_prosess
+ *     |->backend_proxy_dev_msg_prosess_ver1
+ *         |->backend_proxy_dev_msg_prosess_disable_ver1
+ *         |->backend_proxy_dev_msg_prosess_enable_ver1
+ *         |->backend_proxy_dev_msg_prosess_query_ver1
+ */
 int backend_proxy_dev_msg_prosess(uint8_t *msg){
     DevMsgHeader *dev_msg_hdr;
     uint16_t version, msg_id, payload_len;
@@ -109,6 +117,14 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
     payload_len = dev_msg_hdr->payload_len;
     msg_data = msg + sizeof(DevMsgHeader);
 
+/*    
+ * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
+ */
+    if(ACTION_TYPE_COMMAND != action_type){
+        error_print("Backend protocol stack only process the device message which the signaling type!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
 /*
  * Before processing device messages, the protocol stack should check the validity of parameters.
  *
@@ -124,14 +140,9 @@ int backend_proxy_dev_msg_prosess(uint8_t *msg){
 
 int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){  
     int corr_len;
+    int ret = BACKEND_PROXY_PROCESS_ERROR;
     uint16_t dev_msg_resp;
-/*    
- * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
- */
-    if(ACTION_TYPE_COMMAND != action_type){
-        error_print("Backend protocol stack only process the device message which the signaling type!");
-        return BACKEND_PROXY_PROCESS_ERROR;
-    }
+
 
 /* 
  * Check whether the payload length matches the message type and signaling type.
@@ -143,17 +154,34 @@ int backend_proxy_dev_msg_prosess_ver1(uint32_t msg_type, uint32_t msg_id, uint3
             return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    return BACKEND_PROXY_PROCESS_OK;
+    switch(msg_type) {
+        case DEV_MSG_DISABLE:
+            ret = backend_proxy_dev_msg_prosess_disable_ver1(payload_len, msg_payload);
+            break;
+        case DEV_MSG_ENABLE:
+            ret = backend_proxy_dev_msg_prosess_enable_ver1(payload_len, msg_payload);
+            break;
+        case DEV_MSG_QUERY:
+            ret = backend_proxy_dev_msg_prosess_query_ver1(payload_len, msg_payload);
+            break;
+        default:
+/*
+ * Nothing to do, because the validation of the msg_type is checked in DEV_MSG_PAYLOAD_LEN.
+ */
+            break;
+    }
+
+    return ret;
 }
 
 
-int backend_proxy_dev_msg_prosess_enable_ver1(uint8_t *msg_payload, uint32_t payload_len){
+int backend_proxy_dev_msg_prosess_enable_ver1(uint32_t payload_len,  uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
-int backend_proxy_dev_msg_prosess_disable_ver1(uint8_t *msg_payload, uint32_t payload_len){
+int backend_proxy_dev_msg_prosess_disable_ver1(uint32_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
-int backend_proxy_dev_msg_prosess_query_ver1(uint8_t *msg_payload, uint32_t payload_len){
+int backend_proxy_dev_msg_prosess_query_ver1(uint32_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -161,9 +189,36 @@ int backend_proxy_dev_msg_prosess_query_ver1(uint8_t *msg_payload, uint32_t payl
 int backend_proxy_dev_msg_response(uint8_t *msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
-
+/*
+ * Strategy message processing functions.
+ * backend_proxy_strgy_msg_process
+ *     |->backend_proxy_strgy_msg_process_ver1
+ *         |->backend_proxy_strgy_msg_process_set_ver1
+ *         |->backend_proxy_strgy_msg_process_query_ver1
+ */
 int backend_proxy_strgy_msg_process(uint8_t *msg){
-    return BACKEND_PROXY_PROCESS_OK;
+    StrgyMsgHeader *strgymsg_hdr;
+    uint16_t version, msg_id, payload_len;
+    StrgyMsgType msg_type;
+    ActionType action_type;
+    int ret;
+    uint8_t *msg_data;
+
+    ret = BACKEND_PROXY_PROCESS_ERROR;
+
+#if 0
+    if(NULL == dev_msg_hdr)
+        return BACKEND_PROXY_PROCESS_ERROR;
+
+    version = dev_msg_hdr->version;
+    msg_type = dev_msg_hdr->msg_type;
+    msg_id = dev_msg_hdr->msg_id;
+    action_type = dev_msg_hdr->action_type;
+    payload_len = dev_msg_hdr->payload_len;
+    msg_data = msg + sizeof(DevMsgHeader);
+#endif
+
+    return ret;
 }
 
 int backend_proxy_strgy_msg_response(uint8_t *msg){
