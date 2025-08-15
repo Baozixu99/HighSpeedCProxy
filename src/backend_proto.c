@@ -397,8 +397,19 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
 
 
 int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
-    uint32_t alloc_backend_sess_id;
+  
+    return __backend_proxy_sess_msg_process_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
+}
 
+
+int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
+    uint16_t alloc_id;
+
+/*
+ * STEP 1. Alloc resource, including session object, backend session ID, socket, etc.
+ * STEP 2. Establish session
+ * STEP 3. create a session message to notice the front end proxy the result of the create request.
+ */
 
     return BACKEND_PROXY_PROCESS_OK;
 }

@@ -3,6 +3,7 @@
 
 #include "message.h"
 #include "session.h"
+#include "session_pool.h"
 #include "common_utils.h"
 
 #define BACKEND_PROXY_PROCESS_OK               0
@@ -55,6 +56,9 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
 int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload);
 int backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload);
 
+
+int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload);
+int __backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload);
 
 
 int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint8_t *msg);
