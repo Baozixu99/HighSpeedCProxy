@@ -173,8 +173,8 @@ typedef struct {
 } __attribute__((packed)) SessMsgHeader;
 
 typedef enum {
-    SESS_MSG_CREATE = 0,       // Create
-    SESS_MSG_CLOSE             // Close
+    SESS_MSG_CLOSE = 0,             // Close
+    SESS_MSG_CREATE                 // Create
 } SessMsgType;
 
 

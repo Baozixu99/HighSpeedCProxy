@@ -5,7 +5,7 @@
 int backend_proxy_msg_process(uint8_t *msg){
     ProxyMsgHeader *proxy_msg_hdr;
     int proxy_proto_ver, msg_type, msg_len, ret;
-    uint32_t frontend_sess_id, backend_sess_id;
+    uint16_t frontend_sess_id, backend_sess_id;
     uint8_t *msg_ptr;
 
     struct BackendSession* sess;
@@ -144,7 +144,7 @@ int backend_proxy_dev_msg_process(uint8_t *msg){
 }
 
 
-int backend_proxy_dev_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){  
+int backend_proxy_dev_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uint16_t action_type, uint16_t payload_len, uint8_t *msg_payload){  
     int corr_len;
     int ret = BACKEND_PROXY_PROCESS_ERROR;
 
@@ -179,13 +179,13 @@ int backend_proxy_dev_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint3
 }
 
 
-int backend_proxy_dev_msg_process_enable_ver1(uint32_t payload_len,  uint8_t *msg_payload){
+int backend_proxy_dev_msg_process_enable_ver1(uint16_t payload_len,  uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
-int backend_proxy_dev_msg_process_disable_ver1(uint32_t payload_len, uint8_t *msg_payload){
+int backend_proxy_dev_msg_process_disable_ver1(uint16_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
-int backend_proxy_dev_msg_process_query_ver1(uint32_t payload_len, uint8_t *msg_payload){
+int backend_proxy_dev_msg_process_query_ver1(uint16_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -249,7 +249,7 @@ int backend_proxy_strgy_msg_process(uint8_t *msg){
 }
 
 
-int backend_proxy_strgy_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uint32_t action_type, uint32_t payload_len, uint8_t *msg_payload){
+int backend_proxy_strgy_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uint16_t action_type, uint16_t payload_len, uint8_t *msg_payload){
     int corr_len;
     int ret = BACKEND_PROXY_PROCESS_ERROR;
 
@@ -278,16 +278,16 @@ int backend_proxy_strgy_msg_process_ver1(uint32_t msg_type, uint32_t msg_id, uin
             break;
     }
 
+    return ret;
+}
+
+
+int backend_proxy_strgy_msg_process_set_ver1(uint16_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
-int backend_proxy_strgy_msg_process_set_ver1(uint32_t payload_len, uint8_t *msg_payload){
-    return BACKEND_PROXY_PROCESS_OK;
-}
-
-
-int backend_proxy_strgy_msg_process_query_ver1(uint32_t payload_len, uint8_t *msg_payload){
+int backend_proxy_strgy_msg_process_query_ver1(uint16_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -303,7 +303,7 @@ int backend_proxy_strgy_msg_response(uint8_t *msg){
  *         |->backend_proxy_sess_msg_process_close_ver1
  */
 
-int backend_proxy_sess_msg_process(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg){
+int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint8_t *msg){
     SessMsgHeader *sess_msg_hdr;
     uint16_t version, payload_len;
     SessMsgType msg_type;
@@ -356,19 +356,55 @@ int backend_proxy_sess_msg_process(uint32_t frontend_sess_id, uint32_t backend_s
 }
 
 
-int backend_proxy_sess_msg_process_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint32_t msg_type, 
-                                        uint32_t action_type, uint16_t ip_version, uint32_t payload_len, 
+int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t msg_type, 
+                                        uint16_t action_type, uint16_t ip_version, uint16_t payload_len, 
                                         uint8_t *msg_payload){
+    int corr_len;
+    int ret = BACKEND_PROXY_PROCESS_ERROR;
+
+/* 
+ * Check whether the payload length matches the message type and signaling type.
+ */
+    corr_len = SESS_MSG_PAYLOAD_LEN(msg_type, action_type, ip_version);
+
+    if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
+            error_print("backend_proxy_sess_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    switch(msg_type) {
+        case SESS_MSG_CREATE:
+            if (BACKEND_HANDOVER_SESSION_ID != backend_sess_id){
+                error_print("The backend_sess_id should be BACKEND_HANDOVER_SESSION_ID in a session message whose type is SESS_MSG_CREATE!");
+                ret = BACKEND_PROXY_PROCESS_ERROR;
+            }else{
+                ret = backend_proxy_sess_msg_process_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
+            }
+            break;
+        case SESS_MSG_CLOSE:
+            ret = backend_proxy_sess_msg_process_close_ver1(frontend_sess_id, backend_sess_id, payload_len, msg_payload);
+            break;
+        default:
+/*
+ * Nothing to do, because the validation of the msg_type is checked before.
+ */
+            break;
+    }
+
+
+    return ret;
+}
+
+
+int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
+    uint32_t alloc_backend_sess_id;
+
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
-int backend_proxy_sess_msg_process_create_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint16_t ip_version, uint32_t payload_len, uint8_t *msg_payload){
-    return BACKEND_PROXY_PROCESS_OK;
-}
-
-
-int backend_proxy_sess_msg_process_close_ver1(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint32_t payload_len, uint8_t *msg_payload){
+int backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -380,7 +416,7 @@ int backend_proxy_sess_msg_response(uint8_t *msg){
 
 
 
-int backend_proxy_data_msg_prosess(uint32_t frontend_sess_id, uint32_t backend_sess_id, uint8_t *msg){
+int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint8_t *msg){
     int ret;
 
     return BACKEND_PROXY_PROCESS_OK;

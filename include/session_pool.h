@@ -35,4 +35,13 @@ struct BackendSessionPoolOps {
 
 struct BackendSessionPool* high_speed_pool;
 int high_speed_init_pool(struct BackendSessionPool* pool); 
+
+//helper func
+uint16_t allocate_id(struct BackendSessionIDQueue* id_q);
+void release_id(struct BackendSessionIDQueue* id_q, uint16_t id);
+void print_pool(struct BackendSessionPool* s_pool);
+void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
+void fill_id_queue(struct BackendSessionIDQueue* id_q);
+void inc_sess_num(struct BackendSessionPool* pool);
+void dec_sess_num(struct BackendSessionPool* pool);
 #endif

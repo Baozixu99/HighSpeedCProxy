@@ -2,15 +2,6 @@
 #include "session_pool.h"
 #include "session.h"
 
-//helper func
-uint16_t allocate_id(struct BackendSessionIDQueue* id_q);
-void release_id(struct BackendSessionIDQueue* id_q, uint16_t id);
-void print_pool(struct BackendSessionPool* s_pool);
-void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
-static void fill_id_queue(struct BackendSessionIDQueue* id_q);
-static void inc_sess_num(struct BackendSessionPool* pool);
-static void dec_sess_num(struct BackendSessionPool* pool);
-
 
 //ops
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
@@ -30,7 +21,7 @@ struct BackendSessionPoolOps high_speed_pool_ops = {
 };
 
 //helper func
-static void fill_id_queue(struct BackendSessionIDQueue* id_q)
+void fill_id_queue(struct BackendSessionIDQueue* id_q)
 {
     uint16_t q_num = 1024;
     for (uint16_t i = 1; i <= q_num; i++)
@@ -91,12 +82,12 @@ int high_speed_init_pool(struct BackendSessionPool* pool)
     return 0;
 }
 
-static void inc_sess_num(struct BackendSessionPool* pool)
+void inc_sess_num(struct BackendSessionPool* pool)
 {
     pool->sess_num++;
 }
 
-static void dec_sess_num(struct BackendSessionPool* pool)
+void dec_sess_num(struct BackendSessionPool* pool)
 {
     pool->sess_num--;
 }
