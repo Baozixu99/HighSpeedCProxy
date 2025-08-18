@@ -247,6 +247,7 @@ typedef struct {
     uint8_t data[];     //  Placeholder. data points to the response of the "Query" command and returns the active strategy code.
 } __attribute__((packed))StrgyMsgReport;
 
+
 typedef struct {
     uint16_t version;        // Protocol version, not in use currently, set to 1
     uint16_t msg_type;       // Message type, values: Create (0), Close (1)
@@ -254,6 +255,23 @@ typedef struct {
     uint16_t ip_version;     // IP version: SESS_IPV4_PROTO (4) / SESS_IPV6_PROTO(6)
     uint16_t payload_len;    // Payload length
 } __attribute__((packed)) SessMsgHeader;
+
+
+typedef struct{
+    uint16_t            trans_proto;
+    uint16_t            dev_id;
+    struct IPv4Address  ipv4_addr;
+    uint16_t            port;
+} __attribute__((packed)) SessParaIPv4;
+
+
+typedef struct{
+    uint16_t            trans_proto;
+    uint16_t            dev_id;
+    struct IPv6Address  ipv6_addr;
+    uint16_t            port;
+} __attribute__((packed)) SessParaIPv6;
+
 
 typedef enum {
     SESS_MSG_CLOSE = 0,             // Close
@@ -343,7 +361,7 @@ typedef union {
  * Session message parameter structure, used to describe core parameters related to session establishment,
  * including device identification, transport protocol type, and IP-port combination and other key information.
  */
-typedef struct {
+struct SessMsgPara{
 // Device ID, of type uint16_t, with value range 0x0000-0xFFFF; when set to 0xFFFF, it indicates entering vertical handover mode.
     uint16_t dev_id;
 // IP version, of type uint16_t, of type uint16_t, supported values include: 4 (IPv4), 6 (IPv6).
@@ -352,6 +370,7 @@ typedef struct {
     uint16_t trans_proto;
 // Tuple of IP address and port number, used to describe the combination of IP address and corresponding port number of the communication endpoint.
     IPPortTuple ip_port_tuple;
-} SessMsgPara;
+};
+
 
 #endif

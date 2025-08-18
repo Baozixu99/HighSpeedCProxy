@@ -12,7 +12,7 @@
 
 
 //ops
-int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, SessMsgPara *para);
+int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession *sess);
 struct BackendSession* high_speed_search_sess(struct BackendSessionPool *s_pool, uint16_t id);
 int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSession *sess);
@@ -28,6 +28,10 @@ struct BackendSessionPoolOps high_speed_pool_ops = {
     .data_process = high_speed_data_process,
     .destroy_pool = high_speed_destroy_pool
 };
+
+struct BackendSessionPool *get_backend_high_speed_pool(){
+    return high_speed_pool;
+}
 
 //helper func
 void fill_id_queue(struct BackendSessionIDQueue *id_q)
@@ -120,7 +124,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 }
 
 //ops
- int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, SessMsgPara *para){
+ int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para){
 /*
  * The procedure of creating a session can be divided into three steps:
  * STEP 1. Allocate resources, including session object, backend session ID, socket, etc.

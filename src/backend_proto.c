@@ -1,6 +1,6 @@
 #include "backend_proto.h"
 #include "engine.h"
-
+#include "message.h"
 
 int backend_proxy_msg_process(uint8_t *msg){
     ProxyMsgHeader *proxy_msg_hdr;
@@ -403,20 +403,18 @@ int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16
 
 
 int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
-    uint16_t alloc_id;
+    struct BackendSessionPool *pool;
+    SessParaIPv4 *para_ipv4;
+    SessParaIPv6 *para_ipv6;
+    struct SessMsgPara sess_para;
 
 /*
- * The procedure of creating a session can be divided into three steps:
- * STEP 1. Allocate resources, including session object, backend session ID, socket, etc.
- * STEP 2. Establish a session according to the parameters provided by the front end.
- * STEP 3. Create a session message to inform the front-end proxy of the result of the creation request.
- *
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
- */
+ * In __backend_proxy_sess_msg_process_create_ver1, this function parses the session parameters and calls the function pointed to by the create_sess pointer to establish a new session.
+*/
+    pool = get_backend_high_speed_pool();
 
-/*
- * STEP 1.
- */
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -439,9 +437,11 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+
 int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
+
 
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
     return BACKEND_PROXY_PROCESS_OK;

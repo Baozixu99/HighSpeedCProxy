@@ -4,9 +4,9 @@
 #include <stdint.h> 
 #include <sys/queue.h>
 
+#include "message.h"
 #include "session.h"
 
-struct  SessMsgPara;
 struct BackendSessionPoolOps;
 
 struct BackendSessionPool {
@@ -20,7 +20,7 @@ struct BackendSessionPool {
 } ;
 
 struct BackendSessionPoolOps {
-    int (*create_sess)(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct  SessMsgPara *para);
+    int (*create_sess)(struct BackendSessionPool *s_pool, struct BackendSession **sess,  struct SessMsgPara *para);
     int (*insert_sess)(struct BackendSessionPool *s_pool, struct BackendSession *sess);
 
     struct BackendSession* (*search_sess)(struct BackendSessionPool *s_pool, uint16_t id);
