@@ -5,13 +5,11 @@
 #include <sys/queue.h>
 #include <string.h>
 #include <netinet/in.h>
+#include "message.h"
 
 #define MAX_DEV_NAME                            32  // Maximum length of device name
 #define MAX_HS_DEV_NUM                          32
 #define MAX_DEVICE_PROPERTY_NAME_LENGTH         8
-
-struct IPv4Address;
-struct IPv6Address;
 
 
 /*
@@ -127,18 +125,7 @@ typedef enum {
     } \
 } while (0)
 
-struct IPv4Address {
-    uint8_t data[4];  
-};
 
-struct IPv6Address {
-    uint8_t data[16]; 
-};
-
-union IPAddress {
-    struct IPv4Address ipv4_addr;
-    struct IPv6Address ipv6_addr; 
-};
 
 
 

@@ -406,11 +406,15 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
     uint16_t alloc_id;
 
 /*
- * STEP 1. Alloc resource, including session object, backend session ID, socket, etc.
- * STEP 2. Establish session
- * STEP 3. create a session message to notice the front end proxy the result of the create request.
+ * The procedure of creating a session can be divided into three steps:
+ * STEP 1. Allocate resources, including session object, backend session ID, socket, etc.
+ * STEP 2. Establish a session according to the parameters provided by the front end.
+ * STEP 3. Create a session message to inform the front-end proxy of the result of the creation request.
  */
 
+/*
+ * STEP 1.
+ */
     return BACKEND_PROXY_PROCESS_OK;
 }
 

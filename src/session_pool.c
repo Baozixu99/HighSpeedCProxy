@@ -4,6 +4,7 @@
 
 
 //ops
+int high_speed_create_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);
 struct BackendSession* high_speed_search_sess(struct BackendSessionPool* s_pool, uint16_t id);
 int high_speed_delete_sess(struct BackendSessionPool* s_pool, struct BackendSession* sess);

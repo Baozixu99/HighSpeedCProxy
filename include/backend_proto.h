@@ -6,8 +6,6 @@
 #include "session_pool.h"
 #include "common_utils.h"
 
-#define BACKEND_PROXY_PROCESS_OK               0
-#define BACKEND_PROXY_PROCESS_ERROR            1
 
 #define PROXY_MSG_TYPE_VALID(x) (((x) == PROXY_MSG_TYPE_DEV)   || \
                                  ((x) == PROXY_MSG_TYPE_STRGY) || \

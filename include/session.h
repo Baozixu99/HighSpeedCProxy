@@ -6,7 +6,12 @@
 #include "uthash.h"
 #include "channel.h"
 
-struct ControlMsg;
+#define BACKEND_PROXY_PROCESS_OK               0
+#define BACKEND_PROXY_PROCESS_ERROR            1
+
+struct ControlMsg{
+    uint16_t dev_id;
+};
 
 struct SessMsgSeg {
     uint16_t len;

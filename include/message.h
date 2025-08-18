@@ -25,6 +25,89 @@
 
 #define PROXY_MSG_INVALID_LEN                            -1
 
+struct IPv4Address {
+    uint8_t data[4];  
+}__attribute__((packed));
+
+struct IPv6Address {
+    uint8_t data[16]; 
+};
+
+union IPAddress {
+    struct IPv4Address ipv4_addr;
+    struct IPv6Address ipv6_addr; 
+}__attribute__((packed));
+
+
+/*
+ * Macro: Copy IPv4 address from struct in_addr to custom struct IPv4Address
+ * Parameters:
+ *   dest - Destination structure pointer (struct IPv4Address*)
+ *   src  - Source structure pointer (const struct in_addr*)
+ * Notes:
+ *   1. Converts 32-bit network byte order address to 4-byte array in host order
+ *   2. Includes null pointer check to prevent invalid memory access
+ */
+#define COPY_IN_TO_IPV4(dest, src) do { \
+    if ((dest) != NULL && (src) != NULL) { \
+        uint32_t addr = ntohl((src)->s_addr);  \
+        (dest)->data[0] = (addr >> 24) & 0xFF; \
+        (dest)->data[1] = (addr >> 16) & 0xFF; \
+        (dest)->data[2] = (addr >> 8) & 0xFF; \
+        (dest)->data[3] = addr & 0xFF; \
+    } \
+} while (0)
+
+/*
+ * Macro: Copy data from custom struct IPv4Address to struct in_addr
+ * Parameters:
+ *   dest - Destination structure pointer (struct in_addr*)
+ *   src  - Source structure pointer (const struct IPv4Address*)
+ * Notes:
+ *   1. Combines 4-byte array into 32-bit value in network byte order
+ *   2. Reverse operation of COPY_IN_TO_IPV4 macro
+ */
+#define COPY_IPV4_TO_IN(dest, src) do { \
+    if ((dest) != NULL && (src) != NULL) { \
+        uint32_t addr = ((uint32_t)(src)->data[0] << 24) | \
+                       ((uint32_t)(src)->data[1] << 16) | \
+                       ((uint32_t)(src)->data[2] << 8) | \
+                       (uint32_t)(src)->data[3]; \
+        (dest)->s_addr = htonl(addr);  \
+    } \
+} while (0)
+
+
+/*
+ * Macro: Copy IPv6 address from struct in6_addr to custom struct IPv6Address
+ * Parameters:
+ *   dest - Destination structure pointer (struct IPv6Address*)
+ *   src  - Source structure pointer (const struct in6_addr*)
+ * Notes:
+ *   1. Internally uses memcpy to copy 16 bytes of data (their memory layouts are compatible)
+ *   2. Includes null pointer check to avoid accessing null pointers
+ */
+#define COPY_IN6_TO_IPV6(dest, src) do { \
+    if ((dest) != NULL && (src) != NULL) { \
+        memcpy((dest)->data, (src)->s6_addr, 16); \
+    } \
+} while (0)
+
+/*
+ * Macro: Copy data from custom struct IPv6Address to struct in6_addr
+ * Parameters:
+ *   dest - Destination structure pointer (struct in6_addr*)
+ *   src  - Source structure pointer (const struct IPv6Address*)
+ * Notes:
+ *   Reverse copy, functionally symmetric to the above macro
+ */
+#define COPY_IPV6_TO_IN6(dest, src) do { \
+    if ((dest) != NULL && (src) != NULL) { \
+        memcpy((dest)->s6_addr, (src)->data, 16); \
+    } \
+} while (0)
+
+
 typedef struct {
     uint8_t version;             // Protocol version, not used currently, set to 1.
     uint8_t proxy_msg_type;      // Proxy message type, divided into device message (0), strategy message (1), session message (2), and data message (3).
@@ -188,7 +271,7 @@ typedef enum {
 typedef enum {
     SESS_UDP_PROTO = 0,            // UDP
     SESS_TCP_PROTO = 1,            // TCP
-    SESS_FASTPATH_PROTO = 2        // XDP/eBPF
+    SESS_FASTPATH_PROTO = 2        // XDP or eBPF
 } SessTranProto;
 
 // Check if the session message type is valid
@@ -240,19 +323,35 @@ typedef enum {
 
 
 typedef struct {
-    uint16_t trans_proto;    // Transport layer type, values: UDP (0) and TCP (1);
-    uint16_t dev_id;         // Device ID; when set to 0xFF, indicates entering vertical handover mode.
-    uint8_t  data[0];        // Placeholder. Interpreted as IPv4PortTurple or IPv6PortTurple based on IP version.
-} __attribute__((packed)) SessMsgPara;
+    struct IPv4Address ipv4_addr;       // IPv4 address
+    uint16_t port;   	                // Transport layer port；
+} __attribute__((packed)) IPv4PortTuple;
 
 typedef struct {
-    uint32_t ipv4;        // IPv4 address
-    uint16_t port;   	  // Transport layer port；
-} __attribute__((packed)) IPv4PortTurple;
+    struct IPv6Address ipv6_addr;       // IPv6 address
+    uint16_t port;   	                // Transport layer port
+} __attribute__((packed)) IPv6PortTuple;
 
+typedef union {
+    IPv4PortTuple ipv4_port_tuple;
+    IPv6PortTuple ipv6_port_tuple;
+}IPPortTuple;
+
+
+
+/*
+ * Session message parameter structure, used to describe core parameters related to session establishment,
+ * including device identification, transport protocol type, and IP-port combination and other key information.
+ */
 typedef struct {
-    uint8_t ipv6[16];      // IPv6 address
-    uint16_t port;   	   // Transport layer port
-} __attribute__((packed)) IPv6PortTurple;
+// Device ID, of type uint16_t, with value range 0x0000-0xFFFF; when set to 0xFFFF, it indicates entering vertical handover mode.
+    uint16_t dev_id;
+// IP version, of type uint16_t, of type uint16_t, supported values include: 4 (IPv4), 6 (IPv6).
+    uint16_t ip_version;
+// Transport layer protocol type, of type uint16_t, supported values include: 0 (UDP protocol), 1 (TCP protocol), 2 (FastPath protocol).
+    uint16_t trans_proto;
+// Tuple of IP address and port number, used to describe the combination of IP address and corresponding port number of the communication endpoint.
+    IPPortTuple ip_port_tuple;
+} SessMsgPara;
 
 #endif
