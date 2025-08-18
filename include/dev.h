@@ -5,6 +5,7 @@
 #include <sys/queue.h>
 #include <string.h>
 #include <netinet/in.h>
+#include <assert.h>
 #include "message.h"
 
 #define MAX_DEV_NAME                            32  // Maximum length of device name
@@ -57,78 +58,6 @@ typedef enum {
     ((dev_status) == HS_NET_DEV_INACTIVE || (dev_status) == HS_NET_DEV_ACTIVE)
 
 
-/*
- * Macro: Copy IPv4 address from struct in_addr to custom struct IPv4Address
- * Parameters:
- *   dest - Destination structure pointer (struct IPv4Address*)
- *   src  - Source structure pointer (const struct in_addr*)
- * Notes:
- *   1. Converts 32-bit network byte order address to 4-byte array in host order
- *   2. Includes null pointer check to prevent invalid memory access
- */
-#define COPY_IN_TO_IPV4(dest, src) do { \
-    if ((dest) != NULL && (src) != NULL) { \
-        uint32_t addr = ntohl((src)->s_addr);  \
-        (dest)->data[0] = (addr >> 24) & 0xFF; \
-        (dest)->data[1] = (addr >> 16) & 0xFF; \
-        (dest)->data[2] = (addr >> 8) & 0xFF; \
-        (dest)->data[3] = addr & 0xFF; \
-    } \
-} while (0)
-
-/*
- * Macro: Copy data from custom struct IPv4Address to struct in_addr
- * Parameters:
- *   dest - Destination structure pointer (struct in_addr*)
- *   src  - Source structure pointer (const struct IPv4Address*)
- * Notes:
- *   1. Combines 4-byte array into 32-bit value in network byte order
- *   2. Reverse operation of COPY_IN_TO_IPV4 macro
- */
-#define COPY_IPV4_TO_IN(dest, src) do { \
-    if ((dest) != NULL && (src) != NULL) { \
-        uint32_t addr = ((uint32_t)(src)->data[0] << 24) | \
-                       ((uint32_t)(src)->data[1] << 16) | \
-                       ((uint32_t)(src)->data[2] << 8) | \
-                       (uint32_t)(src)->data[3]; \
-        (dest)->s_addr = htonl(addr);  \
-    } \
-} while (0)
-
-
-/*
- * Macro: Copy IPv6 address from struct in6_addr to custom struct IPv6Address
- * Parameters:
- *   dest - Destination structure pointer (struct IPv6Address*)
- *   src  - Source structure pointer (const struct in6_addr*)
- * Notes:
- *   1. Internally uses memcpy to copy 16 bytes of data (their memory layouts are compatible)
- *   2. Includes null pointer check to avoid accessing null pointers
- */
-#define COPY_IN6_TO_IPV6(dest, src) do { \
-    if ((dest) != NULL && (src) != NULL) { \
-        memcpy((dest)->data, (src)->s6_addr, 16); \
-    } \
-} while (0)
-
-/*
- * Macro: Copy data from custom struct IPv6Address to struct in6_addr
- * Parameters:
- *   dest - Destination structure pointer (struct in6_addr*)
- *   src  - Source structure pointer (const struct IPv6Address*)
- * Notes:
- *   Reverse copy, functionally symmetric to the above macro
- */
-#define COPY_IPV6_TO_IN6(dest, src) do { \
-    if ((dest) != NULL && (src) != NULL) { \
-        memcpy((dest)->s6_addr, (src)->data, 16); \
-    } \
-} while (0)
-
-
-
-
-
 struct HighSpeedNetDevStat {
     uint64_t rx_packets; // Number of received packets
     uint64_t rx_bytes; // Number of received bytes
@@ -147,6 +76,8 @@ struct TcpConnection {
 
 TAILQ_HEAD(ConnectionQueue, TcpConnection);
 
+
+#define ERROR_NAMESPACE_ID                      -1
 
 struct HighSpeedNetDevice {
 // Device identification information
@@ -168,5 +99,21 @@ struct HighSpeedNetDeviceSet {
 };
 
 
+#define GET_NS_ID(net_dev, dev_id)                       \
+    ({                                                   \
+        int _ns_id = ERROR_NAMESPACE_ID;                 \
+        do {                                             \
+            /* Check net_dev pointer validity */         \
+            assert(net_dev != NULL && "net_dev is NULL");\
+            /* Check dev_id range (0 <= dev_id < maximum device count) */ \
+            assert((dev_id >= 0) && (dev_id < MAX_HS_DEV_NUM) && "invalid dev_id"); \
+            /* Check if device status is active */       \
+            assert(net_dev->hs_net_dev[dev_id].dev_status == HS_NET_DEV_ACTIVE && \
+                   "device is not active");               \
+            /* All checks passed, get ns_id */            \
+            _ns_id = net_dev->hs_net_dev[dev_id].ns_id;   \
+        } while(0);                                       \
+        _ns_id;                                           \
+    })
 
 #endif /* DEV_H */

@@ -11,7 +11,7 @@
 
 #include "netns_socket.h"
 
-int create_socket_netns(int ns_fd)
+int create_socket_netns(int ns_fd, int domain, int type, int protocol)
 {
     int orig_netns;
     int newfd;
@@ -30,7 +30,7 @@ int create_socket_netns(int ns_fd)
         exit(1);
     }
 
-    newfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    newfd = socket(domain, type, protocol);
 
     //back to origin netns
     if(setns(orig_netns, CLONE_NEWNET) == -1)

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-int create_socket_netns(int ns_fd);
+int create_socket_netns(int ns_fd, int domain, int type, int protocol);
 void set_nonblocking(int sockfd);
 
 
