@@ -258,16 +258,16 @@ typedef struct {
 
 
 typedef struct{
-    uint16_t            trans_proto;
     uint16_t            dev_id;
+    uint16_t            trans_proto;
     struct IPv4Address  ipv4_addr;
     uint16_t            port;
 } __attribute__((packed)) SessParaIPv4;
 
 
 typedef struct{
-    uint16_t            trans_proto;
     uint16_t            dev_id;
+    uint16_t            trans_proto;
     struct IPv6Address  ipv6_addr;
     uint16_t            port;
 } __attribute__((packed)) SessParaIPv6;

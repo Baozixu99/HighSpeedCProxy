@@ -404,9 +404,16 @@ int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16
 
 int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
     struct BackendSessionPool *pool;
+    struct BackendSession *sess;
     SessParaIPv4 *para_ipv4;
     SessParaIPv6 *para_ipv6;
+    IPv4PortTuple *ipv4_port_tuple;
+    IPv6PortTuple *ipv6_port_tuple;
+    struct IPv4Address *ipv4_addr;
+    struct IPv6Address *ipv6_addr;
     struct SessMsgPara sess_para;
+    bool ip_ver_valid = true;
+    int ret;
 
 /*
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
@@ -414,8 +421,64 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 */
     pool = get_backend_high_speed_pool();
 
+    if(NULL == pool){
+        error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the high speed pool is not initialized!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
-    return BACKEND_PROXY_PROCESS_OK;
+    if(SESS_IPV4_PROTO == ip_version){
+        if(payload_len != sizeof(SessParaIPv4)){
+            error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the payload length does not match the IPv4 handover message!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        para_ipv4 = (SessParaIPv4 *)msg_payload;
+        sess_para.dev_id = para_ipv4->dev_id;
+        sess_para.trans_proto = para_ipv4->trans_proto;
+        sess_para.ip_version = SESS_IPV4_PROTO;
+
+        ipv4_port_tuple = &sess_para.ip_port_tuple.ipv4_port_tuple;
+        ipv4_addr = &para_ipv4->ipv4_addr;
+        memcpy(&ipv4_port_tuple->ipv4_addr, &ipv4_addr, sizeof(struct IPv4Address));
+        ipv4_port_tuple->port = para_ipv4->port;
+        
+
+    }else if(SESS_IPV6_PROTO == ip_version){
+        if(payload_len != sizeof(SessParaIPv6)){
+            error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the payload length does not match the IPv6 handover message!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        para_ipv6 = (SessParaIPv6 *)msg_payload;
+        sess_para.dev_id = para_ipv6->dev_id;
+        sess_para.trans_proto = para_ipv6->trans_proto;
+        sess_para.ip_version = SESS_IPV6_PROTO;
+
+        ipv6_port_tuple = &sess_para.ip_port_tuple.ipv6_port_tuple;
+        ipv6_addr = &para_ipv6->ipv6_addr;
+        memcpy(&ipv6_port_tuple->ipv6_addr, &ipv6_addr, sizeof(struct IPv6Address));
+        ipv6_port_tuple->port = para_ipv6->port;
+
+    }else{
+        ip_ver_valid = false;
+    }
+    
+    if(true == ip_ver_valid){
+/*
+ * If the session creation function does not exist, print an error message (indicating create_sess does not point to a valid create-session function) .
+ * The create_sess pointer points to the function that actually creates a socket, a session object and binds them together.
+ */
+
+        if(!pool->ops->create_sess){
+            error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because create_sess does not point to a valid create-session function!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        ret = pool->ops->create_sess(pool, &sess, &sess_para);
+    }else{
+        error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the IP version is not valid!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return ret;
 }
 
 
