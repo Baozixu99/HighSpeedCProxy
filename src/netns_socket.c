@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include "netns_socket.h"
+#include "session_pool.h"
 
 int create_socket_netns(int ns_fd, int domain, int type, int protocol)
 {
@@ -45,4 +46,9 @@ int create_socket_netns(int ns_fd, int domain, int type, int protocol)
 void set_nonblocking(int sockfd) {
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+}
+
+
+int connect_socket_netns(int fd, struct SessMsgPara *sess_para){
+    return BACKEND_PROXY_PROCESS_OK;
 }

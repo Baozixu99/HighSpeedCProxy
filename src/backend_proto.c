@@ -418,7 +418,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 /*
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
  * In __backend_proxy_sess_msg_process_create_ver1, this function parses the session parameters and calls the function pointed to by the create_sess pointer to establish a new session.
-*/
+ */
     pool = get_backend_high_speed_pool();
 
     if(NULL == pool){

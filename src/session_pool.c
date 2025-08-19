@@ -22,6 +22,7 @@ void high_speed_destroy_pool(struct BackendSessionPool *s_pool);
 
 
 struct BackendSessionPoolOps high_speed_pool_ops = {
+    .create_sess = high_speed_create_sess,
     .insert_sess = high_speed_insert_sess,
     .search_sess = high_speed_search_sess,
     .delete_sess = high_speed_delete_sess,
@@ -133,8 +134,42 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  *
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
  */
+    struct BackendSession *new_sess = NULL;
+    uint16_t new_sess_id;
+    int fd, type, protocol;
+/*
+ * STEP 1.
+ */
+    sess = (struct BackendSession*)malloc(sizeof(struct BackendSession));
+    if(NULL == sess){
+        error_print("high_speed_create_sess returns an error because allocating memory for BackendSession failed!");
+        goto create_sess_error;
+    }
+
+    new_sess_id = allocate_id(&s_pool->id_queue);
+    if(0 == new_sess_id){
+        error_print("high_speed_create_sess returns an error because allocating session ID failed!");
+        goto create_sess_error;
+    }
+
+    if(SESS_TCP_PROTO == para->trans_proto){
+
+    }else if (SESS_UDP_PROTO == para->trans_proto){
+
+    }else if (SESS_FASTPATH_PROTO == para->trans_proto){
+
+    }else{
+        
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
+
+create_sess_error:
+    if(NULL != sess){
+        free(sess);
+    }
+
+    return BACKEND_PROXY_PROCESS_ERROR;
  }
 
 
