@@ -7,17 +7,20 @@
 #include "message.h"
 #include "session.h"
 
+struct BackendEngine_;
+
 struct BackendSessionPoolOps;
 
 struct BackendSessionPool {
-    char *pool_name;
-    int sess_num;                       //pool当前容量
-    int capacity;                       //pool总容量
-    struct BackendSessionPoolOps *ops;
-    struct BackendSessionQueue act_queue;     // 活动会话队列
-    struct BackendSessionIDQueue id_queue;    // 会话ID队列
-    struct BackendSession *htable;  // Session hashtable
-} ;
+    char                            *pool_name;
+    int                             sess_num;       // Current capacity of the pool
+    int                             capacity;       // Total capacity of the pool
+    struct BackendEngine_           *engine;        // Points to the engine that this pool belongs to.
+    struct BackendSessionPoolOps    *ops;           // Operation function set.
+    struct BackendSessionQueue      act_queue;      // Active session queue
+    struct BackendSessionIDQueue    id_queue;       // Session ID queue
+    struct BackendSession           *htable;        // Session hash table
+};
 
 struct BackendSessionPoolOps {
     int (*create_sess)(struct BackendSessionPool *s_pool, struct BackendSession **sess,  struct SessMsgPara *para);

@@ -426,21 +426,23 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    sess_para.frontend_sess_id  = frontend_sess_id;
+
     if(SESS_IPV4_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv4)){
             error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the payload length does not match the IPv4 handover message!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
-        para_ipv4 = (SessParaIPv4 *)msg_payload;
-        sess_para.dev_id = para_ipv4->dev_id;
-        sess_para.trans_proto = para_ipv4->trans_proto;
-        sess_para.ip_version = SESS_IPV4_PROTO;
+        para_ipv4                   = (SessParaIPv4 *)msg_payload;
+        sess_para.dev_id            = para_ipv4->dev_id;
+        sess_para.trans_proto       = para_ipv4->trans_proto;
+        sess_para.ip_version        = SESS_IPV4_PROTO;
 
-        ipv4_port_tuple = &sess_para.ip_port_tuple.ipv4_port_tuple;
-        ipv4_addr = &para_ipv4->ipv4_addr;
+        ipv4_port_tuple             = &sess_para.ip_port_tuple.ipv4_port_tuple;
+        ipv4_addr                   = &para_ipv4->ipv4_addr;
         memcpy(&ipv4_port_tuple->ipv4_addr, &ipv4_addr, sizeof(struct IPv4Address));
-        ipv4_port_tuple->port = para_ipv4->port;
+        ipv4_port_tuple->port       = para_ipv4->port;
         
 
     }else if(SESS_IPV6_PROTO == ip_version){
@@ -448,15 +450,15 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
             error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the payload length does not match the IPv6 handover message!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
-        para_ipv6 = (SessParaIPv6 *)msg_payload;
-        sess_para.dev_id = para_ipv6->dev_id;
-        sess_para.trans_proto = para_ipv6->trans_proto;
-        sess_para.ip_version = SESS_IPV6_PROTO;
+        para_ipv6                   = (SessParaIPv6 *)msg_payload;
+        sess_para.dev_id            = para_ipv6->dev_id;
+        sess_para.trans_proto       = para_ipv6->trans_proto;
+        sess_para.ip_version        = SESS_IPV6_PROTO;
 
-        ipv6_port_tuple = &sess_para.ip_port_tuple.ipv6_port_tuple;
-        ipv6_addr = &para_ipv6->ipv6_addr;
+        ipv6_port_tuple             = &sess_para.ip_port_tuple.ipv6_port_tuple;
+        ipv6_addr                   = &para_ipv6->ipv6_addr;
         memcpy(&ipv6_port_tuple->ipv6_addr, &ipv6_addr, sizeof(struct IPv6Address));
-        ipv6_port_tuple->port = para_ipv6->port;
+        ipv6_port_tuple->port       = para_ipv6->port;
 
     }else{
         ip_ver_valid = false;

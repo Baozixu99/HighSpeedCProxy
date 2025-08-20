@@ -7,7 +7,7 @@
 #include "channel.h"
 
 #define BACKEND_PROXY_PROCESS_OK               0
-#define BACKEND_PROXY_PROCESS_ERROR            1
+#define BACKEND_PROXY_PROCESS_ERROR            -1
 
 struct ControlMsg{
     uint16_t dev_id;

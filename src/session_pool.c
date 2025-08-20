@@ -9,7 +9,10 @@
 #include "session_pool.h"
 #include "message.h"
 #include "netns_socket.h"
+#include "engine.h"
 
+
+int high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
 
 //ops
 int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
@@ -93,6 +96,7 @@ int high_speed_init_pool(struct BackendSessionPool *pool)
 
     pool->htable = NULL;
     pool->ops = &high_speed_pool_ops;
+    pool->engine = get_global_backend_engine();
     return 0;
 }
 
@@ -133,10 +137,14 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * STEP 3. Create a session message to inform the front-end proxy of the result of the creation request.
  *
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
+ *
+ * PLEASE NOTICE
+ * The XDP/eBPF session creating procedure is branched out to another processing logic in STEP 1. Therefore, the STEP 2 and STEP 3 are executed within its own processing logic.
  */
     struct BackendSession *new_sess = NULL;
-    uint16_t new_sess_id;
-    int fd, type, protocol;
+    uint16_t frontend_sess_id, new_sess_id, dev_id;
+    int fd, domain, type, protocol, ns_id;
+
 /*
  * STEP 1.
  */
@@ -152,15 +160,40 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
         goto create_sess_error;
     }
 
-    if(SESS_TCP_PROTO == para->trans_proto){
+    para->backend_sess_id = new_sess_id;
 
-    }else if (SESS_UDP_PROTO == para->trans_proto){
-
-    }else if (SESS_FASTPATH_PROTO == para->trans_proto){
-
+    if(SESS_IPV4_PROTO == para->ip_version){
+        domain = AF_INET;
+    }else if (SESS_IPV6_PROTO == para->ip_version){
+        domain = AF_INET6;
     }else{
-        
+/*
+ * Unsupported IP version.
+ */
+        error_print("high_speed_create_sess returns an error because the IP version is not supported!");
+        goto create_sess_error;
     }
+
+    if(SESS_TCP_PROTO == para->trans_proto){
+        type = SOCK_STREAM;
+    }else if (SESS_UDP_PROTO == para->trans_proto){
+        type = SOCK_DGRAM;
+    }else if (SESS_FASTPATH_PROTO == para->trans_proto){
+/*
+ * XDP/eBPF.
+ */
+        return high_speed_create_sess_fastpath(s_pool, new_sess, new_sess_id, para);
+    }else{
+/*
+ * Unsupported transparent protocol.
+ */
+        error_print("high_speed_create_sess returns an error because the session transport protocol is not supported!");
+        goto create_sess_error;
+    }
+
+//    fd = socket(domain, type, protocol);
+    dev_id = para->dev_id;
+    
 
     return BACKEND_PROXY_PROCESS_OK;
 
@@ -223,3 +256,9 @@ void high_speed_destroy_pool(struct BackendSessionPool *s_pool)
 }
 
 
+int high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para){
+/*
+ * To do.
+ */
+    return BACKEND_PROXY_PROCESS_OK;
+}

@@ -12,7 +12,7 @@
 #include "netns_socket.h"
 #include "session_pool.h"
 
-int create_socket_netns(int ns_fd, int domain, int type, int protocol)
+int create_socket_netns(int ns_id, int domain, int type, int protocol)
 {
     int orig_netns;
     int newfd;
@@ -20,14 +20,14 @@ int create_socket_netns(int ns_fd, int domain, int type, int protocol)
     orig_netns = open("/proc/self/ns/net", O_RDONLY);
     if(orig_netns != 0)
     {
-        printf("Open self netns failed!\n");
+        error_print("Open self netns failed!\n");
         exit(1);
     }
 
     //create socket in dst netns
-    if(setns(ns_fd, CLONE_NEWNET) == -1)
+    if(setns(ns_id, CLONE_NEWNET) == -1)
     {
-        printf("Set dest netns failed!\n");
+        error_print("Set dest netns failed!\n");
         exit(1);
     }
 
@@ -36,7 +36,7 @@ int create_socket_netns(int ns_fd, int domain, int type, int protocol)
     //back to origin netns
     if(setns(orig_netns, CLONE_NEWNET) == -1)
     {
-        printf("Back to origin netns failed!\n");
+        error_print("Back to origin netns failed!\n");
         exit(1);
     }
     close(orig_netns);

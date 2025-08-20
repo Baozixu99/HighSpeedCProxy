@@ -109,11 +109,11 @@ union IPAddress {
 
 
 typedef struct {
-    uint8_t version;             // Protocol version, not used currently, set to 1.
-    uint8_t proxy_msg_type;      // Proxy message type, divided into device message (0), strategy message (1), session message (2), and data message (3).
-    uint16_t frontend_sess_id;   // Frontend session ID, used to match frontend and backend sessions in the frontend proxy.
-    uint16_t backend_sess_id;    // Backend session ID, used to match frontend and backend sessions in the backend proxy.
-    uint16_t payload_len;        // Payload length, range from 1 to 4088, ensure it does not exceed one physical page.
+    uint8_t     version;             // Protocol version, not used currently, set to 1.
+    uint8_t     proxy_msg_type;      // Proxy message type, divided into device message (0), strategy message (1), session message (2), and data message (3).
+    uint16_t    frontend_sess_id;   // Frontend session ID, used to match frontend and backend sessions in the frontend proxy.
+    uint16_t    backend_sess_id;    // Backend session ID, used to match frontend and backend sessions in the backend proxy.
+    uint16_t    payload_len;        // Payload length, range from 1 to 4088, ensure it does not exceed one physical page.
 } __attribute__((packed)) ProxyMsgHeader;
 
 
@@ -235,9 +235,9 @@ typedef enum {
 )
 
 typedef struct {
-    StrgyMsgHeader header;   // Strategy message header
-    uint16_t cmd_type;       // Command type. 0: Enable specified strategy; 1: Query current strategy
-    uint16_t strat_para;     //  Strategy parameter (0: Round Robin; 1: Select device with highest current available bandwidth; 2: Select device with lowest current latency)
+    StrgyMsgHeader  header;   // Strategy message header
+    uint16_t        cmd_type;       // Command type. 0: Enable specified strategy; 1: Query current strategy
+    uint16_t        strat_para;     //  Strategy parameter (0: Round Robin; 1: Select device with highest current available bandwidth; 2: Select device with lowest current latency)
 } __attribute__((packed))StrgyCMDMessage;
 
 
@@ -341,13 +341,13 @@ typedef enum {
 
 
 typedef struct {
-    struct IPv4Address ipv4_addr;       // IPv4 address
-    uint16_t port;   	                // Transport layer port；
+    struct IPv4Address  ipv4_addr;       // IPv4 address
+    uint16_t            port;   	     // Transport layer port；
 } __attribute__((packed)) IPv4PortTuple;
 
 typedef struct {
-    struct IPv6Address ipv6_addr;       // IPv6 address
-    uint16_t port;   	                // Transport layer port
+    struct IPv6Address  ipv6_addr;       // IPv6 address
+    uint16_t            port;   	                // Transport layer port
 } __attribute__((packed)) IPv6PortTuple;
 
 typedef union {
@@ -362,14 +362,18 @@ typedef union {
  * including device identification, transport protocol type, and IP-port combination and other key information.
  */
 struct SessMsgPara{
+// Frontend session ID, used to deliver information for establishing a new session.
+    uint16_t        frontend_sess_id;
+// Backend session ID, used to deliver information for establishing a new session.
+    uint16_t        backend_sess_id;
 // Device ID, of type uint16_t, with value range 0x0000-0xFFFF; when set to 0xFFFF, it indicates entering vertical handover mode.
-    uint16_t dev_id;
+    uint16_t        dev_id;
 // IP version, of type uint16_t, of type uint16_t, supported values include: 4 (IPv4), 6 (IPv6).
-    uint16_t ip_version;
+    uint16_t        ip_version;
 // Transport layer protocol type, of type uint16_t, supported values include: 0 (UDP protocol), 1 (TCP protocol), 2 (FastPath protocol).
-    uint16_t trans_proto;
+    uint16_t        trans_proto;
 // Tuple of IP address and port number, used to describe the combination of IP address and corresponding port number of the communication endpoint.
-    IPPortTuple ip_port_tuple;
+    IPPortTuple     ip_port_tuple;
 };
 
 

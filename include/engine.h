@@ -58,7 +58,7 @@
 
 struct BackendEngOps; 
 
-typedef struct {
+typedef struct BackendEngine_{
     struct HighSpeedNetDeviceSet    *dev_set; // High speed network device set
     uint32_t                        dev_num;
     uint32_t                        active_mask; // Show the positions of all the active high-speed network devices as a mask.
