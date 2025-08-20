@@ -142,6 +142,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * The XDP/eBPF session creating procedure is branched out to another processing logic in STEP 1. Therefore, the STEP 2 and STEP 3 are executed within its own processing logic.
  */
     struct BackendSession *new_sess = NULL;
+    BackendEngine *engine;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
     int fd, domain, type, protocol, ns_id;
 
@@ -192,14 +193,61 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     }
 
 //    fd = socket(domain, type, protocol);
+
+/*
+ * Choose the namespace of the preferred high-speed network device for creating a socket.
+ */
+    engine = s_pool->engine;
     dev_id = para->dev_id;
+
+    if(NULL == engine){
+        error_print("high_speed_create_sess returns an error because the session pool does not belong to any engine!");
+        goto create_sess_error;
+    }
+
+
+/*
+ * If the device ID equals 0xFF, it means the backend engine should take responsibility for choosing the most appropriate high-speed network device on which the 
+ * new session is established.
+ */
+    if(DEV_ID_AUTO_HANDOVER == dev_id){
+        if(!engine->ops && !engine->ops->choose_dev){
+            error_print("high_speed_create_sess returns an error because the backend engine operation function set is not correctly initialized!");
+            goto create_sess_error;
+        }
+        
+        if(BACKEND_PROXY_PROCESS_OK != engine->ops->choose_dev(engine, &dev_id)){
+            error_print("high_speed_create_sess returns an error because the choosing network devices procedure is not successfully completed!");
+            goto create_sess_error;
+        }
+    }
+
+/*
+ * Get the namespace ID to which the selected high-speed network device is set.
+ */
+    ns_id = GET_NS_ID(&engine->dev_set, dev_id);
+    if(ERROR_NAMESPACE_ID == ns_id){
+        error_print("high_speed_create_sess returns an error because it has not successfully obtained the namespace ID to which \
+                     the selected high-speed network device is set!");
+        goto create_sess_error;
+    }
+
+    fd = create_socket_netns(ns_id, domain, type, protocol);
+
     
 
     return BACKEND_PROXY_PROCESS_OK;
 
 create_sess_error:
+/*
+ * Reclaim resources.
+ */
     if(NULL != sess){
         free(sess);
+    }
+
+    if(0 != new_sess_id){
+        release_id(&s_pool->id_queue, new_sess_id);
     }
 
     return BACKEND_PROXY_PROCESS_ERROR;

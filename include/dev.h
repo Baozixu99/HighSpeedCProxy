@@ -9,9 +9,10 @@
 #include "message.h"
 
 #define MAX_DEV_NAME                            32  // Maximum length of device name
-#define MAX_HS_DEV_NUM                          32
+#define MAX_HS_DEV_NUM                          16
 #define MAX_DEVICE_PROPERTY_NAME_LENGTH         8
 
+#define DEV_ID_AUTO_HANDOVER                    0xFF
 
 /*
  * High Speed Network device type enumeration

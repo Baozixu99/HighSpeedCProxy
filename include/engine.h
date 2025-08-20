@@ -60,23 +60,23 @@ struct BackendEngOps;
 
 typedef struct BackendEngine_{
     struct HighSpeedNetDeviceSet    *dev_set; // High speed network device set
-    uint32_t                        dev_num;
-    uint32_t                        active_mask; // Show the positions of all the active high-speed network devices as a mask.
+    uint16_t                        dev_num;
+    uint16_t                        active_mask; // Show the positions of all the active high-speed network devices as a mask.
     struct BackendSessionPool       *sess_pool; // Session pool
     struct SharedMemoryPool         *mem_pool; // Shared memory pool
     struct SharedMemoryPoolLock     *mem_pool_lock; // Shared memory pool lock
-    uint32_t                        selector_id;
+    uint16_t                        selector_id;
     struct BackendEngOps            *ops;
 } BackendEngine;
 
 
 struct BackendEngOps {
-    int (*enable_dev)(BackendEngine *eng, uint32_t mask);                            // Enable devices in the high-speed network device set
-    int (*disable_dev)(BackendEngine *eng, uint32_t mask);                           // Disable devices in the high-speed network device set
-    int (*query_dev)(BackendEngine *eng, uint32_t *mask);                            // Query information/status of devices in the high-speed network device set
-    int (*choose_dev)(BackendEngine *eng, uint32_t *dev_id);                         // Choose the most appropriate high-speed network device over which to establish a session, and record its device ID
-    int (*conf_dev_selector)(BackendEngine *eng, uint32_t sel_id);                        // Configure the device selection function/strategy for the high-speed network device set
-    int (*query_dev_sel_id)(BackendEngine *eng, uint32_t *sel_id);                        // Query the ID of the current device selector in the backend engine
+    int (*enable_dev)(BackendEngine *eng, uint16_t mask);                            // Enable devices in the high-speed network device set
+    int (*disable_dev)(BackendEngine *eng, uint16_t mask);                           // Disable devices in the high-speed network device set
+    int (*query_dev)(BackendEngine *eng, uint16_t *mask);                            // Query information/status of devices in the high-speed network device set
+    int (*choose_dev)(BackendEngine *eng, uint16_t *dev_id);                         // Choose the most appropriate high-speed network device over which to establish a session, and record its device ID
+    int (*conf_dev_selector)(BackendEngine *eng, uint16_t sel_id);                        // Configure the device selection function/strategy for the high-speed network device set
+    int (*query_dev_sel_id)(BackendEngine *eng, uint16_t *sel_id);                        // Query the ID of the current device selector in the backend engine
 };
 
 #define HS_DEV_SELECTOR_NAME_LEN                                       30
@@ -85,7 +85,7 @@ struct BackendEngOps {
 
 typedef struct{
     char sel_name[HS_DEV_SELECTOR_NAME_LEN];
-    int (*choose_dev)(BackendEngine *eng, uint32_t *dev_id);
+    int (*choose_dev)(BackendEngine *eng, uint16_t *dev_id);
 } HSDevSelector;
 
 

@@ -21,7 +21,7 @@ HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
   *
   */
 
-int enable_hs_net_dev(BackendEngine *eng, uint32_t mask){
+int enable_hs_net_dev(BackendEngine *eng, uint16_t mask){
     struct HighSpeedNetDeviceSet *set;
     uint32_t cnt;
     uint8_t bit_pos;
@@ -46,7 +46,7 @@ int enable_hs_net_dev(BackendEngine *eng, uint32_t mask){
 }
 
 
-int disable_hs_net_dev(BackendEngine *eng, uint32_t mask){
+int disable_hs_net_dev(BackendEngine *eng, uint16_t mask){
     struct HighSpeedNetDeviceSet *set;
     uint32_t cnt;
 
@@ -59,7 +59,7 @@ int disable_hs_net_dev(BackendEngine *eng, uint32_t mask){
 }
 
 
-int query_hs_net_dev(BackendEngine *eng, uint32_t *mask){
+int query_hs_net_dev(BackendEngine *eng, uint16_t *mask){
     struct HighSpeedNetDeviceSet *set;
     uint32_t cnt;
 
@@ -72,11 +72,11 @@ int query_hs_net_dev(BackendEngine *eng, uint32_t *mask){
 }
 
 
-int choose_hs_net_dev(BackendEngine *eng, uint32_t *dev_id){
+int choose_hs_net_dev(BackendEngine *eng, uint16_t *dev_id){
     struct HighSpeedNetDeviceSet *set;
     HSDevSelector *sel;
     int selector_id, ret;
-    uint32_t target_id;
+    uint16_t target_id;
 
     if(NULL == eng || NULL == dev_id){
         error_print("choose_hs_net_dev() returns an error because the engine or dev_id pointer is NULL!\n");
@@ -104,12 +104,12 @@ int choose_hs_net_dev(BackendEngine *eng, uint32_t *dev_id){
 }
 
 
-int conf_hs_net_selector(BackendEngine *eng, uint32_t sel_id){
+int conf_hs_net_selector(BackendEngine *eng, uint16_t sel_id){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
-int query_hs_net_selector(BackendEngine *eng, uint32_t *sel_id){
+int query_hs_net_selector(BackendEngine *eng, uint16_t *sel_id){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -143,7 +143,7 @@ int engine_init_eng_ops(BackendEngine *eng){
  * Set of high-speed device selector functions.
  */
 
-int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
+int choose_dev_round_robin(BackendEngine *eng, uint16_t *dev_id){
     uint32_t target_id = 0, active_mask;
     static int last_pos = -1;
     int cnt, dev_num;
@@ -208,7 +208,7 @@ int choose_dev_round_robin(BackendEngine *eng, uint32_t *dev_id){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-int choose_dev_latency_first(BackendEngine *eng, uint32_t *dev_id){
+int choose_dev_latency_first(BackendEngine *eng, uint16_t *dev_id){
     int target_id = 0;
 
     if(NULL == eng || NULL == dev_id){
@@ -220,7 +220,7 @@ int choose_dev_latency_first(BackendEngine *eng, uint32_t *dev_id){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-int choose_dev_throughput_first(BackendEngine *eng, uint32_t *dev_id){
+int choose_dev_throughput_first(BackendEngine *eng, uint16_t *dev_id){
     int target_id = 0;
 
     if(NULL == eng || NULL == dev_id){

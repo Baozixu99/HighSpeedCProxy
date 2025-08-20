@@ -21,14 +21,14 @@ int create_socket_netns(int ns_id, int domain, int type, int protocol)
     if(orig_netns != 0)
     {
         error_print("Open self netns failed!\n");
-        exit(1);
+        return ERROR_SOCKET_FD;
     }
 
     //create socket in dst netns
     if(setns(ns_id, CLONE_NEWNET) == -1)
     {
         error_print("Set dest netns failed!\n");
-        exit(1);
+        return ERROR_SOCKET_FD;
     }
 
     newfd = socket(domain, type, protocol);
@@ -37,7 +37,7 @@ int create_socket_netns(int ns_id, int domain, int type, int protocol)
     if(setns(orig_netns, CLONE_NEWNET) == -1)
     {
         error_print("Back to origin netns failed!\n");
-        exit(1);
+        return ERROR_SOCKET_FD;
     }
     close(orig_netns);
     return newfd;
