@@ -5,14 +5,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <stdio.h>
 
 #include "netns_socket.h"
 #include "session_pool.h"
 
-int create_socket_netns(int ns_id, int domain, int type, int protocol)
+int __create_socket_netns(int ns_id, int domain, int type, int protocol)
 {
     int orig_netns;
     int newfd;
@@ -43,6 +41,14 @@ int create_socket_netns(int ns_id, int domain, int type, int protocol)
     return newfd;
 }
 
+
+int create_socket_netns(int ns_id, struct SessMsgPara *sess_para, int *fd){
+    int domain, type, protocol, new_fd;
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
 void set_nonblocking(int sockfd) {
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
@@ -50,5 +56,33 @@ void set_nonblocking(int sockfd) {
 
 
 int connect_socket_netns(int fd, struct SessMsgPara *sess_para){
+    UniSockAddr uni_addr;
+    size_t      addr_len;
+    IPv4PortTuple *ipv4_port_tuple;
+    IPv6PortTuple *ipv6_port_tuple;
+
+    memset(&uni_addr, 0, sizeof(UniSockAddr));
+
+    if(SESS_IPV4_PROTO == sess_para->ip_version){
+        ipv4_port_tuple                  = &sess_para->ip_port_tuple.ipv4_port_tuple;
+        uni_addr.family                  = uni_addr.addr.ipv4_addr.sin_family = AF_INET;
+        uni_addr.addr.ipv4_addr.sin_port = htons(ipv4_port_tuple->port);
+        uni_addr.sa_addr_len             = sizeof(struct sockaddr_in);
+        COPY_IPV4_TO_IN(&uni_addr.addr.ipv4_addr.sin_addr, &ipv4_port_tuple->ipv4_addr);
+    }else if(SESS_IPV6_PROTO == sess_para->ip_version){
+        ipv6_port_tuple                    = &sess_para->ip_port_tuple.ipv6_port_tuple;
+        uni_addr.family                    = uni_addr.addr.ipv6_addr.sin6_family = AF_INET6;
+        uni_addr.addr.ipv6_addr.sin6_port  = htons(ipv6_port_tuple->port);
+        uni_addr.sa_addr_len               = sizeof(struct sockaddr_in6);
+        COPY_IPV6_TO_IN6(&uni_addr.addr.ipv6_addr.sin6_addr, &ipv6_port_tuple->ipv6_addr);
+    }else{
+        error_print("connect_socket_netns returns an error because the IP version is not valid!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(0 != connect(fd, &uni_addr.addr.sa_addr, uni_addr.sa_addr_len)){
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }

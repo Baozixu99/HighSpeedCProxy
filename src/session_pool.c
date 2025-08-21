@@ -131,23 +131,23 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 //ops
  int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para){
 /*
- * The procedure of creating a session can be divided into three steps:
+ * The procedure of creating a session can be divided into two steps:
  * STEP 1. Allocate resources, including session object, backend session ID, socket, etc.
- * STEP 2. Establish a session according to the parameters provided by the front end.
- * STEP 3. Create a session message to inform the front-end proxy of the result of the creation request.
+ * STEP 2. Establish a session according to the parameters provided by the front end, and create a session message to inform the front-end proxy of the result of the 
+ *         creation request.
  *
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
- *
- * PLEASE NOTICE
- * The XDP/eBPF session creating procedure is branched out to another processing logic in STEP 1. Therefore, the STEP 2 and STEP 3 are executed within its own processing logic.
  */
     struct BackendSession *new_sess = NULL;
     BackendEngine *engine;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
-    int fd, domain, type, protocol, ns_id;
+    int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id;
 
 /*
  * STEP 1.
+ * (1) Allocate memory for storing the backend session object;
+ * (2) Parse session message parameters, obtain the device ID, and execute the device selection procedure if necessary;
+ * (3) Determine the namespace ID by parsing the device ID of the specified high-speed network device, and create a new socket based on the session message parameters.
  */
     sess = (struct BackendSession*)malloc(sizeof(struct BackendSession));
     if(NULL == sess){
@@ -176,9 +176,11 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     }
 
     if(SESS_TCP_PROTO == para->trans_proto){
-        type = SOCK_STREAM;
+        type     = SOCK_STREAM;
+        protocol = IPPROTO_TCP;
     }else if (SESS_UDP_PROTO == para->trans_proto){
-        type = SOCK_DGRAM;
+        type     = SOCK_DGRAM;
+        protocol = IPPROTO_UDP;
     }else if (SESS_FASTPATH_PROTO == para->trans_proto){
 /*
  * XDP/eBPF.
@@ -232,9 +234,30 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
         goto create_sess_error;
     }
 
-    fd = create_socket_netns(ns_id, domain, type, protocol);
+/*
+ * Create a socket with given parameters.
+ */
+    fd = __create_socket_netns(ns_id, domain, type, protocol);
 
-    
+    if(ERROR_SOCKET_FD == fd){
+        error_print("high_speed_create_sess returns an error because it has not successfully create a socket with given parameters!");
+        goto create_sess_error;
+    }
+
+/*
+ * STEP 2:
+ * (1). Connect to the specified IP:Port tuple;
+ * (2). Maintain the 
+ */
+
+/*
+ * Connect to the specified IP:Port tuple.
+ */
+    if(BACKEND_PROXY_PROCESS_OK != connect_socket_netns(fd, para)){
+        error_print("high_speed_create_sess returns an error because it has not successfully connect to the specified IP:Port tuple!");
+        goto create_sess_error;
+    }
+
 
     return BACKEND_PROXY_PROCESS_OK;
 
@@ -249,6 +272,20 @@ create_sess_error:
     if(0 != new_sess_id){
         release_id(&s_pool->id_queue, new_sess_id);
     }
+
+    if(ERROR_SOCKET_FD != fd){
+        close(fd);
+    }
+
+/*
+ * Now connect to the remote IP:Port.
+ *
+ * PLEASE NOTICE
+ *
+ * The datagram socket can also "connect" to the specified IP:Port. However, the behavior is quite different from that of a stream socket when connecting to the remote 
+ * side. We choose to call connect on a datagram socket in order to unify the procedure of the backend proxy network stack. The details are processed by the Linux kernel
+ * network stack.
+ */
 
     return BACKEND_PROXY_PROCESS_ERROR;
  }
