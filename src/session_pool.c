@@ -12,7 +12,7 @@
 #include "engine.h"
 
 
-int high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
+int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
 
 //ops
 int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
@@ -149,8 +149,8 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * (2) Parse session message parameters, obtain the device ID, and execute the device selection procedure if necessary;
  * (3) Determine the namespace ID by parsing the device ID of the specified high-speed network device, and create a new socket based on the session message parameters.
  */
-    sess = (struct BackendSession*)malloc(sizeof(struct BackendSession));
-    if(NULL == sess){
+    new_sess = (struct BackendSession*)malloc(sizeof(struct BackendSession));
+    if(NULL == new_sess){
         error_print("high_speed_create_sess returns an error because allocating memory for BackendSession failed!");
         goto create_sess_error;
     }
@@ -162,39 +162,6 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     }
 
     para->backend_sess_id = new_sess_id;
-
-    if(SESS_IPV4_PROTO == para->ip_version){
-        domain = AF_INET;
-    }else if (SESS_IPV6_PROTO == para->ip_version){
-        domain = AF_INET6;
-    }else{
-/*
- * Unsupported IP version.
- */
-        error_print("high_speed_create_sess returns an error because the IP version is not supported!");
-        goto create_sess_error;
-    }
-
-    if(SESS_TCP_PROTO == para->trans_proto){
-        type     = SOCK_STREAM;
-        protocol = IPPROTO_TCP;
-    }else if (SESS_UDP_PROTO == para->trans_proto){
-        type     = SOCK_DGRAM;
-        protocol = IPPROTO_UDP;
-    }else if (SESS_FASTPATH_PROTO == para->trans_proto){
-/*
- * XDP/eBPF.
- */
-        return high_speed_create_sess_fastpath(s_pool, new_sess, new_sess_id, para);
-    }else{
-/*
- * Unsupported transparent protocol.
- */
-        error_print("high_speed_create_sess returns an error because the session transport protocol is not supported!");
-        goto create_sess_error;
-    }
-
-//    fd = socket(domain, type, protocol);
 
 /*
  * Choose the namespace of the preferred high-speed network device for creating a socket.
@@ -237,17 +204,17 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 /*
  * Create a socket with given parameters.
  */
-    fd = __create_socket_netns(ns_id, domain, type, protocol);
-
-    if(ERROR_SOCKET_FD == fd){
+    if(BACKEND_PROXY_PROCESS_OK != create_socket_netns(ns_id, para, &fd)){
         error_print("high_speed_create_sess returns an error because it has not successfully create a socket with given parameters!");
+        fd = ERROR_SOCKET_FD;
         goto create_sess_error;
     }
 
 /*
  * STEP 2:
  * (1). Connect to the specified IP:Port tuple;
- * (2). Maintain the 
+ * (2). Initialize members of the new session object;
+ * (3). Add the new session object to the specified session pool.
  */
 
 /*
@@ -258,6 +225,12 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
         goto create_sess_error;
     }
 
+/*
+ * Initialize session object.
+ */    
+    new_sess->backend_sess_id = new_sess_id;
+
+    *sess = new_sess;
 
     return BACKEND_PROXY_PROCESS_OK;
 
@@ -265,8 +238,8 @@ create_sess_error:
 /*
  * Reclaim resources.
  */
-    if(NULL != sess){
-        free(sess);
+    if(NULL != new_sess){
+        free(new_sess);
     }
 
     if(0 != new_sess_id){
@@ -341,9 +314,10 @@ void high_speed_destroy_pool(struct BackendSessionPool *s_pool)
 }
 
 
-int high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para){
+int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para){
 /*
  * To do.
  */
     return BACKEND_PROXY_PROCESS_OK;
 }
+

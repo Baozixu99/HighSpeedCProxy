@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include "message.h"
 #include "common_utils.h"
+#include "session_pool.h"
 
 #define ERROR_SOCKET_FD         -1
 
@@ -26,6 +27,6 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol);
 int create_socket_netns(int ns_id, struct SessMsgPara *sess_para, int *fd);
 void set_nonblocking(int sockfd);
 int connect_socket_netns(int fd, struct SessMsgPara *sess_para);
-
+int create_socket_fastpath(int ns_id, struct SessMsgPara *para, int *fd);
 
 #endif /* NETNS_SOCKET_H */

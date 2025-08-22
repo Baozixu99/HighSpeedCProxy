@@ -10,6 +10,15 @@
 #include "netns_socket.h"
 #include "session_pool.h"
 
+
+int create_socket_fastpath(int ns_id, struct SessMsgPara *para, int *fd){
+    int new_fd, ret;
+/* 
+ * to do.
+ */
+    return ret;
+}
+
 int __create_socket_netns(int ns_id, int domain, int type, int protocol)
 {
     int orig_netns;
@@ -42,8 +51,52 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol)
 }
 
 
-int create_socket_netns(int ns_id, struct SessMsgPara *sess_para, int *fd){
-    int domain, type, protocol, new_fd;
+int create_socket_netns(int ns_id, struct SessMsgPara *para, int *fd){
+    int domain, type, protocol, new_fd, ret;
+
+    if(NULL == para || NULL == fd){
+
+    }
+    
+    if(SESS_IPV4_PROTO == para->ip_version){
+        domain = AF_INET;
+    }else if (SESS_IPV6_PROTO == para->ip_version){
+        domain = AF_INET6;
+    }else{
+/*
+ * Unsupported IP version.
+ */
+        error_print("create_socket_netns returns an error because the IP version is not supported!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(SESS_TCP_PROTO == para->trans_proto){
+        type     = SOCK_STREAM;
+        protocol = IPPROTO_TCP;
+    }else if (SESS_UDP_PROTO == para->trans_proto){
+        type     = SOCK_DGRAM;
+        protocol = IPPROTO_UDP;
+    }else if (SESS_FASTPATH_PROTO == para->trans_proto){
+/*
+ * XDP/eBPF.
+ */
+        return create_socket_fastpath(ns_id, para, fd);
+    }else{
+/*
+ * Unsupported transparent protocol.
+ */
+        error_print("create_socket_netns returns an error because the transport protocol is not supported!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    new_fd = __create_socket_netns(ns_id, domain, type, protocol);
+
+    if(ERROR_SOCKET_FD == new_fd){
+        error_print("create_socket_netnss returns an error because the socket creation procedure is not completed successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    *fd = new_fd;
 
     return BACKEND_PROXY_PROCESS_OK;
 }

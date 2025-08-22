@@ -51,5 +51,6 @@ void inc_sess_num(struct BackendSessionPool *pool);
 void dec_sess_num(struct BackendSessionPool *pool);
 
 
-int high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
+int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
+
 #endif
