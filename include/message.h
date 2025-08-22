@@ -6,11 +6,18 @@
 #include <stdbool.h>
 
 #define PROXY_PROTO_VERSION_1                            1
-#define PROXY_MSG_TYPE_DEV                               0
-#define PROXY_MSG_TYPE_STRGY                             1
-#define PROXY_MSG_TYPE_SESS                              2
-#define PROXY_MSG_TYPE_DATA                              3
+// #define PROXY_MSG_TYPE_DEV                               0
+// #define PROXY_MSG_TYPE_STRGY                             1
+// #define PROXY_MSG_TYPE_SESS                              2
+// #define PROXY_MSG_TYPE_DATA                              3
 
+
+typedef enum {
+    PROXY_MSG_TYPE_DEV = 0,    // Device message
+    PROXY_MSG_TYPE_STRGY,      // Strategy message
+    PROXY_MSG_TYPE_SESS,       // Session message
+    PROXY_MSG_TYPE_DATA        // Data message
+} ProxyMsgType;
 
 
 #define PROXY_PROTO_DEV_VERSION_1                        1
@@ -376,5 +383,19 @@ struct SessMsgPara{
     IPPortTuple     ip_port_tuple;
 };
 
+
+
+typedef struct{
+    ProxyMsgHeader  outter_header;
+    ProxyMsgType    msg_type;
+    union {        // Nested union to reduce memory usage (avoids redundant space)
+        DevMsgHeader    dev;    // Device message header member
+        StrgyMsgHeader  strgy;  // Strategy message header member
+        SessMsgHeader   sess;   // Session message header member
+    } inner_header; // Nested union alias for easy access to specific headers
+} GeneralProxyMsgHeader;
+
+
+int build_general_proxy_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len);
 
 #endif

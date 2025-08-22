@@ -214,7 +214,8 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * STEP 2:
  * (1). Connect to the specified IP:Port tuple;
  * (2). Initialize members of the new session object;
- * (3). Add the new session object to the specified session pool.
+ * (3). Create a RESPONSE message to notify the frontend proxy that the specified session is created successfully;
+ * (4). Insert the session into the specified session pool.
  */
 
 /*
@@ -228,7 +229,11 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 /*
  * Initialize session object.
  */    
-    new_sess->backend_sess_id = new_sess_id;
+    new_sess->frontend_sess_id  = para->frontend_sess_id;
+    new_sess->backend_sess_id   = new_sess_id;
+    new_sess->sock_fd           = fd;
+    TAILQ_INIT(&new_sess->queue_f2b);
+    TAILQ_INIT(&new_sess->queue_b2a);
 
     *sess = new_sess;
 

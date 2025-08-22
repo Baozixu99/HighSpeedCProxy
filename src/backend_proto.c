@@ -4,7 +4,8 @@
 
 int backend_proxy_msg_process(uint8_t *msg){
     ProxyMsgHeader *proxy_msg_hdr;
-    int proxy_proto_ver, msg_type, msg_len, ret;
+    int proxy_proto_ver, msg_len, ret;
+    ProxyMsgType msg_type;
     uint16_t frontend_sess_id, backend_sess_id;
     uint8_t *msg_ptr;
 
@@ -15,11 +16,11 @@ int backend_proxy_msg_process(uint8_t *msg){
 /*
  * Currently, the backend protocol stack does not differentiate the protocol version, we reserve the protocol version for future extensions.
  */
-    proxy_proto_ver = proxy_msg_hdr->version;
-    frontend_sess_id = proxy_msg_hdr->frontend_sess_id;
-    backend_sess_id = proxy_msg_hdr->backend_sess_id;
-    msg_type = proxy_msg_hdr->proxy_msg_type;
-    msg_len = proxy_msg_hdr->payload_len;
+    proxy_proto_ver     = proxy_msg_hdr->version;
+    frontend_sess_id    = proxy_msg_hdr->frontend_sess_id;
+    backend_sess_id     = proxy_msg_hdr->backend_sess_id;
+    msg_type            = proxy_msg_hdr->proxy_msg_type;
+    msg_len             = proxy_msg_hdr->payload_len;
 /*
  * Check the validity of the message type.
  */
@@ -509,5 +510,18 @@ int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg){
 
 
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * Builds a complete message by combining the general header and payload.
+ * 
+ * @param header Pointer to a GeneralMsgHeader structure specifying the message header.
+ * @param payload Pointer to the uint8_t buffer containing the message payload.
+ * @param payload_len Length of the payload in bytes (must match header->header.*.payload_len for consistency).
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction, or BACKEND_PROXY_PROCESS_ERROR if invalid parameters or construction fails.
+ */
+int build_general_proxy_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len){
     return BACKEND_PROXY_PROCESS_OK;
 }
