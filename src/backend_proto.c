@@ -514,14 +514,36 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
 }
 
 
+/*
+ * Functions for building sub-type messages.
+ *
+ * 
+ */
+
+
 /**
  * Builds a complete message by combining the general header and payload.
  * 
- * @param header Pointer to a GeneralMsgHeader structure specifying the message header.
- * @param payload Pointer to the uint8_t buffer containing the message payload.
- * @param payload_len Length of the payload in bytes (must match header->header.*.payload_len for consistency).
- * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction, or BACKEND_PROXY_PROCESS_ERROR if invalid parameters or construction fails.
+ * Builds a complete proxy general message by combining the general header and payload.
+ * The function will allocate memory for the output message (caller is responsible for freeing it).
+ * 
+ * @param header Pointer to a GeneralProxyMsgHeader structure specifying the message header.
+ *               Must not be NULL.
+ * @param payload Pointer to the const uint8_t buffer containing the message payload.
+ *                Can be NULL only if payload_len is 0.
+ * @param payload_len Length of the payload in bytes. Must be non-negative and match
+ *                    header->payload_len (if header contains payload length field) for consistency.
+ * @param result_msg Double pointer to receive the address of the constructed proxy message.
+ *                   On success, points to a newly allocated buffer containing the complete message.
+ *                   Caller must free this memory with appropriate function (e.g., free()) when done.
+ *                   Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK (0) on successful message construction;
+ *             Returns BACKEND_PROXY_PROCESS_ERROR (-1) if any parameter is invalid (e.g., NULL pointers,
+ *             mismatched lengths) or memory allocation fails
  */
-int build_general_proxy_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len){
+int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    uint8_t         *msg_buf;
+    DevMsgHeader    *dev_hdr;
+
     return BACKEND_PROXY_PROCESS_OK;
 }

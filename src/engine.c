@@ -493,17 +493,21 @@ int engine_init_shared_mem_pool(BackendEngine *eng){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    eng->mem_pool = mem_pool;
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int engine_init_shared_mem_pool_lock(BackendEngine *eng){
     struct SharedMemoryPoolLock *mem_pool_lock;
+    struct SharedMemoryPool     *mem_pool;
     int ret;
 /*
  * Initialize the shared memory pool lock.
  */
     mem_pool_lock = malloc(sizeof(struct SharedMemoryPoolLock));
+    mem_pool      = eng->mem_pool;
     if(NULL == mem_pool_lock){
         error_print("engine_init_sess_pool() returns an error because there is not enough memory to allocate the shared memory pool lock.\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -512,6 +516,7 @@ int engine_init_shared_mem_pool_lock(BackendEngine *eng){
     ret = init_shared_mem_pool_lock(mem_pool_lock);
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_sess_pool() returns an error because it cannot initialize the shared memory pool lock successfully.\n");
+        free(mem_pool);
         free(mem_pool_lock);
         return BACKEND_PROXY_PROCESS_ERROR;
     }

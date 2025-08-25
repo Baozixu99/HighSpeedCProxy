@@ -3,14 +3,17 @@
 
 #include <stdint.h>
 
+#define ERROR_SHARED_MEM_ADDR           UINT64_MAX
 
-struct SharedMemoryPool{
-    int value; // Just for placehoder. We will redefine this struct after receiving the partner's document.
-};
 
 
 struct SharedMemoryPoolLock{
     int value; // Just for placehoder. We will redefine this struct after receiving the partner's document.
+};
+
+struct SharedMemoryPool{
+    int                             value; // Just for placehoder. We will redefine this struct after receiving the partner's document.
+    struct SharedMemoryPoolLock     lock;
 };
 
 int init_shared_mem_pool(struct SharedMemoryPool *mem_pool);

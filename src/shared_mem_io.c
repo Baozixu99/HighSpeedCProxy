@@ -12,6 +12,9 @@ void free_shared_mem_pool(struct SharedMemoryPool *mem_pool){
 
 
 uint64_t alloc_shared_mem(struct SharedMemoryPool *mem_pool){
+    if(NULL == mem_pool)
+        return ERROR_SHARED_MEM_ADDR;
+
     return 0;
 }
 

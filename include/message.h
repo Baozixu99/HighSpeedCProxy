@@ -389,13 +389,22 @@ typedef struct{
     ProxyMsgHeader  outter_header;
     ProxyMsgType    msg_type;
     union {        // Nested union to reduce memory usage (avoids redundant space)
-        DevMsgHeader    dev;    // Device message header member
-        StrgyMsgHeader  strgy;  // Strategy message header member
-        SessMsgHeader   sess;   // Session message header member
+        DevMsgHeader    dev_hdr;    // Device message header member
+        StrgyMsgHeader  strgy_hdr;  // Strategy message header member
+        SessMsgHeader   sess_hdr;   // Session message header member
     } inner_header; // Nested union alias for easy access to specific headers
 } GeneralProxyMsgHeader;
 
 
-int build_general_proxy_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len);
+int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+
+int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+
+
+
+
 
 #endif
