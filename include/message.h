@@ -386,7 +386,7 @@ struct SessMsgPara{
 
 
 typedef struct{
-    ProxyMsgHeader  outter_header;
+    ProxyMsgHeader  outer_header;
     ProxyMsgType    msg_type;
     union {        // Nested union to reduce memory usage (avoids redundant space)
         DevMsgHeader    dev_hdr;    // Device message header member

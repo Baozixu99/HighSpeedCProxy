@@ -515,10 +515,33 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
 
 
 /*
- * Functions for building sub-type messages.
+ * Functions for building sub-type proxy messages.
  *
- * 
+ * - build_proxy_dev_message   : Builds a device-specific proxy message
+ * - build_proxy_strgy_message : Builds a strategy-specific proxy message
+ * - build_proxy_sess_message  : Builds a session-specific proxy message
+ * - build_proxy_data_message  : Builds a data-specific proxy message
  */
+ int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    return BACKEND_PROXY_PROCESS_OK;
+ }
+
+
+int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
 
 
 /**
@@ -543,7 +566,70 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
  */
 int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     uint8_t         *msg_buf;
+    uint64_t        mem_addr;
+    uint16_t        proxy_msg_payload_len;
+    ProxyMsgType    outer_msg_type;
+    ProxyMsgHeader  *proxy_msg_hdr;
     DevMsgHeader    *dev_hdr;
+    StrgyMsgHeader  *strgy_hdr;
+    SessMsgHeader   *sess_hdr;
+    BackendEngine   *eng;
+
+/*
+ * Check the validity of the input parameters.
+ */
+    if(NULL == header || NULL == payload || NULL == result_msg){
+        error_print("build_proxy_general_message failed: input(s) for generating proxy message is/are NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    eng = get_global_backend_engine();
+    if(NULL == eng || NULL == eng->mem_pool){
+        error_print("build_proxy_general_message failed: backend engine is NULL or its memory pool is uninitialized!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+/*
+ * Allocate shared-memory for storing the proxy message.
+ */
+    mem_addr = alloc_shared_mem(eng->mem_pool);
+    if(ERROR_SHARED_MEM_ADDR == mem_addr){
+        error_print("build_proxy_general_message failed: failed to allocate shared memory!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    msg_buf         = (uint8_t *)mem_addr;
+    *result_msg     = msg_buf;
+
+/*
+ * Fill the proxy message header.
+ */
+    proxy_msg_hdr                       = (ProxyMsgHeader *)msg_buf;
+    proxy_msg_hdr->version              = header->outer_header.version;
+    proxy_msg_hdr->proxy_msg_type       = outer_msg_type = header->outer_header.proxy_msg_type;
+    proxy_msg_hdr->frontend_sess_id     = header->outer_header.frontend_sess_id;
+    proxy_msg_hdr->backend_sess_id      = header->outer_header.backend_sess_id;
+    
+    switch(outer_msg_type) {
+        case PROXY_MSG_TYPE_DEV:
+            proxy_msg_payload_len = sizeof(DevMsgHeader);
+            break;
+        case PROXY_MSG_TYPE_STRGY:
+            proxy_msg_payload_len = sizeof(StrgyMsgHeader);
+            break;
+        case PROXY_MSG_TYPE_SESS:
+            proxy_msg_payload_len = sizeof(SessMsgHeader);
+            break;
+        case PROXY_MSG_TYPE_DATA:
+            proxy_msg_payload_len = 0;
+        default:
+/*
+ * Message type is not supported!.
+ */
+            error_print("build_proxy_general_message failed: message type is not supported!");
+            free_shared_mem(eng->mem_pool, mem_addr);
+            return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 }
