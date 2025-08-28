@@ -186,6 +186,13 @@ typedef enum {
 )
 
 
+/* 
+ * Get payload length directly from DevMsgHeader struct
+ * euses DEV_MSG_PAYLOAD_LEN to avoid duplicate logic
+ */
+#define DEV_MSG_HEADER_PAYLOAD_LEN(header) \
+    DEV_MSG_PAYLOAD_LEN((header)->msg_type, (header)->action_type)
+
 typedef struct {
     uint8_t status;    // Status code
     uint8_t error;     // Error code
@@ -240,6 +247,15 @@ typedef enum {
         ) : \
     PROXY_MSG_INVALID_LEN  /* Invalid strategy message type */ \
 )
+
+
+/* 
+ * Get payload length directly from StrgyMsgHeader struct
+ * euses STRGY_MSG_PAYLOAD_LEN to avoid duplicate logic
+ */
+#define STRGY_MSG_HEADER_PAYLOAD_LEN(header) \
+    DEV_MSG_PAYLOAD_LEN((header)->msg_type, (header)->action_type)
+
 
 typedef struct {
     StrgyMsgHeader  header;   // Strategy message header
@@ -346,6 +362,12 @@ typedef enum {
     PROXY_MSG_INVALID_LEN  /* Invalid session message type */ \
 )
 
+/* 
+ * Get payload length directly from StrgySessHeader struct
+ * euses STRGY_MSG_PAYLOAD_LEN to avoid duplicate logic
+ */
+#define SESS_MSG_HEADER_PAYLOAD_LEN(header) \
+    SESS_MSG_PAYLOAD_LEN((header)->msg_type, (header)->action_type, (header)->ip_version)
 
 typedef struct {
     struct IPv4Address  ipv4_addr;       // IPv4 address

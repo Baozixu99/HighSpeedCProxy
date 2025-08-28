@@ -522,24 +522,116 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
  * - build_proxy_sess_message  : Builds a session-specific proxy message
  * - build_proxy_data_message  : Builds a data-specific proxy message
  */
- int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+ int build_proxy_dev_message(DevMsgHeader *dev_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    DevMsgHeader *header;
+    size_t corr_len;
+    uint8_t *dev_msg;
+
+    corr_len = DEV_MSG_HEADER_PAYLOAD_LEN(dev_hdr);
+
+    if(payload_len != corr_len){
+        error_print("build_proxy_dev_message failed: payload length does not match expected value based on message type and action type!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(payload_len != dev_hdr->payload_len){
+        error_print("build_proxy_dev_message failed: payload length does not match the payload_len field in DevMsgHeader!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    dev_msg                 = *result_msg;
+    header                  = (DevMsgHeader *)dev_msg;
+    header->version         = dev_hdr->version;
+    header->msg_type        = dev_hdr->msg_type;
+    header->msg_id          = dev_hdr->msg_id;
+    header->action_type     = dev_hdr->action_type;
+    header->payload_len     = payload_len;
+
+    dev_msg += sizeof(DevMsgHeader);
+    memcpy(dev_msg, payload, payload_len);
+
     return BACKEND_PROXY_PROCESS_OK;
  }
 
 
-int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+int build_proxy_strgy_message(StrgyMsgHeader *strgy_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    StrgyMsgHeader *header;
+    size_t corr_len;
+    uint8_t *strgy_msg;
+
+    corr_len = STRGY_MSG_HEADER_PAYLOAD_LEN(strgy_hdr);
+
+    if(payload_len != corr_len){
+        error_print("build_proxy_strgy_message failed: payload length does not match expected value based on message type and action type!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(payload_len != strgy_hdr->payload_len){
+        error_print("build_proxy_strgy_message failed: payload length does not match the payload_len field in StrgyMsgHeader!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    strgy_msg               = *result_msg;
+    header                  = (StrgyMsgHeader *)strgy_msg;
+    header->version         = strgy_hdr->version;
+    header->msg_type        = strgy_hdr->msg_type;
+    header->msg_id          = strgy_hdr->msg_id;
+    header->action_type     = strgy_hdr->action_type;
+    header->payload_len     = payload_len;
+
+    strgy_msg += sizeof(StrgyMsgHeader);
+    memcpy(strgy_msg, payload, payload_len);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 
-int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    SessMsgHeader *header;
+    size_t corr_len;
+    uint8_t *sess_msg;
+
+    corr_len = SESS_MSG_HEADER_PAYLOAD_LEN(sess_hdr);
+
+    if(payload_len != corr_len){
+        error_print("build_proxy_sess_message failed: payload length does not match expected value based on message type, action type and IP version!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(payload_len != sess_hdr->payload_len){
+        error_print("build_proxy_sess_message failed: payload length does not match the payload_len field in SessMsgHeader!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess_msg = *result_msg;
+    header = (SessMsgHeader *)sess_msg;
+    header->version = sess_hdr->version;
+    header->msg_type = sess_hdr->msg_type;
+    header->action_type = sess_hdr->action_type;
+    header->ip_version = sess_hdr->ip_version;
+    header->payload_len = sess_hdr->payload_len;
+
+    
+    sess_msg += sizeof(SessMsgHeader);
+    memcpy(sess_msg, payload, payload_len);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 
-int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    uint8_t *data_msg;
+
+    if(payload_len != proxy_msg_hdr->payload_len){
+        error_print("build_proxy_data_message failed: payload length does not match expected value based on message type, action type and IP version!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    data_msg = *result_msg;
+    memcpy(data_msg, payload, payload_len);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -574,6 +666,7 @@ int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *pa
     StrgyMsgHeader  *strgy_hdr;
     SessMsgHeader   *sess_hdr;
     BackendEngine   *eng;
+    int             ret;
 
 /*
  * Check the validity of the input parameters.
@@ -610,18 +703,26 @@ int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *pa
     proxy_msg_hdr->frontend_sess_id     = header->outer_header.frontend_sess_id;
     proxy_msg_hdr->backend_sess_id      = header->outer_header.backend_sess_id;
     
+    msg_buf += sizeof(ProxyMsgHeader);
     switch(outer_msg_type) {
         case PROXY_MSG_TYPE_DEV:
+            dev_hdr               = &header->inner_header.dev_hdr;
             proxy_msg_payload_len = sizeof(DevMsgHeader);
+            ret = build_proxy_dev_message(dev_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_STRGY:
+            strgy_hdr             = &header->inner_header.strgy_hdr;
             proxy_msg_payload_len = sizeof(StrgyMsgHeader);
+            ret = build_proxy_strgy_message(strgy_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_SESS:
+            sess_hdr              = &header->inner_header.sess_hdr;
             proxy_msg_payload_len = sizeof(SessMsgHeader);
+            ret = build_proxy_sess_message(sess_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_DATA:
             proxy_msg_payload_len = 0;
+            ret = build_proxy_data_message(proxy_msg_hdr, payload, payload_len, &msg_buf);
         default:
 /*
  * Message type is not supported!.
@@ -630,6 +731,17 @@ int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *pa
             free_shared_mem(eng->mem_pool, mem_addr);
             return BACKEND_PROXY_PROCESS_ERROR;
     }
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("build_proxy_general_message failed: failed to build proxy message!");
+        free_shared_mem(eng->mem_pool, mem_addr);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * Compute the payload length and fill it into the corresponding field of the proxy message header.
+ */
+    proxy_msg_hdr->payload_len = payload_len + proxy_msg_payload_len;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
