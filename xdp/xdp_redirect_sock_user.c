@@ -51,7 +51,7 @@ enum benchmark_type {
 
 static enum benchmark_type opt_bench = BENCH_L2FWD;
 static u32 opt_xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST | XDP_FLAGS_SKB_MODE;
-static const char *opt_if = "ens33";
+static const char *opt_if = "eth1";
 static int opt_ifindex;
 static int opt_queue = 0;
 static int opt_poll = 1;
@@ -295,7 +295,6 @@ static void rx_drop(struct xsk_socket_info *xsk, struct pollfd *fds)
 		addr = xsk_umem__add_offset_to_addr(addr);
 		char *pkt = xsk_umem__get_data(xsk->umem->buffer, addr);
 
-		hex_dump(pkt, len, addr);
 		process_packet(pkt, len);
 		*xsk_ring_prod__fill_addr(&xsk->umem->fq, idx_fq++) = orig;
 	}
@@ -419,7 +418,7 @@ void tx(void)
 * 
 * sudo ./xdp_redirect_user
 */
-int xdp_redirect()
+int main()
 {
 	parse_params();
 	/* Reserve memory for the umem. Use hugepages if unaligned chunk mode */
@@ -438,7 +437,7 @@ int xdp_redirect()
 	// signal(SIGTERM, int_exit);
 	// signal(SIGABRT, int_exit);
 
-	// rx();
+	rx();
 	// tx();
 	int xdp_sock_fd = xsk_socket__fd(xsks->xsk);
 	return xdp_sock_fd;

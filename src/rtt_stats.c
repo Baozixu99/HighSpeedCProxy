@@ -83,7 +83,7 @@ int rtt_stats() {
     if (connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         error("连接服务器失败");
     }
-    printf("TCP连接建立成功！\n");
+    printf("TCP连接建立成功!\n");
 
     int cnt = 0;
     FILE *output_file = fopen("baidu_response.html", "aw");
@@ -139,7 +139,7 @@ int rtt_stats() {
                     for (int i = 0; i < header_length; i++) {
                         putchar(buffer[i]);
                     }
-                    printf("\n\n（省略响应正文...）\n");
+                    printf("\n\n(省略响应正文...)\n");
                     header_found = 1;
                 } else if (total_bytes < 500) {
                     // 如果头还没结束，而且没超过500字节，打印缓冲区内容
