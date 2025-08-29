@@ -62,13 +62,12 @@ int shared_mem_pool_queue_destroy(struct SharedMemoryPoolQueue* queue);
 
 
 int shared_mem_pool_queue_send(struct SharedMemoryPoolQueue *queue, 
-                               const void *data, 
+                               const void **data, 
                                size_t data_size);
 
 
-
 int shared_mem_pool_queue_recv(struct SharedMemoryPoolQueue *queue, 
-                               void *buffer, 
+                               void **buffer, 
                                size_t buffer_size, 
                                size_t *out_data_size);
 

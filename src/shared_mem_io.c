@@ -46,7 +46,7 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool){
 }
 
 
-/*
+/**
  * Create and initialize a shared memory pool queue.
  * 
  * @param pool Pointer to the underlying SharedMemoryPool to allocate deque nodes from.
@@ -76,7 +76,7 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPo
 }
 
 
-/*
+/**
  * Initialize a pre-allocated SharedMemoryPoolQueue instance.
  * 
  * This function configures a pre-allocated deque structure, binding it to a shared memory pool
@@ -96,7 +96,7 @@ int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue){
 }
 
 
-/*
+/**
  * Destroy a shared memory pool queue and release associated resources.
  * 
  * @param deque Pointer to the SharedMemoryPoolDeque to destroy. Passing NULL is safe (no operation).
@@ -106,34 +106,44 @@ int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue){
 int shared_mem_pool_queue_destroy(struct SharedMemoryPoolQueue* queue);
 
 
-/*
+/**
  * Enqueue (send) data to the shared memory pool deque.
  * 
  * @param queue Pointer to the SharedMemoryPoolDeque instance.
- * @param data Pointer to the data to be enqueued.
+ * @param data Double pointer to the data to be enqueued; points to a pointer that references the data 
+ *             in shared memory (enables zero-copy: no data copy occurs, as the deque stores the pointer 
+ *             to the existing shared memory location directly). The const qualifier ensures the data 
+ *             itself is not modified during enqueue.
  * @param data_size Size of the data (in bytes) to be enqueued.
  * @return BACKEND_PROXY_PROCESS_OK on success;  
  *         BACKEND_PROXY_PROCESS_ERROR on failure.
  */
 int shared_mem_pool_queue_send(struct SharedMemoryPoolQueue *queue, 
-                                 const void *data, 
-                                 size_t data_size){
+                               const void **data, 
+                               size_t data_size){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-/**
+
+/** 
  * Dequeue (receive) data from the shared memory pool deque.
  * 
  * @param queue Pointer to the SharedMemoryPoolDeque instance.
- * @param buffer Buffer to store the dequeued data.
+ * @param buffer Double pointer to a buffer; used to return a direct pointer to the dequeued data 
+ *               in shared memory (enables zero-copy: no data copy occurs, as the pointer is directly 
+ *               assigned to the memory location in the shared pool). The caller does not need to 
+ *               pre-allocate a buffer; instead, *buffer will be set to point to the existing data
  * @param buffer_size Size of the buffer (in bytes) provided for receiving data.
  * @param out_data_size Pointer to a size_t variable to store the actual size of dequeued data.
  * @return BACKEND_PROXY_PROCESS_OK on success;  
  *         BACKEND_PROXY_PROCESS_ERROR on failure.
  */
 int shared_mem_pool_queue_recv(struct SharedMemoryPoolQueue *queue, 
-                              void *buffer, 
+                              void **buffer, 
                               size_t buffer_size, 
                               size_t *out_data_size){
+/*
+ * Zero-copy.
+ */
     return BACKEND_PROXY_PROCESS_OK;
 }
