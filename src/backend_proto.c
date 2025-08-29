@@ -636,7 +636,7 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
 }
 
 
-/**
+/*
  * Builds a complete message by combining the general header and payload.
  * 
  * Builds a complete proxy general message by combining the general header and payload.

@@ -59,13 +59,15 @@
 struct BackendEngOps; 
 
 typedef struct BackendEngine_{
-    struct HighSpeedNetDeviceSet    *dev_set; // High speed network device set
+    struct HighSpeedNetDeviceSet    *dev_set;       // High speed network device set
     uint16_t                        dev_num;
-    uint16_t                        active_mask; // Show the positions of all the active high-speed network devices as a mask.
-    struct BackendSessionPool       *sess_pool; // Session pool
-    struct SharedMemoryPool         *mem_pool; // Shared memory pool
+    uint16_t                        active_mask;    // Show the positions of all the active high-speed network devices as a mask.
+    struct BackendSessionPool       *sess_pool;     // Session pool
+    struct SharedMemoryPool         *mem_pool;      // Shared memory pool
     struct SharedMemoryPoolLock     *mem_pool_lock; // Shared memory pool lock
     uint16_t                        selector_id;
+    struct SharedMemoryPoolQueue    *rx_queue;      // RX queue
+    struct SharedMemoryPoolQueue    *tx_queue;      // TX queue
     struct BackendEngOps            *ops;
 } BackendEngine;
 
