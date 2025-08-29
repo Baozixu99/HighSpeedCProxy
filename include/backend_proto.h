@@ -63,6 +63,26 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
 int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg);
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg);
 
+
+
+int backend_proxy_shmem_data_msg_recv(struct BackendSession *sess, uint8_t **msg);
+int backend_proxy_shmem_data_msg_send(struct BackendSession *sess, const uint8_t **msg);
+int backend_proxy_sock_data_msg_recv(struct BackendSession *sess, uint8_t *msg);
+int backend_proxy_sock_data_msg_send(struct BackendSession *sess, uint8_t *msg);
+
+
 struct BackendSession *backend_proxy_search_sess(uint32_t backend_sess_id);
+
+
+struct BackendEngine_;
+
+int backend_proxy_generate_dev_msg_enable_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg);
+int backend_proxy_generate_dev_msg_disable_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg);
+int backend_proxy_generate_dev_msg_query_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg);
+
+
+int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess, uint8_t **msg);
+int backend_proxy_generate_sess_msg_close_response(struct BackendSession *sess, uint8_t **msg);
+
 
 #endif

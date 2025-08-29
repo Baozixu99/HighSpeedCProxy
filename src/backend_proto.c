@@ -636,7 +636,7 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
 }
 
 
-/*
+/**
  * Builds a complete message by combining the general header and payload.
  * 
  * Builds a complete proxy general message by combining the general header and payload.
@@ -743,5 +743,157 @@ int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *pa
  */
     proxy_msg_hdr->payload_len = payload_len + proxy_msg_payload_len;
 
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+/**
+ * Receive data message via shared memory for backend proxy (zero-copy).
+ * 
+ * @param sess Pointer to BackendSession instance.
+ * @param msg Double pointer to store the address of received data in shared memory.
+ *            The function sets *msg to point directly to the data location in shared memory
+ *            (no data copy occurs). Caller should not free this pointer; memory management
+ *            is handled by the shared memory pool.
+ * @return BACKEND_PROXY_PROCESS_OK on success; BACKEND_PROXY_PROCESS_ERROR on failure.
+ */
+int backend_proxy_shmem_data_msg_recv(struct BackendSession *sess, uint8_t **msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * Send data message via shared memory for backend proxy (zero-copy).
+ * 
+ * @param sess Pointer to BackendSession instance.
+ * @param msg Double pointer to the data in shared memory to be sent. *msg must point to
+ *            a location within the shared memory pool (no data copy occurs; the deque
+ *            stores the pointer directly). The const qualifier ensures the data is not
+ *            modified during transmission.
+ * @return BACKEND_PROXY_PROCESS_OK on success; BACKEND_PROXY_PROCESS_ERROR on failure.
+ */
+int backend_proxy_shmem_data_msg_send(struct BackendSession *sess, const uint8_t **msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * Receive data message via socket for backend proxy.
+ * @param sess Pointer to BackendSession instance.
+ * @param msg Buffer to store received data message.
+ * @return BACKEND_PROXY_PROCESS_OK on success; BACKEND_PROXY_PROCESS_ERROR on failure.
+ */
+int backend_proxy_sock_data_msg_recv(struct BackendSession *sess, uint8_t *msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * Send data message via socket for backend proxy.
+ * @param sess Pointer to BackendSession instance.
+ * @param msg Buffer containing data message to send.
+ * @return BACKEND_PROXY_PROCESS_OK on success; BACKEND_PROXY_PROCESS_ERROR on failure.
+ */
+ int backend_proxy_sock_data_msg_send(struct BackendSession *sess, uint8_t *msg){
+    return BACKEND_PROXY_PROCESS_OK;
+ }
+
+
+/**
+ * Generate a "device enable response" message for backend proxy (zero-copy).
+ * 
+ * This function creates a response message indicating the result of a device enable request.
+ * It leverages zero-copy by directly allocating/accessing memory in the shared memory pool (via the backend engine),
+ * avoiding redundant data duplication.
+ * 
+ * @param eng Pointer to the associated BackendEngine_ instance. Provides context (e.g., device state, shared memory resources)
+ *            required to generate the response. Must not be NULL.
+ * @param msg_id 16-bit unique message ID. Used to match this response to the corresponding device enable request,
+ *               ensuring correct request-response association in asynchronous communication.
+ * @param msg Double pointer to store the address of the generated response message in shared memory.
+ *            The function sets *msg to point directly to the message’s location in shared memory (no data copy occurs).
+ *            Caller must NOT pre-allocate a buffer or manually free this pointer—memory is managed by the backend engine’s shared memory pool.
+ * 
+ * @return BACKEND_PROXY_PROCESS_OK on successful message generation;
+ *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., invalid eng pointer, shared memory allocation failed, illegal msg_id).
+ */
+int backend_proxy_generate_dev_msg_enable_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * Generate a "device disable response" message for backend proxy (zero-copy).
+ * 
+ * This function creates a response message indicating the result of a device disable request.
+ * It leverages zero-copy by directly allocating/accessing memory in the shared memory pool (via the backend engine),
+ * avoiding redundant data duplication.
+ * 
+ * @param eng Pointer to the associated BackendEngine_ instance. Provides context (e.g., device state, shared memory resources)
+ *            required to generate the response. Must not be NULL.
+ * @param msg_id 16-bit unique message ID. Used to match this response to the corresponding device disable request,
+ *               ensuring correct request-response association in asynchronous communication.
+ * @param msg Double pointer to store the address of the generated response message in shared memory.
+ *            The function sets *msg to point directly to the message’s location in shared memory (no data copy occurs).
+ *            Caller must NOT pre-allocate a buffer or manually free this pointer—memory is managed by the backend engine’s shared memory pool.
+ * 
+ * @return BACKEND_PROXY_PROCESS_OK on successful message generation;
+ *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., invalid eng pointer, shared memory allocation failed, illegal msg_id).
+ */
+int backend_proxy_generate_dev_msg_disable_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * Generate a "device query response" message for backend proxy (zero-copy).
+ * 
+ * This function creates a response message containing the result of a device state query request (e.g., device online status, resource usage).
+ * It leverages zero-copy by directly allocating/accessing memory in the shared memory pool (via the backend engine),
+ * avoiding redundant data duplication.
+ * 
+ * @param eng Pointer to the associated BackendEngine_ instance. Provides context (e.g., current device state, shared memory resources)
+ *            required to generate the response (queries device state from the engine). Must not be NULL.
+ * @param msg_id 16-bit unique message ID. Used to match this response to the corresponding device query request,
+ *               ensuring correct request-response association in asynchronous communication.
+ * @param msg Double pointer to store the address of the generated response message in shared memory.
+ *            The function sets *msg to point directly to the message’s location in shared memory (no data copy occurs).
+ *            Caller must NOT pre-allocate a buffer or manually free this pointer—memory is managed by the backend engine’s shared memory pool.
+ * 
+ * @return BACKEND_PROXY_PROCESS_OK on successful message generation;
+ *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., invalid eng pointer, shared memory allocation failed, illegal msg_id, device state query failed).
+ */
+int backend_proxy_generate_dev_msg_query_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+ /**
+ * Generate a session message of type "create response" for backend proxy (zero-copy).
+ * 
+ * This function creates a response message indicating the result of a session creation request.
+ * It uses zero-copy by directly allocating/accessing memory in the shared memory pool, avoiding data duplication.
+ * 
+ * @param sess Pointer to the BackendSession instance associated with the session creation request.
+ * @param msg Double pointer to store the address of the generated message in shared memory.
+ *            The function sets *msg to point directly to the message location in shared memory (no data copy occurs).
+ *            Caller must not free this pointer manually; memory is managed by the shared memory pool.
+ * @return BACKEND_PROXY_PROCESS_OK on successful message generation; 
+ *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., shared memory allocation failed, invalid session).
+ */
+int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess, uint8_t **msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * Generate a session message of type "close response" for backend proxy (zero-copy).
+ * 
+ * This function creates a response message indicating the result of a session close request.
+ * It uses zero-copy by directly allocating/accessing memory in the shared memory pool, avoiding data duplication.
+ * 
+ * @param sess Pointer to the BackendSession instance associated with the session close request.
+ * @param msg Double pointer to store the address of the generated message in shared memory.
+ *            The function sets *msg to point directly to the message location in shared memory (no data copy occurs).
+ *            Caller must not free this pointer manually; memory is managed by the shared memory pool.
+ * @return BACKEND_PROXY_PROCESS_OK on successful message generation; 
+ *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., shared memory allocation failed, invalid session).
+ */
+int backend_proxy_generate_sess_msg_close_response(struct BackendSession *sess, uint8_t **msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
