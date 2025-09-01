@@ -384,7 +384,29 @@ typedef union {
     IPv6PortTuple ipv6_port_tuple;
 }IPPortTuple;
 
+/*
+ * The structure of the session create-response message's payload.
+ */
+// Corresponds to the status field in the structure, indicating the overall status of the session operation (success/failure)
+typedef enum {
+    SESS_OP_STATUS_SUCCESS = 0,  // Session operation succeeded
+    SESS_OP_STATUS_FAIL    = 1   // Session operation failed
+} SessOpStatus;
 
+
+// Corresponds to the code field in the structure, indicating specific reason codes for operation results
+typedef enum {
+    SESS_OP_CODE_SUCCESS        = 0,  // Operation succeeded
+    SESS_OP_CODE_NO_PERMISSION  = 1,  // No permission to perform the operation
+    SESS_OP_CODE_DEVICE_ERROR   = 2   // Device error occurred
+} SessOpCode;
+
+
+// Structure for session operation response data, containing status and specific reason code
+typedef struct SessOpRespData_ {
+    uint8_t             status;  // Corresponding to SessOpStatus enumeration (overall operation status)
+    uint8_t             code;    // Corresponding to SessOpCode enumeration (specific reason code for operation result)
+} __attribute__((packed)) SessOpRespData;
 
 /*
  * Session message parameter structure, used to describe core parameters related to session establishment,
@@ -409,7 +431,7 @@ struct SessMsgPara{
 
 typedef struct{
     ProxyMsgHeader  outer_header;
-    ProxyMsgType    msg_type;
+//    ProxyMsgType    msg_type;
     union {        // Nested union to reduce memory usage (avoids redundant space)
         DevMsgHeader    dev_hdr;    // Device message header member
         StrgyMsgHeader  strgy_hdr;  // Strategy message header member

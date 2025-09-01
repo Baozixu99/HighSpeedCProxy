@@ -81,8 +81,8 @@ int backend_proxy_generate_dev_msg_disable_response(struct BackendEngine_ *eng, 
 int backend_proxy_generate_dev_msg_query_response(struct BackendEngine_ *eng, uint16_t msg_id, uint8_t **msg);
 
 
-int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess, uint8_t **msg);
-int backend_proxy_generate_sess_msg_close_response(struct BackendSession *sess, uint8_t **msg);
+int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess, SessOpRespData *op_resp, uint8_t **msg);
+int backend_proxy_generate_sess_msg_close_response(struct BackendSession *sess, SessOpRespData *op_resp, uint8_t **msg);
 
 
 #endif

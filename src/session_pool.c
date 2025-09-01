@@ -231,9 +231,15 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  */    
     new_sess->frontend_sess_id  = para->frontend_sess_id;
     new_sess->backend_sess_id   = new_sess_id;
+    new_sess->ip_version        = para->ip_version;
     new_sess->sock_fd           = fd;
+    new_sess->eng               = engine;
     TAILQ_INIT(&new_sess->queue_f2b);
     TAILQ_INIT(&new_sess->queue_b2a);
+
+/*
+ * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
+ */
 
     *sess = new_sess;
 

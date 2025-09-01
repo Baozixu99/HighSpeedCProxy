@@ -672,7 +672,7 @@ int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *pa
  * Check the validity of the input parameters.
  */
     if(NULL == header || NULL == payload || NULL == result_msg){
-        error_print("build_proxy_general_message failed: input(s) for generating proxy message is/are NULL!\n");
+        error_print("build_proxy_general_message failed: input(s) for generating proxy message is/are NULL!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -871,13 +871,43 @@ int backend_proxy_generate_dev_msg_query_response(struct BackendEngine_ *eng, ui
  * It uses zero-copy by directly allocating/accessing memory in the shared memory pool, avoiding data duplication.
  * 
  * @param sess Pointer to the BackendSession instance associated with the session creation request.
+ * @param op_resp Pointer to SessOpRespData containing the operation's status (success/failure)
+ *                and specific reason code (e.g., no permission, device error).
  * @param msg Double pointer to store the address of the generated message in shared memory.
  *            The function sets *msg to point directly to the message location in shared memory (no data copy occurs).
  *            Caller must not free this pointer manually; memory is managed by the shared memory pool.
  * @return BACKEND_PROXY_PROCESS_OK on successful message generation; 
  *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., shared memory allocation failed, invalid session).
  */
-int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess, uint8_t **msg){
+int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess, SessOpRespData *op_resp, uint8_t **msg){
+    struct BackendEngine_   *eng;
+    GeneralProxyMsgHeader   header;
+    SessMsgHeader           *sess_hdr;
+    SessOpRespData          payload_data;
+
+    if(NULL == sess || NULL == sess->eng){
+        error_print("backend_proxy_generate_sess_msg_create_response failed: input for generating session create-response message is NULL, \
+                     or the session is not initialized correctly!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    eng = sess->eng;
+/*
+ * Fills information for generating session create-response message.
+ * It is not necessary to fill the payload_len field.
+ */
+    header.outer_header.version             = PROXY_PROTO_VERSION_1;
+    header.outer_header.proxy_msg_type      = PROXY_MSG_TYPE_SESS;
+    header.outer_header.frontend_sess_id    = sess->frontend_sess_id;
+    header.outer_header.backend_sess_id     = sess->backend_sess_id;
+
+//    header.outer_header.payload_len;
+    sess_hdr                                = &header.inner_header.sess_hdr;
+    sess_hdr->version                       = PROXY_PROTO_SESS_VERSION_1;
+    sess_hdr->action_type                   = ACTION_TYPE_RESPONSE;
+    sess_hdr->ip_version                    = sess->ip_version;
+    sess_hdr->payload_len                   = sizeof(SessOpRespData);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -888,12 +918,14 @@ int backend_proxy_generate_sess_msg_create_response(struct BackendSession *sess,
  * It uses zero-copy by directly allocating/accessing memory in the shared memory pool, avoiding data duplication.
  * 
  * @param sess Pointer to the BackendSession instance associated with the session close request.
+ * @param op_resp Pointer to SessOpRespData containing the operation's status (success/failure)
+ *                and specific reason code (e.g., no permission, device error).
  * @param msg Double pointer to store the address of the generated message in shared memory.
  *            The function sets *msg to point directly to the message location in shared memory (no data copy occurs).
  *            Caller must not free this pointer manually; memory is managed by the shared memory pool.
  * @return BACKEND_PROXY_PROCESS_OK on successful message generation; 
  *         BACKEND_PROXY_PROCESS_ERROR on failure (e.g., shared memory allocation failed, invalid session).
  */
-int backend_proxy_generate_sess_msg_close_response(struct BackendSession *sess, uint8_t **msg){
+int backend_proxy_generate_sess_msg_close_response(struct BackendSession *sess, SessOpRespData *op_resp, uint8_t **msg){
     return BACKEND_PROXY_PROCESS_OK;
 }

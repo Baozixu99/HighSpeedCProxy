@@ -23,37 +23,33 @@ struct SessMsgSeg {
 TAILQ_HEAD(SessMsgQueue, SessMsgSeg);
 
 struct BackendProtocolProcess; 
+struct BackendEngine_;
 
 struct BackendSession {
-    
     int sess_type;
     int sock_fd;
-    
+    int ip_version;
     uint16_t frontend_sess_id;
-    uint16_t backend_sess_id;  // hash key
-    
-    // 状态机状态
-    int state_f2b;          // 前端到后端状态
-    int state_b2a;          // 后端到前端状态
-    
-    // 消息队列
-    struct SessMsgQueue queue_f2b;  // 前端到后端消息队列
-    struct SessMsgQueue queue_b2a;  // 后端到前端消息队列
-    
-    // 队列链接节点
-    TAILQ_ENTRY(BackendSession) entries_f2b;   // 前端到后端活动队列节点
-    TAILQ_ENTRY(BackendSession) entries_active; // 全局活动会话队列节点
-    
-    // 协议处理
-    struct BackendProtocolProcess *protocol_process; // 协议处理模块指针
-    
-    // 私有数据指针（用于存储会话特定数据）
+    uint16_t backend_sess_id; // hash key
+// State machine states
+    int state_f2b; // front-end to back-end state
+    int state_b2a; // back-end to front-end state
+// Message queues
+    struct SessMsgQueue queue_f2b; // front-end to back-end message queue
+    struct SessMsgQueue queue_b2a; // back-end to front-end message queue
+// Queue link nodes
+    TAILQ_ENTRY(BackendSession) entries_f2b; // front-end to back-end active queue node
+    TAILQ_ENTRY(BackendSession) entries_active; // global active session queue node
+// Protocol processing
+    struct BackendProtocolProcess *protocol_process; // protocol processing module pointer
+// Pointer to the backend engine associated with this session
+    struct BackendEngine_ *eng;
+// Private data pointer (used to store session-specific data)
     void *pri_data;
-
     struct channel* channel;
-    
     UT_hash_handle hh;
 };
+
 
 struct BackendProtocolProcess {
 
