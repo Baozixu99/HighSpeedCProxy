@@ -142,6 +142,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     BackendEngine *engine;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
     int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id;
+    SessOpRespData resp_dat;
 
 /*
  * STEP 1.
@@ -149,6 +150,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * (2) Parse session message parameters, obtain the device ID, and execute the device selection procedure if necessary;
  * (3) Determine the namespace ID by parsing the device ID of the specified high-speed network device, and create a new socket based on the session message parameters.
  */
+    engine = s_pool->engine;
     new_sess = (struct BackendSession*)malloc(sizeof(struct BackendSession));
     if(NULL == new_sess){
         error_print("high_speed_create_sess returns an error because allocating memory for BackendSession failed!");
@@ -166,7 +168,6 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 /*
  * Choose the namespace of the preferred high-speed network device for creating a socket.
  */
-    engine = s_pool->engine;
     dev_id = para->dev_id;
 
     if(NULL == engine){
@@ -223,6 +224,13 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  */
     if(BACKEND_PROXY_PROCESS_OK != connect_socket_netns(fd, para)){
         error_print("high_speed_create_sess returns an error because it has not successfully connect to the specified IP:Port tuple!");
+/*
+ * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
+ * We have not developed the failed-reason function; it is reserved for future development.
+ */
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_NO_PERMISSION;
+
         goto create_sess_error;
     }
 

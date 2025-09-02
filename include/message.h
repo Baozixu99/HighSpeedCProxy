@@ -439,8 +439,9 @@ typedef struct{
     } inner_header; // Nested union alias for easy access to specific headers
 } GeneralProxyMsgHeader;
 
+struct BackendEngine_;
 
-int build_proxy_general_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+int build_proxy_general_message(struct BackendEngine_ *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 
 int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
