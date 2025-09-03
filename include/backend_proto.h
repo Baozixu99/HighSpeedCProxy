@@ -90,4 +90,6 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
 int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendEngine_ *eng, uint16_t frontend_sess_id, int ip_version, 
                                                                  int sess_msg_type, SessOpRespData *op_resp);
 
+int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *sess, int sess_msg_type, SessOpRespData *op_resp);
+
 #endif

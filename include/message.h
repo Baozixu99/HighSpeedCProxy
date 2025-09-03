@@ -123,6 +123,13 @@ typedef struct {
     uint16_t    payload_len;        // Payload length, range from 1 to 4088, ensure it does not exceed one physical page.
 } __attribute__((packed)) ProxyMsgHeader;
 
+/**
+ * Calculate the total memory space occupied by the complete message described by ProxyMsgHeader
+ * Including: size of the header structure itself + length of the payload data
+ */
+#define PROXY_MSG_TOTAL_SIZE(p_msg_header) \
+    (sizeof(ProxyMsgHeader) + (p_msg_header)->payload_len)
+
 
 typedef enum {
     ACTION_TYPE_COMMAND = 0,  // Command
@@ -390,15 +397,19 @@ typedef union {
 // Corresponds to the status field in the structure, indicating the overall status of the session operation (success/failure)
 typedef enum {
     SESS_OP_STATUS_SUCCESS = 0,  // Session operation succeeded
-    SESS_OP_STATUS_FAIL    = 1   // Session operation failed
+    SESS_OP_STATUS_FAIL    = 1,   // Session operation failed
+    SESS_OP_STATUS_NUM     = 2   // Total number of enumeration members
 } SessOpStatus;
 
 
 // Corresponds to the code field in the structure, indicating specific reason codes for operation results
 typedef enum {
-    SESS_OP_CODE_SUCCESS        = 0,  // Operation succeeded
-    SESS_OP_CODE_NO_PERMISSION  = 1,  // No permission to perform the operation
-    SESS_OP_CODE_DEVICE_ERROR   = 2   // Device error occurred
+    SESS_OP_CODE_SUCCESS                = 0,  // Operation succeeded
+    SESS_OP_CODE_NO_PERMISSION          = 1,  // No permission to perform the operation
+    SESS_OP_CODE_DEVICE_ERROR           = 2,  // Device error occurred
+    SESS_OP_CODE_RESOURCE_INSUFFICIENT  = 3,  // Insufficient resources
+    SESS_OP_CODE_NETWORK_UNREACHABLE    = 4,  // Network is unreachable
+    SESS_OP_CODE_MAX                    = 5   // Total number of enumeration members
 } SessOpCode;
 
 
@@ -447,9 +458,6 @@ int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t
 int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
-
-
-
 
 
 #endif

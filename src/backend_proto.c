@@ -515,7 +515,7 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
 
 
 /*
- * Functions for building sub-type proxy messages.
+ *  Functions for building sub-type proxy messages.
  *
  * - build_proxy_dev_message   : Builds a device-specific proxy message
  * - build_proxy_strgy_message : Builds a strategy-specific proxy message
@@ -938,7 +938,7 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
  * @param msg [out] Double pointer to the generated message. The message is returned through zero-copy mechanism,
  *                  meaning the address of the message data is directly passed out without copying the content.
  * @return int Execution result: BACKEND_PROXY_PROCESS_OK on successful message generation, or BACKEND_PROXY_PROCESS_ERROR on failure
-*/
+ */
 int backend_proxy_generate_sess_msg_create_close_response_standalone(struct BackendEngine_ *eng, uint16_t frontend_sess_id, int ip_version, 
                                                                      int sess_msg_type, SessOpRespData *op_resp, uint8_t **msg){
     GeneralProxyMsgHeader   header;
@@ -1001,10 +1001,94 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
  * @param[in] op_resp Pointer to a SessOpRespData structure containing the operation's status code
  *                    and failure reason (if applicable). Used to populate the message content. Must not be NULL.
  * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message generation and transmission;
- * Returns BACKEND_PROXY_PROCESS_ERROR if message generation fails, shared memory
+ *         Returns BACKEND_PROXY_PROCESS_ERROR if message generation fails, shared memory
  *         access fails, or any input parameter is invalid.
-*/
-int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendEngine_ *eng, uint16_t frontend_sess_id, int ip_version,
-int sess_msg_type, SessOpRespData *op_resp);
+ */
 int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendEngine_ *eng, uint16_t frontend_sess_id, int ip_version, 
-                                                                 int sess_msg_type, SessOpRespData *op_resp){}
+                                                                 int sess_msg_type, SessOpRespData *op_resp){
+    int             ret;
+    uint8_t         *msg;
+    ProxyMsgHeader  *msg_header;
+    struct SharedMemoryPoolQueue *tx_queue;
+
+
+    if (NULL == eng || NULL == eng->tx_queue || NULL == eng->mem_pool || NULL == op_resp) {
+        error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: invalid parameters - eng, eng->tx_queue, eng->mem_pool, or op_resp are NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    ret = backend_proxy_generate_sess_msg_create_close_response_standalone(eng, frontend_sess_id, ip_version, sess_msg_type, op_resp, &msg);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: the session creation/close-response message cannot be constructed successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    tx_queue    = eng->tx_queue;
+    msg_header  = (ProxyMsgHeader *)msg;
+    
+    ret = shared_mem_pool_queue_send(tx_queue, &msg, PROXY_MSG_TOTAL_SIZE(msg_header));
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        free_shared_mem(eng->mem_pool, (uint64_t)msg);
+        error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: failed to push the message into the tx queue!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Generates a session message and sends it to the frontend proxy via shared memory
+ * @details This function first calls a message generation function (e.g., build_proxy_general_message())
+ * to generate a standard session message (for scenarios involving normal session operations),
+ * then sends the generated message to the frontend proxy through shared memory. It handles the entire
+ * process from message construction to inter-proxy communication via shared memory, utilizing
+ * session context from the provided BackendSession object.
+ *
+ * @param[in] sess Pointer to a BackendSession structure containing session-specific context
+ * (e.g., session IDs, IP version, and so on). Used to populate session-related
+ * message fields. Must not be NULL.
+ * @param[in] sess_msg_type Type of the session message, specifying whether it's a "create" or "close" response.
+ *  Must be a valid session message type (e.g., SESS_MSG_CREATE).
+ * @param[in] op_resp Pointer to a SessOpRespData structure containing the operation's status code
+ * and relevant data (if applicable). Used to populate the message content. Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message generation and transmission;
+ * Returns BACKEND_PROXY_PROCESS_ERROR if message generation fails, shared memory
+ * access fails, or any input parameter is invalid.
+ */
+int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *sess, int sess_msg_type, SessOpRespData *op_resp){
+    int                             ret;
+    uint8_t                         *msg;
+    ProxyMsgHeader                  *msg_header;
+    BackendEngine                   *eng;
+
+    struct SharedMemoryPoolQueue    *tx_queue;
+
+    if (NULL == sess || NULL == sess->eng || NULL == sess->eng->tx_queue || NULL == sess->eng->mem_pool || NULL == op_resp) {
+        error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: invalid parameters - sess, sess->eng, \
+                     sess->eng->tx_queue, sess->eng->mem_pool, or op_resp are NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    ret = backend_proxy_generate_sess_msg_create_close_response(sess, sess_msg_type, op_resp, &msg);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: the session creation/close-response message cannot be constructed successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    eng = sess->eng;
+    tx_queue = sess->eng->tx_queue;
+
+    ret = shared_mem_pool_queue_send(tx_queue, &msg, PROXY_MSG_TOTAL_SIZE(msg_header));
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        free_shared_mem(eng->mem_pool, (uint64_t)msg);
+        error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: failed to push the message into the tx queue!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
+}

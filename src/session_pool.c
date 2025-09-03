@@ -141,25 +141,35 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     struct BackendSession *new_sess = NULL;
     BackendEngine *engine;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
-    int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id;
+    int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id, ret;
     SessOpRespData resp_dat;
 
+    engine = s_pool->engine;
+    if(NULL == engine || NULL == engine->ops || NULL == engine->ops->choose_dev){
+        error_print("high_speed_create_sess fails: the session pool does not belong to any engine, or the engine is not initialized successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
 /*
  * STEP 1.
  * (1) Allocate memory for storing the backend session object;
  * (2) Parse session message parameters, obtain the device ID, and execute the device selection procedure if necessary;
  * (3) Determine the namespace ID by parsing the device ID of the specified high-speed network device, and create a new socket based on the session message parameters.
  */
-    engine = s_pool->engine;
-    new_sess = (struct BackendSession*)malloc(sizeof(struct BackendSession));
+    engine              = s_pool->engine;
+    frontend_sess_id    = para->frontend_sess_id;
+    new_sess            = (struct BackendSession*)malloc(sizeof(struct BackendSession));
     if(NULL == new_sess){
-        error_print("high_speed_create_sess returns an error because allocating memory for BackendSession failed!");
+        error_print("high_speed_create_sess failed: failed to allocate memory for BackendSession!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
         goto create_sess_error;
     }
 
     new_sess_id = allocate_id(&s_pool->id_queue);
     if(0 == new_sess_id){
-        error_print("high_speed_create_sess returns an error because allocating session ID failed!");
+        error_print("high_speed_create_sess failed: failed to allocating session ID!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
         goto create_sess_error;
     }
 
@@ -170,24 +180,16 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  */
     dev_id = para->dev_id;
 
-    if(NULL == engine){
-        error_print("high_speed_create_sess returns an error because the session pool does not belong to any engine!");
-        goto create_sess_error;
-    }
-
 
 /*
  * If the device ID equals 0xFF, it means the backend engine should take responsibility for choosing the most appropriate high-speed network device on which the 
  * new session is established.
  */
     if(DEV_ID_AUTO_HANDOVER == dev_id){
-        if(!engine->ops && !engine->ops->choose_dev){
-            error_print("high_speed_create_sess returns an error because the backend engine operation function set is not correctly initialized!");
-            goto create_sess_error;
-        }
-        
         if(BACKEND_PROXY_PROCESS_OK != engine->ops->choose_dev(engine, &dev_id)){
-            error_print("high_speed_create_sess returns an error because the choosing network devices procedure is not successfully completed!");
+            error_print("high_speed_create_sess failed: the network device selection procedure failed!");
+            resp_dat.status = SESS_OP_STATUS_FAIL;
+            resp_dat.code   = SESS_OP_CODE_DEVICE_ERROR;
             goto create_sess_error;
         }
     }
@@ -197,8 +199,9 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  */
     ns_id = GET_NS_ID(&engine->dev_set, dev_id);
     if(ERROR_NAMESPACE_ID == ns_id){
-        error_print("high_speed_create_sess returns an error because it has not successfully obtained the namespace ID to which \
-                     the selected high-speed network device is set!");
+        error_print("high_speed_create_sess failed: failed to obtain the namespace ID that the selected high-speed network device belongs to!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_DEVICE_ERROR;
         goto create_sess_error;
     }
 
@@ -206,8 +209,10 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * Create a socket with given parameters.
  */
     if(BACKEND_PROXY_PROCESS_OK != create_socket_netns(ns_id, para, &fd)){
-        error_print("high_speed_create_sess returns an error because it has not successfully create a socket with given parameters!");
+        error_print("high_speed_create_sess failed: failed to create a socket with the given parameters!");
         fd = ERROR_SOCKET_FD;
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
         goto create_sess_error;
     }
 
@@ -223,13 +228,13 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * Connect to the specified IP:Port tuple.
  */
     if(BACKEND_PROXY_PROCESS_OK != connect_socket_netns(fd, para)){
-        error_print("high_speed_create_sess returns an error because it has not successfully connect to the specified IP:Port tuple!");
+        error_print("high_speed_create_sess failed: failed to connect to the specified IP:Port!");
 /*
  * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
  * We have not developed the failed-reason function; it is reserved for future development.
  */
         resp_dat.status = SESS_OP_STATUS_FAIL;
-        resp_dat.status = SESS_OP_CODE_NO_PERMISSION;
+        resp_dat.status = SESS_OP_CODE_NETWORK_UNREACHABLE;
 
         goto create_sess_error;
     }
@@ -251,9 +256,30 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 
     *sess = new_sess;
 
+    resp_dat.status = SESS_OP_STATUS_SUCCESS;
+    resp_dat.code   = SESS_OP_CODE_SUCCESS;
+
+    ret = backend_proxy_send_sess_msg_to_frontend_via_shmem(new_sess, SESS_MSG_CREATE, &resp_dat);
+    
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("high_speed_create_sess failed: failed to push the session creat-response message into the tx queue!");
+/*
+ * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
+ * We want the backend proxy protocol to try again by sending a message to notify that the establishment procedure has failed.
+ */
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 
 create_sess_error:
+/*
+ * Response a message to notify the front-end that the session creation procedure failed.
+ */
+    backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(engine, frontend_sess_id, para->ip_version, SESS_MSG_CREATE, &resp_dat);
+
 /*
  * Reclaim resources.
  */
