@@ -278,7 +278,7 @@ create_sess_error:
 /*
  * Response a message to notify the front-end that the session creation procedure failed.
  */
-    backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(engine, frontend_sess_id, para->ip_version, SESS_MSG_CREATE, &resp_dat);
+    backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(engine, frontend_sess_id, BACKEND_HANDOVER_SESSION_ID, para->ip_version, SESS_MSG_CREATE, &resp_dat);
 
 /*
  * Reclaim resources.

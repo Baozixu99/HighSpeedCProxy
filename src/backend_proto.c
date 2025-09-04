@@ -296,12 +296,27 @@ int backend_proxy_strgy_msg_response(uint8_t *msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-/*
- * Session message processing functions.
- * backend_proxy_sess_msg_process
- *     |->backend_proxy_sess_msg_process_ver1
- *         |->backend_proxy_sess_msg_process_create_ver1
- *         |->backend_proxy_sess_msg_process_close_ver1
+
+
+ /**
+ * @brief Processes session messages in the backend proxy
+ * @details This function serves as the core handler for session-related communication between front and backend proxies.
+ *          It handles general session message processing by parsing the incoming message, coordinating with the specified
+ *          frontend and backend sessions, and executing appropriate operations based on message content. 
+ *          The processing follows a hierarchical call structure:
+ *          backend_proxy_sess_msg_process
+ *              |-> backend_proxy_sess_msg_process_ver1
+ *                  |-> backend_proxy_sess_msg_process_create_ver1
+ *                  |-> backend_proxy_sess_msg_process_close_ver1
+ * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to map the message to 
+ *                             the corresponding frontend request context.
+ * @param[in] backend_sess_id 16-bit identifier of the backend session, used to associate the message 
+ *                            with the relevant backend session state and resources.
+ * @param[in] msg Pointer to the session message data to be processed, containing the complete 
+ *                message content (e.g., operation type, parameters, metadata). Must not be NULL.
+ * @return int Execution result: Returns BACKEND_PROXY_PROCESS_OK on successful message processing;
+ *         returns BACKEND_PROXY_PROCESS_ERROR if message parsing fails, session identifiers are invalid, or 
+ *         the requested operation cannot be completed.
  */
 
 int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint8_t *msg){
@@ -396,7 +411,20 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
     return ret;
 }
 
-
+/**
+ * @brief Processes version 1 of session creation messages in the backend proxy
+ * @details This function handles the processing logic for version 1 session creation messages.
+ *          It typically parses the message payload, performs necessary validation, and executes
+ *          session creation operations based on the provided parameters. It is responsible for
+ *          coordinating frontend-backend session mapping for version 1 message format.
+ * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to associate with the corresponding frontend request
+ * @param[in] backend_sess_id 16-bit identifier of the backend session, used for backend-side session tracking and management
+ * @param[in] ip_version 16-bit value indicating the IP protocol version (e.g., IPv4 or IPv6) used in the session
+ * @param[in] payload_len 16-bit length of the message payload (in bytes), specifying the size of the data in msg_payload
+ * @param[in] msg_payload Pointer to the message payload data, containing the detailed content of the version 1 session creation request
+ * @return int Execution result: Typically returns BACKEND_PROXY_PROCESS_OK on successful processing,
+ *         or aBACKEND_PROXY_PROCESS_ERROR if validation fails, payload is invalid, or session creation encounters issues.
+ */
 int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
   
     return __backend_proxy_sess_msg_process_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
@@ -485,10 +513,29 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 }
 
 
+/**
+ * @brief Processes version 1 of session close messages in the backend proxy
+ * @details This function handles the processing logic for version 1 session close messages.
+ *          It parses the message payload, validates the session identifiers, performs session closure operations,
+ *          and cleans up associated resources. It is specifically designed for version 1 of the session close message format,
+ *          coordinating frontend-backend session termination.
+ * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to map the close request to the corresponding frontend context
+ * @param[in] backend_sess_id 16-bit identifier of the backend session, specifying the backend session to be closed
+ * @param[in] payload_len 16-bit length of the message payload (in bytes), indicating the size of the data in msg_payload
+ * @param[in] msg_payload Pointer to the session close message payload, containing detailed parameters for the close operation. Must not be NULL.
+ * @return int Execution result: Returns BACKEND_PROXY_PROCESS_OK on successful processing of the close message and session termination;
+ *         Returns BACKEND_PROXY_PROCESS_ERROR if payload is invalid, session identifiers are incorrect, parsing fails, or closure operations encounter errors.
+ */
 int backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload){
-    return BACKEND_PROXY_PROCESS_OK;
+
+
+    return __backend_proxy_sess_msg_process_close_ver1(frontend_sess_id, backend_sess_id, payload_len, msg_payload);
 }
 
+
+int __backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload){
+    return BACKEND_PROXY_PROCESS_OK;
+}
 
 
 int backend_proxy_sess_msg_response(uint8_t *msg){
@@ -923,24 +970,31 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
 }
 
 
-/**
- * @brief Generates standalone response messages for session creation or closure operations when session allocation fails
- * This function is designed to generate response messages for session creation or closure operations
- * in scenarios where session allocation has failed (i.e., no valid BackendSession object exists).
- * It requires explicit provision of core context information (such as engine, frontend session ID, etc.)
- * and returns the generated message via zero-copy (no extra data copying), with the caller responsible for proper memory management.
- * @param eng [in] Pointer to a BackendEngine_ object containing engine-level context information
- * @param frontend_sess_id [in] 16-bit identifier for the frontend session, used to map the response to the corresponding frontend request
- * @param ip_version [in] IP protocol version (e.g., IPv4 or IPv6) associated with the session operation
- * @param sess_msg_type [in] Type of the session message, specifying whether to generate a response for a "create" or "close" operation
- * @param op_resp [in] Pointer to a SessOpRespData structure containing the operation's status code and reason description,
- *                    indicating success or failure of the create/close operation and details of any failure
- * @param msg [out] Double pointer to the generated message. The message is returned through zero-copy mechanism,
- *                  meaning the address of the message data is directly passed out without copying the content.
- * @return int Execution result: BACKEND_PROXY_PROCESS_OK on successful message generation, or BACKEND_PROXY_PROCESS_ERROR on failure
+ /**
+ * @brief Generates standalone response messages for session creation/closure when session allocation fails
+ * @details This function generates response messages for session creation or closure operations 
+ *          in scenarios where session allocation has failed (i.e., no valid BackendSession object exists).
+ *          It requires explicit core context information (engine, session IDs, etc.) and returns the 
+ *          generated message via zero-copy mechanism (no extra data copying). The caller is responsible 
+ *          for proper memory management of the returned message.
+ * @param[in] eng Pointer to a BackendEngine_ object containing engine-level context information 
+ *                (e.g., shared memory handles, runtime configuration). Must not be NULL.
+ * @param[in] frontend_sess_id 16-bit identifier for the frontend session, used to map the response 
+ *                             to the corresponding frontend request.
+ * @param[in] backend_sess_id 16-bit identifier of the backend session, used to fill the corresponding field
+ *                            in the message and associate it with the backend session.
+ * @param[in] ip_version IP protocol version (e.g., IPv4 or IPv6) associated with the session operation.
+ * @param[in] sess_msg_type Type of the session message, specifying whether to generate a response for 
+ *                          a "create" or "close" operation (must be a valid session message type).
+ * @param[in] op_resp Pointer to a SessOpRespData structure containing the operation's status code 
+ *                    and failure reason (if applicable). Used to populate response details. Must not be NULL.
+ * @param[out] msg Double pointer to the generated message. The message is returned via zero-copy 
+ *                 (address of message data is passed directly without content copying). Caller must 
+ *                 handle memory release as per system conventions.
+ * @return int Execution result: BACKEND_PROXY_PROCESS_OK on successful message generation, or BACKEND_PROXY_PROCESS_ERROR on failure .
  */
-int backend_proxy_generate_sess_msg_create_close_response_standalone(struct BackendEngine_ *eng, uint16_t frontend_sess_id, int ip_version, 
-                                                                     int sess_msg_type, SessOpRespData *op_resp, uint8_t **msg){
+int backend_proxy_generate_sess_msg_create_close_response_standalone(struct BackendEngine_ *eng, uint16_t frontend_sess_id, uint16_t backend_sess_id,
+                                                                     int ip_version, int sess_msg_type, SessOpRespData *op_resp, uint8_t **msg){
     GeneralProxyMsgHeader   header;
     SessMsgHeader           *sess_hdr;
     uint8_t                 *payload_data;
@@ -967,7 +1021,7 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
     header.outer_header.version             = PROXY_PROTO_VERSION_1;
     header.outer_header.proxy_msg_type      = PROXY_MSG_TYPE_SESS;
     header.outer_header.frontend_sess_id    = frontend_sess_id;
-    header.outer_header.backend_sess_id     = BACKEND_HANDOVER_SESSION_ID;
+    header.outer_header.backend_sess_id     = backend_sess_id;
 
 //    header.outer_header.payload_len;
     sess_hdr                                = &header.inner_header.sess_hdr;
@@ -995,6 +1049,8 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
  *                (e.g., shared memory handles, runtime configuration). Must not be NULL.
  * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to map the message to the
  *                             corresponding frontend request.
+ * @param[in] backend_sess_id 16-bit identifier of the backend session, used to fill the corresponding field
+ *                            in the message and associate it with the backend session.
  * @param[in] ip_version IP protocol version (e.g., IPv4 or IPv6) associated with the session operation.
  * @param[in] sess_msg_type Type of the session message, specifying whether it's a "create" or "close" response.
  *                          Must be a valid session message type (e.g., SESS_MSG_CREATE).
@@ -1004,8 +1060,8 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
  *         Returns BACKEND_PROXY_PROCESS_ERROR if message generation fails, shared memory
  *         access fails, or any input parameter is invalid.
  */
-int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendEngine_ *eng, uint16_t frontend_sess_id, int ip_version, 
-                                                                 int sess_msg_type, SessOpRespData *op_resp){
+int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendEngine_ *eng, uint16_t frontend_sess_id, uint16_t backend_sess_id,
+                                                                 int ip_version, int sess_msg_type, SessOpRespData *op_resp){
     int             ret;
     uint8_t         *msg;
     ProxyMsgHeader  *msg_header;
@@ -1017,7 +1073,7 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    ret = backend_proxy_generate_sess_msg_create_close_response_standalone(eng, frontend_sess_id, ip_version, sess_msg_type, op_resp, &msg);
+    ret = backend_proxy_generate_sess_msg_create_close_response_standalone(eng, frontend_sess_id, BACKEND_HANDOVER_SESSION_ID, ip_version, sess_msg_type, op_resp, &msg);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: the session creation/close-response message cannot be constructed successfully!");
