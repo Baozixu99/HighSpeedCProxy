@@ -93,6 +93,7 @@ int high_speed_init_pool(struct BackendSessionPool *pool)
     fill_id_queue(&pool->id_queue);
 
     TAILQ_INIT(&pool->act_queue);
+    TAILQ_INIT(&pool->b2f_queue);
 
     pool->htable = NULL;
     pool->ops = &high_speed_pool_ops;
@@ -368,7 +369,7 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
  * STEP 1(2).
  */
     HASH_DEL(s_pool->htable, sess);
-    
+
     dec_sess_num(s_pool);
 
 /*

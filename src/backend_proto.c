@@ -563,7 +563,15 @@ int __backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint1
         error_print("backend_proxy_sess_msg_process_close_ver1 failed: session not found by backend_sess_id!");
         goto sess_not_found;
     }
+/*
+ * Close the session.
+ */
+    ret = pool->ops->delete_sess(pool, sess);
 
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("backend_proxy_sess_msg_process_close_ver1 failed: the session deletion procedure did not terminate gracefully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 

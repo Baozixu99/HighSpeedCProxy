@@ -12,14 +12,15 @@ struct BackendEngine_;
 struct BackendSessionPoolOps;
 
 struct BackendSessionPool {
-    char                            *pool_name;
-    int                             sess_num;       // Current capacity of the pool
-    int                             capacity;       // Total capacity of the pool
-    struct BackendEngine_           *engine;        // Points to the engine that this pool belongs to.
-    struct BackendSessionPoolOps    *ops;           // Operation function set.
-    struct BackendSessionQueue      act_queue;      // Active session queue
-    struct BackendSessionIDQueue    id_queue;       // Session ID queue
-    struct BackendSession           *htable;        // Session hash table
+    char                            *pool_name;     // Name/identifier of the session pool
+    int                             sess_num;       // Current number of sessions in the pool
+    int                             capacity;       // Maximum number of sessions the pool can hold (total capacity)
+    struct BackendEngine_           *engine;        // Pointer to the engine this pool belongs to
+    struct BackendSessionPoolOps    *ops;           // Set of operation functions for the pool (e.g., create, delete)
+    struct BackendSessionQueue      act_queue;      // Queue containing active sessions
+    struct BackendSessionQueue      b2f_queue;      // Queue for backend-to-frontend session communication/mapping
+    struct BackendSessionIDQueue    id_queue;       // Queue holding available/reusable session IDs
+    struct BackendSession           *htable;        // Hash table storing sessions (for efficient lookup by ID)
 };
 
 struct BackendSessionPoolOps {
