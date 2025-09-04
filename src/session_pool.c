@@ -335,10 +335,47 @@ struct BackendSession *high_speed_search_sess(struct BackendSessionPool *s_pool,
 
 int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSession *sess)
 {
+/*
+ * The process of deleting a session can be divided into two steps:
+ * STEP 1. Release resources, including session objects, backend session IDs, sockets, etc.
+ * STEP 2. Create a session message to inform the front-end proxy of the result of the 
+ *         session closure request.
+ */
+    uint16_t frontend_sess_id, backend_sess_id;
+    SessOpRespData resp_dat;
+
+
+    if(NULL == s_pool || NULL == sess){
+        error_print("high_speed_delete_sess failed: the session pool or the sess pointer is NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * STEP 1.
+ * (1) Close the socket bound to the backend session object;
+ * (2) Delete the session instance from the hash table, and detach it from the double linked lists;
+ * (3) Release resources occupied by the session instance.
+ */
+
+/*
+ * STEP 1(1).
+ */
+    close(sess->sock_fd);
+
+    frontend_sess_id    = sess->frontend_sess_id;
+    backend_sess_id     = sess->backend_sess_id;
+/*
+ * STEP 1(2).
+ */
     HASH_DEL(s_pool->htable, sess);
+    
     dec_sess_num(s_pool);
+
+/*
+ * STEP 1(3).
+ */
     free(sess);
-    return 0;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int high_speed_data_process(struct BackendSession *sess, uint8_t *in, 

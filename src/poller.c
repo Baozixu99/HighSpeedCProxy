@@ -46,7 +46,7 @@ void poller_run(struct poller* reactor)
     }
     for (int i = 0; i < nready; i++) 
     {
-        struct channel *ch = (struct channel *) events[i].data.ptr;
+        NetChannel *ch = (NetChannel *) events[i].data.ptr;
         if ((events[i].events & EPOLLERR) || 
             (events[i].events & EPOLLHUP))
         {
@@ -66,7 +66,7 @@ void poller_run(struct poller* reactor)
     }
 }
 
-void channel_set(struct channel* ch, int fd, CALLBACK callback, void *arg)
+void channel_set(NetChannel* ch, int fd, CALLBACK callback, void *arg)
 {
     ch->sock_fd = fd;
     ch->callback = callback;
@@ -74,12 +74,12 @@ void channel_set(struct channel* ch, int fd, CALLBACK callback, void *arg)
     ch->arg = arg;
 }
 
-void channel_set_sess(struct channel* ch, struct BackendSession* sess)
+void channel_set_sess(NetChannel* ch, struct BackendSession* sess)
 {
     ch->sess = sess;
 }
 
-int event_add(int ep_fd, int events, struct channel *ch)
+int event_add(int ep_fd, int events, NetChannel *ch)
 {
     struct epoll_event ev = {0, {0}};
     ev.data.ptr = ch;
@@ -100,7 +100,7 @@ int event_add(int ep_fd, int events, struct channel *ch)
     return 0;
 }
 
-int event_del(int ep_fd, struct channel *ch) 
+int event_del(int ep_fd, NetChannel *ch) 
 {
     struct epoll_event ep_ev = {0, {0}};
     if (ch->status != 1) {
@@ -115,7 +115,7 @@ int event_del(int ep_fd, struct channel *ch)
 
 int recv_cb(int fd, int events, void *arg) 
 {
-    struct channel *ch = (struct channel *) arg;
+    NetChannel *ch = (NetChannel *) arg;
     struct poller* reactor = (struct poller *)(ch->arg);
     int len = -1;
 
@@ -159,7 +159,7 @@ int recv_cb(int fd, int events, void *arg)
 }
 
 int send_cb(int fd, int events, void *arg) {
-    struct channel *ch = (struct channel *) arg;
+    NetChannel *ch = (NetChannel *) arg;
     struct poller* reactor = (struct poller *)(ch->arg);
 
     int len = -1;

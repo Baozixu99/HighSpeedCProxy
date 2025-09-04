@@ -476,7 +476,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 
     }else if(SESS_IPV6_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv6)){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the payload length does not match the IPv6 handover message!");
+            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the high-speed pool is not initialized!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         para_ipv6                   = (SessParaIPv6 *)msg_payload;
@@ -500,12 +500,12 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
  */
 
         if(!pool->ops->create_sess){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because create_sess does not point to a valid create-session function!\n");
+            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the create_sess does not point to a valid create-session function!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = pool->ops->create_sess(pool, &sess, &sess_para);
     }else{
-        error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the IP version is not valid!\n");
+        error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the IP version is not valid!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -534,7 +534,45 @@ int backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_
 
 
 int __backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload){
+    struct BackendSessionPool   *pool;
+    struct BackendSession       *sess;
+    int                         ret;
+
+/*
+ * The main body of the session closure procedure lies in the function which the delete_sess pointer points to.
+ * In __backend_proxy_sess_msg_process_close_ver1, this function parses the session parameters and calls the function pointed to by the delete_sess pointer to establish a new session.
+ */
+    pool = get_backend_high_speed_pool();
+
+    if(NULL == pool || NULL == pool->ops){
+        error_print("__backend_proxy_sess_msg_process_close_ver1 failed: the high-speed pool is not initialized!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(NULL == pool->ops->search_sess || NULL == pool->ops->delete_sess){
+        error_print("__backend_proxy_sess_msg_process_close_ver1 failed:  search_sess or delete_sess is NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * First of all, search for the session instance according to the backend session ID.
+ */
+    sess = pool->ops->search_sess(pool, backend_sess_id);
+
+    if(NULL == sess){
+        error_print("backend_proxy_sess_msg_process_close_ver1 failed: session not found by backend_sess_id!");
+        goto sess_not_found;
+    }
+
+
     return BACKEND_PROXY_PROCESS_OK;
+
+sess_not_found:
+/*
+ * Pending: Whether to respond to the frontend with an error message for the session-close command when the backend session ID has no corresponding session instance.
+ * To be decided later.
+ */
+    return BACKEND_PROXY_PROCESS_ERROR;
 }
 
 
