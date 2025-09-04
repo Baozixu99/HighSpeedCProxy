@@ -46,7 +46,7 @@ struct BackendSession {
     struct BackendEngine_ *eng;
 // Private data pointer (used to store session-specific data)
     void *pri_data;
-    struct channel *net_channel;
+    NetChannel net_channel;
     UT_hash_handle hh;
 };
 

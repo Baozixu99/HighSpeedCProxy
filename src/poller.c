@@ -35,7 +35,7 @@
 #define BUFFER_SIZE 1024
 
 
-void poller_run(struct poller* reactor)
+void poller_run(NetPoller *reactor)
 {
     struct epoll_event events[MAX_EVENTS + 1];
     int nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, 0);
@@ -116,7 +116,7 @@ int event_del(int ep_fd, NetChannel *ch)
 int recv_cb(int fd, int events, void *arg) 
 {
     NetChannel *ch = (NetChannel *) arg;
-    struct poller* reactor = (struct poller *)(ch->arg);
+    NetPoller *reactor = (NetPoller *)(ch->arg);
     int len = -1;
 
     char buf[5];
@@ -160,7 +160,7 @@ int recv_cb(int fd, int events, void *arg)
 
 int send_cb(int fd, int events, void *arg) {
     NetChannel *ch = (NetChannel *) arg;
-    struct poller* reactor = (struct poller *)(ch->arg);
+    NetPoller *reactor = (NetPoller *)(ch->arg);
 
     int len = -1;
     // todo, send data
@@ -170,10 +170,10 @@ int send_cb(int fd, int events, void *arg) {
     return len;
 }
 
-int poller_init(struct poller* reactor)
+int poller_init(NetPoller *reactor)
 {
     if (reactor == NULL) return -1;
-    memset(reactor, 0, sizeof(struct poller));
+    memset(reactor, 0, sizeof(NetPoller));
 
     reactor->epfd = epoll_create(MAX_EVENTS);
     if (reactor->epfd <= 0)
@@ -184,7 +184,7 @@ int poller_init(struct poller* reactor)
     return 0;
 }
 
-int poller_destory(struct poller *reactor) 
+int poller_destory(NetPoller *reactor) 
 {
     close(reactor->epfd);
     return 0;

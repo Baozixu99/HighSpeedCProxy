@@ -1,26 +1,18 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
-#include "session.h"
+struct BackendSession;
 
 typedef int (*CALLBACK)(int, int, void *);
-struct channel{
-    int sock_fd;
-    int events;  //感兴趣的事件
-    void* arg;   //poller(reactor)
-    int status;   //1 MOD, 0 ADD
-    CALLBACK callback;
-    struct BackendSession* sess;
-};
 
-typedef struct NetChannel_{
+typedef struct NetChannel_ {
     int sock_fd;
-    int events;  //感兴趣的事件
-    void* arg;   //poller(reactor)
-    int status;   //1 MOD, 0 ADD
-    CALLBACK callback;
-    struct BackendSession* sess;
-}NetChannel;
+    int events;  // Events of interest
+    void* arg;   // Pointer to poller (reactor)
+    int status;  // Status flag: 1 for MOD, 0 for ADD
+    CALLBACK callback;  // Callback function
+    struct BackendSession *sess;  // Pointer to associated BackendSession structure
+} NetChannel;
 
 
 #endif
