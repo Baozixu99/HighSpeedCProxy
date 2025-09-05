@@ -13,6 +13,18 @@ struct ControlMsg{
     uint16_t dev_id;
 };
 
+/**
+ * @brief Memory source type of the data field in message segment (SessMsgSeg)
+ * 
+ * Used to identify whether the memory pointed to by the data pointer in the SessMsgSeg structure
+ * is dynamically allocated or comes from shared memory (to determine subsequent memory management 
+ * approaches, such as whether manual release is required)
+ */
+typedef enum {
+    SESS_MSG_SEG_DYNAMIC_ALLOC,  ///< data points to dynamically allocated memory (needs to be freed with free())
+    SESS_MSG_SEG_SHARED_MEM      ///< data points to shared memory (no manual release needed; managed by the shared memory manager)
+} SessMsgSegType;
+
 struct SessMsgSeg {
     uint16_t len;
     uint16_t type;
@@ -21,6 +33,34 @@ struct SessMsgSeg {
 };
 
 TAILQ_HEAD(SessMsgQueue, SessMsgSeg);
+
+
+/**
+ * @brief Allocates and initializes a SessMsgSeg structure
+ * 
+ * @param len        Length of the data buffer (in bytes)
+ * @param type   Memory source type of the data buffer (dynamic allocation or shared memory)
+ * @param shared_data Pointer to shared memory data (valid only when data_src is SESS_MSG_SEG_SHARED_MEM)
+ * 
+ * @return Pointer to the newly allocated SessMsgSeg on success; NULL on failure
+ * 
+ * @note - If data_src is SESS_MSG_SEG_DYNAMIC_ALLOC: allocates data buffer with malloc()
+ *       - If data_src is SESS_MSG_SEG_SHARED_MEM: uses shared_data directly (does not allocate new memory)
+ *       - Initializes TAILQ entry to default state
+ */
+struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data);
+
+/**
+ * @brief Releases a SessMsgSeg structure and its associated resources
+ * 
+ * @param seg_ptr Double pointer to the SessMsgSeg to be released (will be set to NULL after release)
+ * 
+ * @note - If data_src is SESS_MSG_SEG_DYNAMIC_ALLOC: frees the data buffer with free()
+ *       - If data_src is SESS_MSG_SEG_SHARED_MEM: does not free data (managed by shared memory system)
+ *       - Safely handles NULL input (no operation performed)
+ */
+void sess_msg_seg_free(struct SessMsgSeg **seg_ptr);
+
 
 struct BackendProtocolProcess; 
 struct BackendEngine_;

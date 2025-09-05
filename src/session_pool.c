@@ -344,20 +344,22 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
  * STEP 2. Create a session message to inform the front-end proxy of the result of the 
  *         session closure request.
  */
-    uint16_t frontend_sess_id, backend_sess_id;
-    SessOpRespData resp_dat;
+    uint16_t        frontend_sess_id, backend_sess_id;
+    SessOpRespData  resp_dat;
+    int             ret, ip_version;
+    BackendEngine*  *eng;
 
 
-    if(NULL == s_pool || NULL == sess){
-        error_print("high_speed_delete_sess failed: the session pool or the sess pointer is NULL!");
+    if(NULL == s_pool || NULL == sess || NULL == s_pool->engine){
+        error_print("high_speed_delete_sess failed: session pool (s_pool), session (sess), or engine (s_pool->engine) is NULL!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
 /*
- * STEP 1.
- * (1) Close the socket bound to the backend session object;
- * (2) Delete the session instance from the hash table, and detach it from the double linked lists;
- * (3) Release resources occupied by the session instance.
+ * STEP 1:
+ * (1) Close the socket bound to the backend session object, and record the session information for building the session close-response message;
+ * (2) Delete the session instance from the hash table and detach it from the doubly linked lists;
+ * (3) Release the resources occupied by the session instance.
  */
 
 /*
@@ -367,6 +369,7 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 
     frontend_sess_id    = sess->frontend_sess_id;
     backend_sess_id     = sess->backend_sess_id;
+    ip_version          = sess->ip_version;
 /*
  * STEP 1(2).
  */
@@ -380,7 +383,8 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 /*
  * STEP 1(3).
  */
-    
+
+
     free(sess);
 
 /*
@@ -388,6 +392,11 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
  * Create a session close-response message based on the information in the session close-command message, and send this message 
  * to the front-end proxy via shared memory.
  */
+    eng             = s_pool->engine;
+    resp_dat.status = SESS_OP_STATUS_SUCCESS;
+    resp_dat.code   = SESS_OP_CODE_SUCCESS;
+    ret = backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(eng, frontend_sess_id, backend_sess_id, ip_version, SESS_MSG_CLOSE, &resp_dat);
+
 
     return BACKEND_PROXY_PROCESS_OK;
 }
