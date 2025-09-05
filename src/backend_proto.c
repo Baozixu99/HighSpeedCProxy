@@ -615,6 +615,25 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
  * - build_proxy_sess_message  : Builds a session-specific proxy message
  * - build_proxy_data_message  : Builds a data-specific proxy message
  */
+
+/**
+ * @brief Builds a complete proxy device message by combining the device header and payload.
+ * Builds a complete proxy device message by combining the device message header and payload.
+ * The function will allocate memory for the output message (caller is responsible for freeing it).
+ * @param[in] dev_hdr Pointer to a DevMsgHeader structure specifying the device message header.
+ * Must not be NULL.
+ * @param[in] payload Pointer to the const uint8_t buffer containing the device message payload.
+ * Can be NULL only if payload_len is 0.
+ * @param[in] payload_len Length of the payload in bytes. Must be non-negative and match
+ * dev_hdr->payload_len (if header contains payload length field) for consistency.
+ * @param[out] result_msg Double pointer to receive the address of the constructed proxy device message.
+ * On success, points to a newly allocated buffer containing the complete device message.
+ * Caller must free this memory with appropriate function when done.
+ * Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
+ * Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
+ * mismatched lengths) or memory allocation fails.
+ */
  int build_proxy_dev_message(DevMsgHeader *dev_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     DevMsgHeader *header;
     size_t corr_len;
@@ -647,6 +666,24 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
  }
 
 
+/**
+ * @brief Builds a complete proxy strategy message by combining the strategy header and payload.
+ * Builds a complete proxy strategy message by combining the strategy message header and payload.
+ * The function will allocate memory for the output message (caller is responsible for freeing it).
+ * @param[in] strgy_hdr Pointer to a StrgyMsgHeader structure specifying the strategy message header.
+ * Must not be NULL.
+ * @param[in] payload Pointer to the const uint8_t buffer containing the strategy message payload.
+ * Can be NULL only if payload_len is 0.
+ * @param[in] payload_len Length of the payload in bytes. Must be non-negative and match
+ * strgy_hdr->payload_len (if header contains payload length field) for consistency.
+ * @param[out] result_msg Double pointer to receive the address of the constructed proxy strategy message.
+ * On success, points to a newly allocated buffer containing the complete strategy message.
+ * Caller must free this memory with appropriate function when done.
+ * Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
+ * Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
+ * mismatched lengths) or memory allocation fails.
+ */
 int build_proxy_strgy_message(StrgyMsgHeader *strgy_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     StrgyMsgHeader *header;
     size_t corr_len;
@@ -679,7 +716,24 @@ int build_proxy_strgy_message(StrgyMsgHeader *strgy_hdr, const uint8_t *payload,
 }
 
 
-
+/**
+ * @brief Builds a complete proxy session message by combining the session header and payload.
+ * Builds a complete proxy session message by combining the session message header and payload.
+ * The function will allocate memory for the output message (caller is responsible for freeing it).
+ * @param[in] sess_hdr Pointer to a SessMsgHeader structure specifying the session message header.
+ * Must not be NULL.
+ * @param[in] payload Pointer to the const uint8_t buffer containing the session message payload.
+ * Can be NULL only if payload_len is 0.
+ * @param[in] payload_len Length of the payload in bytes. Must be non-negative and match
+ * sess_hdr->payload_len (if header contains payload length field) for consistency.
+ * @param[out] result_msg Double pointer to receive the address of the constructed proxy session message.
+ * On success, points to a newly allocated buffer containing the complete session message.
+ * Caller must free this memory with appropriate function when done.
+ * Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
+ * Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
+ * mismatched lengths) or memory allocation fails.
+ */
 int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     SessMsgHeader *header;
     size_t corr_len;
@@ -712,8 +766,24 @@ int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, si
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-
-
+/**
+ * @brief Builds a complete proxy data message by combining the proxy message header and payload.
+ * Builds a complete proxy data message by combining the proxy message header and payload.
+ * The function will allocate memory for the output message (caller is responsible for freeing it).
+ * @param[in] proxy_msg_hdr Pointer to a ProxyMsgHeader structure specifying the proxy data message header.
+ * Must not be NULL.
+ * @param[in] payload Pointer to the const uint8_t buffer containing the data message payload.
+ * Can be NULL only if payload_len is 0.
+ * @param[in] payload_len Length of the payload in bytes. Must be non-negative and match
+ * proxy_msg_hdr->payload_len (if header contains payload length field) for consistency.
+ * @param[out] result_msg Double pointer to receive the address of the constructed proxy data message.
+ * On success, points to a newly allocated buffer containing the complete data message.
+ * Caller must free this memory with appropriate function (e.g., free()) when done.
+ * Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
+ * Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
+ * mismatched lengths) or memory allocation fails.
+*/
 int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     uint8_t *data_msg;
 
@@ -844,7 +914,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
 
 
 /**
- * Receive data message via shared memory for backend proxy (zero-copy).
+ * @brief Receive data message via shared memory for backend proxy (zero-copy).
  * 
  * @param sess Pointer to BackendSession instance.
  * @param msg Double pointer to store the address of received data in shared memory.
@@ -858,7 +928,7 @@ int backend_proxy_shmem_data_msg_recv(struct BackendSession *sess, uint8_t **msg
 }
 
 /**
- * Send data message via shared memory for backend proxy (zero-copy).
+ * @brief Send data message via shared memory for backend proxy (zero-copy).
  * 
  * @param sess Pointer to BackendSession instance.
  * @param msg Double pointer to the data in shared memory to be sent. *msg must point to
@@ -872,7 +942,7 @@ int backend_proxy_shmem_data_msg_send(struct BackendSession *sess, const uint8_t
 }
 
 /**
- * Receive data message via socket for backend proxy.
+ * @brief Receive data message via socket for backend proxy.
  * @param sess Pointer to BackendSession instance.
  * @param msg Buffer to store received data message.
  * @return BACKEND_PROXY_PROCESS_OK on success; BACKEND_PROXY_PROCESS_ERROR on failure.
@@ -893,7 +963,7 @@ int backend_proxy_sock_data_msg_recv(struct BackendSession *sess, uint8_t *msg){
 
 
 /**
- * Generate a "device enable response" message for backend proxy (zero-copy).
+ * @brief Generate a "device enable response" message for backend proxy (zero-copy).
  * 
  * This function creates a response message indicating the result of a device enable request.
  * It leverages zero-copy by directly allocating/accessing memory in the shared memory pool (via the backend engine),
@@ -915,7 +985,7 @@ int backend_proxy_generate_dev_msg_enable_response(struct BackendEngine_ *eng, u
 }
 
 /**
- * Generate a "device disable response" message for backend proxy (zero-copy).
+ * @brief Generate a "device disable response" message for backend proxy (zero-copy).
  * 
  * This function creates a response message indicating the result of a device disable request.
  * It leverages zero-copy by directly allocating/accessing memory in the shared memory pool (via the backend engine),
@@ -937,7 +1007,7 @@ int backend_proxy_generate_dev_msg_disable_response(struct BackendEngine_ *eng, 
 }
 
 /**
- * Generate a "device query response" message for backend proxy (zero-copy).
+ * @brief Generate a "device query response" message for backend proxy (zero-copy).
  * 
  * This function creates a response message containing the result of a device state query request (e.g., device online status, resource usage).
  * It leverages zero-copy by directly allocating/accessing memory in the shared memory pool (via the backend engine),

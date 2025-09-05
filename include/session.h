@@ -25,21 +25,28 @@ TAILQ_HEAD(SessMsgQueue, SessMsgSeg);
 struct BackendProtocolProcess; 
 struct BackendEngine_;
 
+#define BACKEND_SESS_LINKED_TO_QUEUE            1
 struct BackendSession {
     int sess_type;
     int sock_fd;
     int ip_version;
     uint16_t frontend_sess_id;
     uint16_t backend_sess_id; // hash key
-// State machine states
-    int state_f2b; // front-end to back-end state
-    int state_b2a; // back-end to front-end state
+/*
+ * State machine states, indicating the linked status of the session in different directions
+ * state_f2b: When its value is BACKEND_SESS_LINKED_TO_QUEUE, it means the entries_f2b node of the current session
+ * is linked to the queue_f2b (belonging to BackendSessionPool in BackendEngine_)
+ * state_b2f: When its value is BACKEND_SESS_LINKED_TO_QUEUE, it means the entries_b2f node of the current session
+ * is linked to the queue_bf2 (belonging to BackendSessionPool in BackendEngine_)
+ */
+    uint8_t state_f2b; 
+    uint8_t state_b2f; 
 // Message queues
-    struct SessMsgQueue queue_f2b; // front-end to back-end message queue
-    struct SessMsgQueue queue_b2a; // back-end to front-end message queue
+    struct SessMsgQueue msg_f2b; // front-end to back-end message queue
+    struct SessMsgQueue msg_b2f; // back-end to front-end message queue
 // Queue link nodes
     TAILQ_ENTRY(BackendSession) entries_f2b; // front-end to back-end active queue node
-    TAILQ_ENTRY(BackendSession) entries_active; // global active session queue node
+    TAILQ_ENTRY(BackendSession) entries_b2f; // back-end to front-end active queue node
 // Protocol processing
     struct BackendProtocolProcess *protocol_process; // protocol processing module pointer
 // Pointer to the backend engine associated with this session
@@ -49,6 +56,58 @@ struct BackendSession {
     NetChannel net_channel;
     UT_hash_handle hh;
 };
+
+/**
+ * @brief Link backend session to the specified queue (only if not linked yet) and set state bit
+ * 
+ * @param[in]  sess  Pointer to struct BackendSession (target session)
+ * @param[in]  dir   Direction identifier ("f2b" for front2back, "b2f" for back2front)
+ * 
+ * @details 1. Validate critical pointers (sess/eng/sess_pool)
+ *          2. Check if BACKEND_SESS_LINKED_TO_QUEUE bit is NOT set in state_<dir>
+ *          3. If not set: set the bit (bitwise OR) + insert entries_<dir> into queue_<dir>
+ * 
+ * @note - Avoids duplicate linking (prevents inserting the same node into TAILQ multiple times)
+ *       - BACKEND_SESS_LINKED_TO_QUEUE must be a single-bit mask (e.g., 1U<<0)
+ */
+#define BACKEND_SESS_LINK_TO_QUEUE(sess, dir) do {                          \
+    /* Step 1: Validate pointers to avoid null dereference */                \
+    if ((sess) != NULL && (sess)->eng != NULL && (sess)->eng->sess_pool != NULL) { \
+        /* Step 2: Check if NOT linked yet (target bit is 0) */              \
+        if (((sess)->state_##dir & BACKEND_SESS_LINKED_TO_QUEUE) == 0) {      \
+            /* Step 3: Set linked bit + insert into queue */                 \
+            (sess)->state_##dir |= BACKEND_SESS_LINKED_TO_QUEUE;              \
+            TAILQ_INSERT_TAIL(&(sess)->eng->sess_pool->queue_##dir, (sess), entries_##dir); \
+        }                                                                     \
+    }                                                                        \
+} while (0)
+
+
+
+/**
+ * @brief Unlink backend session from the specified queue (only if linked) and clear state bit
+ * 
+ * @param[in]  sess  Pointer to struct BackendSession (target session)
+ * @param[in]  dir   Direction identifier ("f2b" for front2back, "b2f" for back2front)
+ * 
+ * @details 1. Validate critical pointers (sess/eng/session_pool)
+ *          2. Check if BACKEND_SESS_LINKED_TO_QUEUE bit is set in state_<dir>
+ *          3. If set: remove entries_<dir> from queue_<dir> + clear the bit (bitwise AND NOT)
+ * 
+ * @note - Avoids invalid unlinking (prevents removing a node not in TAILQ)
+ *       - Ensure queue_<dir> is initialized before calling
+ */
+#define BACKEND_SESS_UNLINK_FROM_QUEUE(sess, dir) do {                      \
+    /* Step 1: Validate pointers to avoid null dereference */                \
+    if ((sess) != NULL && (sess)->eng != NULL && (sess)->eng->sess_pool != NULL) { \
+        /* Step 2: Check if already linked (target bit is 1) */              \
+        if (((sess)->state_##dir & BACKEND_SESS_LINKED_TO_QUEUE) != 0) {      \
+            /* Step 3: Remove from queue + clear linked bit */                \
+            TAILQ_REMOVE(&(sess)->eng->sess_pool->queue_##dir, (sess), entries_##dir); \
+            (sess)->state_##dir &= ~BACKEND_SESS_LINKED_TO_QUEUE;             \
+        }                                                                     \
+    }                                                                        \
+} while (0)
 
 
 struct BackendProtocolProcess {

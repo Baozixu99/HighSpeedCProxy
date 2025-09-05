@@ -92,8 +92,8 @@ int high_speed_init_pool(struct BackendSessionPool *pool)
     TAILQ_INIT(&pool->id_queue);
     fill_id_queue(&pool->id_queue);
 
-    TAILQ_INIT(&pool->act_queue);
-    TAILQ_INIT(&pool->b2f_queue);
+    TAILQ_INIT(&pool->queue_f2b);
+    TAILQ_INIT(&pool->queue_b2f);
 
     pool->htable = NULL;
     pool->ops = &high_speed_pool_ops;
@@ -248,8 +248,10 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     new_sess->ip_version        = para->ip_version;
     new_sess->sock_fd           = fd;
     new_sess->eng               = engine;
-    TAILQ_INIT(&new_sess->queue_f2b);
-    TAILQ_INIT(&new_sess->queue_b2a);
+    new_sess->state_f2b         &= BACKEND_SESS_LINKED_TO_QUEUE;
+    new_sess->state_b2f         &= BACKEND_SESS_LINKED_TO_QUEUE;
+    TAILQ_INIT(&new_sess->msg_f2b);
+    TAILQ_INIT(&new_sess->msg_b2f);
 
 /*
  * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
@@ -372,10 +374,21 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 
     dec_sess_num(s_pool);
 
+    BACKEND_SESS_UNLINK_FROM_QUEUE(sess, f2b);
+    BACKEND_SESS_UNLINK_FROM_QUEUE(sess, b2f);
+
 /*
  * STEP 1(3).
  */
+    
     free(sess);
+
+/*
+ * STEP 2:
+ * Create a session close-response message based on the information in the session close-command message, and send this message 
+ * to the front-end proxy via shared memory.
+ */
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
