@@ -5,6 +5,7 @@
 #include <sys/queue.h>
 #include "uthash.h"
 #include "channel.h"
+#include "shared_mem_io.h"
 
 #define BACKEND_PROXY_PROCESS_OK               0
 #define BACKEND_PROXY_PROCESS_ERROR            -1
@@ -25,53 +26,58 @@ typedef enum {
     SESS_MSG_SEG_SHARED_MEM      ///< data points to shared memory (no manual release needed; managed by the shared memory manager)
 } SessMsgSegType;
 
+
+/**
+ * @brief Structure representing a segment of session message data, supporting both dynamic and shared memory
+ * This structure encapsulates a segment of message data for session communication, including
+ * metadata about the data buffer and the buffer itself. It can manage data in two modes:
+ * dynamically allocated memory or shared memory (via a shared memory pool).
+ */
 struct SessMsgSeg {
-    uint16_t len;
-    uint16_t type;
-    uint8_t *data;
-    TAILQ_ENTRY(SessMsgSeg) entry;
+/*< Length of the data buffer (in bytes). Indicates the valid data size in the buffer pointed to by @ref data. */
+    uint16_t len; 
+/*
+ * < Memory source type of the data buffer, corresponding to SessMsgSegType.
+ * Valid values: SESS_MSG_SEG_DYNAMIC_ALLOC (dynamic memory) or SESS_MSG_SEG_SHARED_MEM (shared memory). 
+ */
+    uint16_t type; 
+/*
+ * < Pointer to the associated shared memory pool.
+ * Valid and non-NULL only when @ref type is SESS_MSG_SEG_SHARED_MEM, used for managing shared memory ownership and validation.
+ * NULL when @ref type is SESS_MSG_SEG_DYNAMIC_ALLOC (no shared memory pool associated). 
+ */
+    struct SharedMemoryPool *mem_pool;
+/*< Pointer to the actual data buffer.
+ * For SESS_MSG_SEG_DYNAMIC_ALLOC: Points to memory allocated via malloc().
+ * For SESS_MSG_SEG_SHARED_MEM: Points to a valid data segment within the shared memory managed by @ref mem_pool. 
+ */ 
+    uint8_t *data; 
+/*
+ * < TAILQ queue entry. Used to link multiple SessMsgSeg structures into a doubly linked list for sequential access. 
+ */
+    TAILQ_ENTRY(SessMsgSeg) entry; 
 };
+
 
 TAILQ_HEAD(SessMsgQueue, SessMsgSeg);
 
 
-/**
- * @brief Allocates and initializes a SessMsgSeg structure
- * 
- * @param len        Length of the data buffer (in bytes)
- * @param type   Memory source type of the data buffer (dynamic allocation or shared memory)
- * @param shared_data Pointer to shared memory data (valid only when data_src is SESS_MSG_SEG_SHARED_MEM)
- * 
- * @return Pointer to the newly allocated SessMsgSeg on success; NULL on failure
- * 
- * @note - If data_src is SESS_MSG_SEG_DYNAMIC_ALLOC: allocates data buffer with malloc()
- *       - If data_src is SESS_MSG_SEG_SHARED_MEM: uses shared_data directly (does not allocate new memory)
- *       - Initializes TAILQ entry to default state
- */
-struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data);
 
-/**
- * @brief Releases a SessMsgSeg structure and its associated resources
- * 
- * @param seg_ptr Double pointer to the SessMsgSeg to be released (will be set to NULL after release)
- * 
- * @note - If data_src is SESS_MSG_SEG_DYNAMIC_ALLOC: frees the data buffer with free()
- *       - If data_src is SESS_MSG_SEG_SHARED_MEM: does not free data (managed by shared memory system)
- *       - Safely handles NULL input (no operation performed)
- */
+struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data, struct SharedMemoryPool *mem_pool);
 void sess_msg_seg_free(struct SessMsgSeg **seg_ptr);
 
+void sess_msg_queue_free_all(struct SessMsgQueue *queue);
 
 struct BackendProtocolProcess; 
 struct BackendEngine_;
 
 #define BACKEND_SESS_LINKED_TO_QUEUE            1
 struct BackendSession {
-    int sess_type;
-    int sock_fd;
-    int ip_version;
-    uint16_t frontend_sess_id;
-    uint16_t backend_sess_id; // hash key
+    int         sess_type;
+    int         sock_fd;
+    int         ip_version;
+    uint16_t    frontend_sess_id;
+    uint16_t    backend_sess_id; // hash key
 /*
  * State machine states, indicating the linked status of the session in different directions
  * state_f2b: When its value is BACKEND_SESS_LINKED_TO_QUEUE, it means the entries_f2b node of the current session
@@ -92,9 +98,9 @@ struct BackendSession {
 // Pointer to the backend engine associated with this session
     struct BackendEngine_ *eng;
 // Private data pointer (used to store session-specific data)
-    void *pri_data;
-    NetChannel net_channel;
-    UT_hash_handle hh;
+    void            *pri_data;
+    NetChannel      net_channel;
+    UT_hash_handle  hh;
 };
 
 /**
@@ -149,6 +155,15 @@ struct BackendSession {
     }                                                                        \
 } while (0)
 
+
+/**
+ * @brief Get the associated shared memory pool (mem_pool) from a BackendSession pointer
+ * This macro retrieves the shared_memory_pool pointer contained in BackendEngine_
+ * through the eng member (pointing to BackendEngine_) of the BackendSession structure.
+ * @param sess Pointer to a struct BackendSession
+ * @return Pointer to struct SharedMemoryPool, i.e., sess->eng->mem_pool
+ */
+#define BACKEND_SESSION_MEM_POOL(sess) ((sess)->eng->mem_pool)
 
 struct BackendProtocolProcess {
 

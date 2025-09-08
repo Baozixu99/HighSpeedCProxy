@@ -1,6 +1,5 @@
 
 #include "session.h"
-#include "shared_mem_io.h"
 #include "common_utils.h"
 
 
@@ -10,6 +9,8 @@
  * @param len        Length of the data buffer (in bytes)
  * @param type   Memory source type of the data buffer (dynamic allocation or shared memory)
  * @param shared_data Pointer to shared memory data (valid only when data_src is SESS_MSG_SEG_SHARED_MEM)
+ * @param mem_pool Pointer to the SharedMemoryPool instance (valid only when type is SESS_MSG_SEG_SHARED_MEM). 
+                   Used to associate the SessMsgSeg with the shared memory pool for management (e.g., validation, release tracking).
  * 
  * @return Pointer to the newly allocated SessMsgSeg on success; NULL on failure
  * 
@@ -17,7 +18,7 @@
  *       - If data_src is SESS_MSG_SEG_SHARED_MEM: uses shared_data directly (does not allocate new memory)
  *       - Initializes TAILQ entry to default state
  */
-struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data){
+struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data, struct SharedMemoryPool *mem_pool){
     struct SessMsgSeg *msg_seg;
     msg_seg = malloc(sizeof(struct SessMsgSeg));
 
@@ -39,7 +40,13 @@ struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uin
 /*
  * The memory for storing data is prealloc from the memory pool.
  */
-            msg_seg->data = shared_data;
+            if(NULL == mem_pool){
+                error_print("sess_msg_seg_alloc failed: Shared memory pool (mem_pool) cannot be NULL when using SESS_MSG_SEG_SHARED_MEM type!");
+                goto msg_alloc_error;
+            }
+
+            msg_seg->data       = shared_data;
+            msg_seg->mem_pool   = mem_pool;
             break;
 
         default:
@@ -84,9 +91,12 @@ void sess_msg_seg_free(struct SessMsgSeg **seg_ptr){
             if(NULL == msg_seg->data){
                 error_print("sess_msg_seg_free failed: data pointer is NULL!");
             }
+            free(msg_seg->data);
             break;
         case SESS_MSG_SEG_SHARED_MEM:
-
+/*
+ * The memory belongs to the shared memory pool.
+ */
             break;
 
         default:
@@ -99,6 +109,67 @@ void sess_msg_seg_free(struct SessMsgSeg **seg_ptr){
     free(msg_seg);
 }
 
+
+/**
+ * @brief Release all SessMsgSeg elements in the SessMsgQueue
+ * 
+ * This function traverses the SessMsgQueue, releases each SessMsgSeg element
+ * according to its memory type, and finally clears the queue.
+ * 
+ * For dynamic allocation type (SESS_MSG_SEG_DYNAMIC_ALLOC):
+ * - Free the data buffer allocated by malloc()
+ * - Free the SessMsgSeg structure itself
+ * 
+ * For shared memory type (SESS_MSG_SEG_SHARED_MEM):
+ * - Do not free the shared data buffer (managed by SharedMemoryPool)
+ * - Only free the SessMsgSeg structure itself
+ * 
+ * @param queue Pointer to the SessMsgQueue to be cleared
+ */
+void sess_msg_queue_free_all(struct SessMsgQueue *queue) {
+    if (queue == NULL) {
+        return; // Avoid null pointer operation
+    }
+
+    struct SessMsgSeg *seg, *next_seg;
+
+    seg->entry;
+
+    TAILQ_FOREACH(seg, queue, entry){
+        // Manually save the next node before releasing current node
+        next_seg = TAILQ_NEXT(seg, entry);
+
+        // Remove current segment from the queue
+        TAILQ_REMOVE(queue, seg, entry);
+
+        // Free resources based on memory type
+        if (SESS_MSG_SEG_DYNAMIC_ALLOC == seg->type) {
+            // Free dynamically allocated data buffer
+            if (NULL != seg->data) {
+                free(seg->data);
+                seg->data = NULL;
+            }
+        }
+
+        if (SESS_MSG_SEG_SHARED_MEM == seg->type) {
+            // Free dynamically allocated data buffer
+            if (NULL != seg->data || NULL != seg->mem_pool) {
+                free_shared_mem(seg->mem_pool, (uint64_t)seg->data);
+            }
+        }
+
+
+        // Shared memory data is managed by SharedMemoryPool, no need to free here
+
+        // Free the SessMsgSeg structure itself
+        free(seg);
+
+        // Move to next node (since current node is freed)
+        seg = next_seg;
+    }
+
+    TAILQ_INIT(queue);
+}
 
 
 int session_send(struct BackendSession* sess, const uint8_t* data, uint32_t size)
