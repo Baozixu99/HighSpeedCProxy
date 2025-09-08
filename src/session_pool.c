@@ -383,7 +383,8 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 /*
  * STEP 1(3).
  */
-
+    sess_msg_queue_free_all(&sess->msg_f2b);
+    sess_msg_queue_free_all(&sess->msg_b2f);
 
     free(sess);
 

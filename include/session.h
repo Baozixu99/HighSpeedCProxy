@@ -165,6 +165,64 @@ struct BackendSession {
  */
 #define BACKEND_SESSION_MEM_POOL(sess) ((sess)->eng->mem_pool)
 
+
+/**
+ * @brief Insert a SessMsgSeg pointer into the specified direction queue of BackendSession
+ * 
+ * @param[in]  sess  Pointer to struct BackendSession (the session containing the target queue)
+ * @param[in]  seg   Pointer to struct SessMsgSeg (the message segment to be inserted)
+ * @param[in]  dir   Direction identifier, must be "f2b" (front2back) or "b2f" (back2front)
+ * 
+ * @details 1. Validate that sess and seg are non-NULL to avoid null dereference
+ *          2. Insert seg into sess->msg_<dir> queue using TAILQ_INSERT_TAIL (FIFO order)
+ *          3. The queue is identified by concatenating "msg_" with dir (msg_f2b or msg_b2f)
+ * 
+ * @note - <dir> must be "f2b" or "b2f"; invalid values will cause compilation errors
+ *       - Ensure sess->msg_<dir> has been initialized with TAILQ_INIT() before insertion
+ *       - seg must point to a valid SessMsgSeg instance (allocated and initialized)
+ *       - This macro performs a tail insertion to maintain FIFO order of messages
+ */
+#define SESS_MSG_SEG_INSERT_QUEUE(sess, seg, dir) do {                     \
+    /* Validate critical pointers */                                        \
+    if ((sess) != NULL && (seg) != NULL) {                                  \
+        /* Insert the segment into the target queue (msg_f2b or msg_b2f) */ \
+        TAILQ_INSERT_TAIL(&(sess)->msg_##dir, (seg), entry);                \
+    }                                                                        \
+} while (0)
+
+
+/**
+ * @brief Remove and return the first SessMsgSeg pointer from the specified direction queue of BackendSession
+ * 
+ * @param[in]  sess     Pointer to struct BackendSession (the session containing the target queue)
+ * @param[out] seg_ptr  Double pointer to struct SessMsgSeg (output: receives the removed segment; set to NULL if queue is empty)
+ * @param[in]  dir      Direction identifier, must be "f2b" (front2back) or "b2f" (back2front)
+ * 
+ * @details 1. Validate that sess and seg_ptr are non-NULL to avoid null dereference
+ *          2. Check if the target queue (msg_<dir>) is non-empty using TAILQ_FIRST
+ *          3. If non-empty: remove the first element with TAILQ_REMOVE and assign to *seg_ptr
+ *          4. If empty: set *seg_ptr to NULL
+ * 
+ * @note - <dir> must be "f2b" or "b2f"; invalid values will cause compilation errors
+ *       - Ensure sess->msg_<dir> has been initialized with TAILQ_INIT() before removal
+ *       - seg_ptr must be a valid double pointer (points to a struct SessMsgSeg* variable)
+ *       - The removed segment's memory is not freed by this macro (caller must handle via sess_msg_seg_free)
+ */
+#define SESS_MSG_SEG_REMOVE_HEAD(sess, seg_ptr, dir) do {                  \
+    /* Validate critical pointers */                                        \
+    if ((sess) != NULL && (seg_ptr) != NULL) {                              \
+        /* Initialize output to NULL (handles empty queue case) */           \
+        *(seg_ptr) = NULL;                                                  \
+        /* Check if queue is non-empty */                                    \
+        if (TAILQ_FIRST(&(sess)->msg_##dir) != NULL) {                      \
+            /* Get the first element and remove it from the queue */         \
+            *(seg_ptr) = TAILQ_FIRST(&(sess)->msg_##dir);                   \
+            TAILQ_REMOVE(&(sess)->msg_##dir, *(seg_ptr), entry);             \
+        }                                                                    \
+    }                                                                        \
+} while (0)
+
+
 struct BackendProtocolProcess {
 
     int (*connect)(struct BackendSession* sess);

@@ -79,7 +79,7 @@ int backend_proxy_msg_process(uint8_t *msg){
             error_print("Both the frontend session ID and backend session ID in the proxy data message must pass the application session ID validation!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
-        ret = backend_proxy_data_msg_prosess(frontend_sess_id, backend_sess_id, msg_ptr);
+        ret = backend_proxy_data_msg_prosess(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
     }
 
     return BACKEND_PROXY_PROCESS_OK;
@@ -589,9 +589,83 @@ int backend_proxy_sess_msg_response(uint8_t *msg){
 }
 
 
-
-int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint8_t *msg){
+/**
+ * @brief Processes proxy data messages between frontend and backend sessions
+ * This function handles the processing of data messages that need to be proxied
+ * between a frontend session and a corresponding backend session. It likely
+ * involves message routing, validation, or transformation based on the provided
+ * session identifiers and message content.
+ * @param frontend_sess_id Unique identifier of the frontend session (source/destination of the message)
+ * @param backend_sess_id Unique identifier of the backend session (counterpart session for proxying)
+ * @param data_len Length of the message data in bytes (specifies valid range of the msg buffer)
+ * @param msg Pointer to the message data buffer (uint8_t array) to be processed/proxied
+ * @return int Processing result status:
+ * BACKEND_PROXY_PROCESS_OK: Message processed and proxied successfully
+ * BACKEND_PROXY_PROCESS_ERROR: Failed to process or proxy the message (e.g., invalid session IDs,
+ * invalid message format, or forwarding failure)
+ * @note - The message buffer (msg) is assumed to contain valid data; its length may be determined by
+ * context, protocol specifications, or additional metadata not explicitly passed as a parameter.
+ * Callers must ensure frontend_sess_id and backend_sess_id refer to active, valid sessions
+ * to avoid processing errors.
+ * This function does not take ownership of the msg buffer; the caller is responsible for
+ * managing its lifecycle.
+ */
+int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t data_len, uint8_t *msg){
+ /*
+  * STEP 1. Search for the destination backend session instance in the session pool using backend_sess_id. If it fails to find
+  *         the appropriate session instance, backend_proxy_data_msg_process shall return BACKEND_PROXY_PROCESS_ERROR;
+  *         otherwise, proceed to STEP 2.
+  * STEP 2. Construct a struct SessMsgSeg object, bind the data message to this SessMsgSeg object, and then link this SessMsgSeg object
+  *         to the msg_f2b queue of the session instance.
+  * STEP 3. Link the backend session instance to the queue_f2b of the session pool instance to which the session instance belongs.
+  * 
+  * The backend proxy protocol will process all sessions in queue_f2b and forward all data messages in each msg_f2b queue after
+  * it receives all the data messages in the shared-memory queue. This procedure exists outside backend_proxy_data_msg_process;
+  * we just make a note here to help readers maintain a consistent understanding.
+  */
+    struct BackendEngine_           *eng;
+    struct BackendSessionPool       *s_pool;
+    struct BackendSessionPoolOps    *ops;
+    struct BackendSession           *sess;
+    struct SharedMemoryPool         *mem_pool;
+    struct SessMsgSeg               *msg_seg;
     int ret;
+
+
+    eng = get_global_backend_engine();
+
+    if(NULL == eng || NULL == eng->sess_pool || NULL == eng->mem_pool || NULL == eng->sess_pool->ops){
+        error_print("backend_proxy_data_msg_process failed: eng, eng->sess_pool, eng->mem_pool, or eng->sess_pool->ops is NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    s_pool      = eng->sess_pool;
+    ops         = eng->sess_pool->ops;
+    mem_pool    = eng->mem_pool;
+
+    if(NULL == ops->search_sess){
+        error_print("backend_proxy_data_msg_process failed: ops->search_sess (session searching function) is not initialized!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess = ops->search_sess(s_pool, backend_sess_id);
+
+    if(NULL == sess){
+        error_print("backend_proxy_data_msg_process failed: no backend session found for the specified backend_sess_id!");
+        return BACKEND_PROXY_PROCESS_ERROR;   
+    }
+
+    msg_seg = sess_msg_seg_alloc(data_len, SESS_MSG_SEG_SHARED_MEM, msg, mem_pool);
+
+    if(NULL == msg_seg){
+        error_print("backend_proxy_data_msg_process failed: insurficient memory resource for allocing message segment!");
+        return BACKEND_PROXY_PROCESS_ERROR;   
+    }
+
+/*
+ * Insert the message segment into the front-to-end message queue.
+ */
+    SESS_MSG_SEG_INSERT_QUEUE(sess, msg_seg, f2b);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
