@@ -139,8 +139,9 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  *
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
  */
-    struct BackendSession *new_sess = NULL;
-    BackendEngine *engine;
+    BackendEngine           *engine;
+    struct BackendSession   *new_sess = NULL;
+    NetChannel              *net_channel;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
     int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id, ret;
     SessOpRespData resp_dat;
@@ -219,15 +220,22 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 
 /*
  * STEP 2:
- * (1). Connect to the specified IP:Port tuple;
- * (2). Initialize members of the new session object;
- * (3). Create a RESPONSE message to notify the frontend proxy that the specified session is created successfully;
- * (4). Insert the session into the specified session pool.
+ * (1). Connect to the specified IP:Port tuple using the newly created socket; if successful, add this socket to the epoll wait list;
+ * (2). Initialize all members of the new session object;
+ * (3). Create a RESPONSE message to notify the frontend proxy that the new session has been created successfully;
+ * (4). Insert the session into the corresponding session pool.
  */
 
 /*
- * Connect to the specified IP:Port tuple.
+ * Now connect to the remote IP:Port.
+ *
+ * PLEASE NOTICE
+ *
+ * The datagram socket can also "connect" to the specified IP:Port. However, the behavior is quite different from that of a stream socket when connecting to the remote 
+ * side. We choose to call connect on a datagram socket in order to unify the procedure of the backend proxy network stack. The details are processed by the Linux kernel
+ * network stack.
  */
+
     if(BACKEND_PROXY_PROCESS_OK != connect_socket_netns(fd, para)){
         error_print("high_speed_create_sess failed: failed to connect to the specified IP:Port!");
 /*
@@ -239,6 +247,13 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 
         goto create_sess_error;
     }
+/*
+ * Initialize the network channel.
+ */
+    net_channel             = &new_sess->net_channel;
+    net_channel->sock_fd    = fd;
+    net_channel->arg        = &engine->poller;
+    net_channel->sess       = new_sess;
 
 /*
  * Initialize session object.
@@ -297,16 +312,6 @@ create_sess_error:
     if(ERROR_SOCKET_FD != fd){
         close(fd);
     }
-
-/*
- * Now connect to the remote IP:Port.
- *
- * PLEASE NOTICE
- *
- * The datagram socket can also "connect" to the specified IP:Port. However, the behavior is quite different from that of a stream socket when connecting to the remote 
- * side. We choose to call connect on a datagram socket in order to unify the procedure of the backend proxy network stack. The details are processed by the Linux kernel
- * network stack.
- */
 
     return BACKEND_PROXY_PROCESS_ERROR;
  }

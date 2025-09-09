@@ -232,7 +232,27 @@ int choose_dev_throughput_first(BackendEngine *eng, uint16_t *dev_id){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-
+/**
+ * @brief Initialize the selector for the backend engine
+ * 
+ * This function initializes the selector (a strategy component) within the BackendEngine structure. 
+ * The selector is responsible for choosing a specific high-speed network device when creating new sessions, 
+ * based on predefined strategies. This includes initializing strategy logic, relevant configuration, 
+ * and data structures required for device selection.
+ * 
+ * @param eng [in/out] Pointer to a BackendEngine structure. The function will initialize members 
+ *                     related to the selector within this structure.
+ * 
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: Selector initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed
+ * 
+ * @note 1. Ensure the eng pointer points to a valid BackendEngine instance before calling this function 
+ *          to prevent null pointer access.
+ *       2. This function may depend on the successful initialization of high-speed network devices 
+ *          (e.g., via engine_init_hs_net_dev), as the selector needs valid devices to choose from.
+ *       3. The specific selection strategy logic is determined by the backend engine's configuration.
+ */
 int engine_init_selector(BackendEngine *eng){
     HSDevSelector *sel;
 
@@ -260,24 +280,44 @@ int engine_init_selector(BackendEngine *eng){
 
     return BACKEND_PROXY_PROCESS_OK;
 }
- /*
-  * The high-speed network device configuration item in the INI file must comply with the following format:
-  * [Device Name]
-  * ip_addr = IP address
-  * dev_id = device ID
-  * dev_type = device type
-  * dev_status = device status
-  * ns_id = namespace ID
-  *
-  * Example:
-  * [ens01]
-  * ip_addr =        192.168.10.10
-  * dev_id  =        0
-  * dev_type =       0
-  * dev_status =     1
-  * ns_id =          100
-  */
 
+
+/**
+ * @brief Initialize the high-speed network device of the backend engine
+ * 
+ * This function is used to initialize resources related to the high-speed (HS) network device 
+ * in the BackendEngine structure, including but not limited to device parameter configuration, 
+ * and state initialization. It lays the foundation for subsequent interactions with the high-
+ * -speed network device.
+ * 
+ * @param eng [in/out] Pointer to a BackendEngine structure. The function will initialize members 
+ *                     related to the high-speed network device within this structure.
+ * 
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: High-speed network device initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed
+ * 
+ * @note 1. Before calling this function, ensure that the eng pointer points to a valid BackendEngine 
+ *          instance to avoid null pointer access.
+ *       2. This function may depend on the initialization of other basic components; it is 
+ *          recommended to call it in the correct initialization sequence.
+ *
+ * The high-speed network device configuration item in the INI file must comply with the following format:
+ * [Device Name]
+ * ip_addr = IP address
+ * dev_id = device ID
+ * dev_type = device type
+ * dev_status = device status
+ * ns_id = namespace ID
+ *
+ * Example:
+ * [ens01]
+ * ip_addr =        192.168.10.10
+ * dev_id  =        0
+ * dev_type =       0
+ * dev_status =     1
+ * ns_id =          100
+ */
 int engine_init_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet *set = NULL;
     struct HighSpeedNetDevice *hs_dev;
@@ -454,6 +494,29 @@ hs_net_error:
     return BACKEND_PROXY_PROCESS_ERROR;
 }
 
+/**
+ * @brief Initialize the session pool of the backend engine
+ * 
+ * This function initializes the session pool component within the BackendEngine structure. 
+ * The session pool manages a collection of reusable session objects to optimize resource usage, 
+ * including pre-allocating session instances, setting up pool capacity limits, initializing 
+ * session metadata, and establishing mechanisms for session acquisition and release during runtime.
+ * It serves as a core component for efficient session lifecycle management in high-speed network interactions.
+ * 
+ * @param eng [in/out] Pointer to a BackendEngine structure. The function initializes members 
+ *                     associated with the session pool (e.g., pool size, available sessions list) 
+ *                     within this structure.
+ * 
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK: Session pool initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed (e.g., insufficient memory, invalid configuration)
+ * 
+ * @note 1. Ensure the eng pointer points to a valid BackendEngine instance before invocation to avoid null pointer issues.
+ *       2. This function may depend on prior successful initialization of related components (e.g., 
+ *          engine_init_selector, engine_init_hs_net_dev), as sessions in the pool typically interact 
+ *          with high-speed network devices selected via the selector strategy.
+ *       3. Session pool parameters (e.g., maximum capacity) are usually determined by the backend engine's configuration settings.
+ */
 int engine_init_sess_pool(BackendEngine *eng){
     struct BackendSessionPool *sess_pool = NULL;
 
@@ -525,6 +588,13 @@ int engine_init_shared_mem_pool_lock(BackendEngine *eng){
 }
 
 
+int engine_init_poller(BackendEngine *eng){
+
+
+    return poller_init(&eng->poller);
+};
+
+
 void engine_init()
 {
     int ret;
@@ -557,6 +627,13 @@ void engine_init()
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_shared_mem_pool_lock() returns error!");
+        return;
+    }
+
+    ret = engine_init_poller(p_g_bk_eng);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("engine_init_poller() returns error!");
         return;
     }
 }

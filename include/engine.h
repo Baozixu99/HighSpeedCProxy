@@ -8,6 +8,7 @@
 #include "session_pool.h"
 #include "backend_proto.h"
 #include "shared_mem_io.h"
+#include "poller.h"
 
 
 #define HS_NET_DEV_CFG "hs_net_dev.ini"
@@ -66,6 +67,7 @@ typedef struct BackendEngine_{
     struct SharedMemoryPool         *mem_pool;      // Shared memory pool
     struct SharedMemoryPoolLock     *mem_pool_lock; // Shared memory pool lock
     uint16_t                        selector_id;
+    NetPoller                       poller;
     struct SharedMemoryPoolQueue    *rx_queue;      // RX queue
     struct SharedMemoryPoolQueue    *tx_queue;      // TX queue
     struct BackendEngOps            *ops;
@@ -110,6 +112,7 @@ int engine_init_hs_net_dev(BackendEngine *eng);
 int engine_init_sess_pool(BackendEngine *eng);
 int engine_init_shared_mem_pool(BackendEngine *eng);
 int engine_init_shared_mem_pool_lock(BackendEngine *eng);
+int engine_init_poller(BackendEngine *eng);
 
 void engine_destory_hs_net_dev(BackendEngine *eng);
 void engine_destory_sess_pool(BackendEngine *eng);

@@ -9,6 +9,7 @@
 
 #include "poller.h"
 #include "channel.h"
+#include "session.h"
 
 /*
 * usage:
@@ -66,7 +67,7 @@ void poller_run(NetPoller *reactor)
     }
 }
 
-void channel_set(NetChannel* ch, int fd, CALLBACK callback, void *arg)
+void channel_set(NetChannel *ch, int fd, CALLBACK callback, void *arg)
 {
     ch->sock_fd = fd;
     ch->callback = callback;
@@ -74,7 +75,7 @@ void channel_set(NetChannel* ch, int fd, CALLBACK callback, void *arg)
     ch->arg = arg;
 }
 
-void channel_set_sess(NetChannel* ch, struct BackendSession* sess)
+void channel_set_sess(NetChannel *ch, struct BackendSession* sess)
 {
     ch->sess = sess;
 }
@@ -97,7 +98,7 @@ int event_add(int ep_fd, int events, NetChannel *ch)
         printf("event add failed [fd=%d], events[%d],err:%s,err:%d\n",ch->sock_fd, events, strerror(errno), errno);
         return -1;
     }
-    return 0;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int event_del(int ep_fd, NetChannel *ch) 
@@ -110,7 +111,7 @@ int event_del(int ep_fd, NetChannel *ch)
     ch->status = 0;
     epoll_ctl(ep_fd, EPOLL_CTL_DEL, ch->sock_fd, NULL);
     // free(ch);
-    return 0;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int recv_cb(int fd, int events, void *arg) 
@@ -179,13 +180,13 @@ int poller_init(NetPoller *reactor)
     if (reactor->epfd <= 0)
     {
         printf("create epfd in %s err %s\n", __func__, strerror(errno));
-        return -2;
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
-    return 0;
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 int poller_destory(NetPoller *reactor) 
 {
     close(reactor->epfd);
-    return 0;
+    return BACKEND_PROXY_PROCESS_OK;
 }
