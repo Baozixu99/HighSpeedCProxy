@@ -289,6 +289,18 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
         resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
         goto create_sess_error;
     }
+/*
+ * Finally, register the socket belonging to the newly created session with the epoll instance.
+ */
+
+    BACKEND_SESS_REGISTER_EPOLL(new_sess, EPOLLIN | EPOLLET, &ret);
+
+    if(ret != BACKEND_PROXY_PROCESS_OK){
+        error_print("high_speed_create_sess failed: failed to register the socket of the newly create session with the epoll instance!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 
@@ -362,7 +374,8 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 
 /*
  * STEP 1:
- * (1) Close the socket bound to the backend session object, and record the session information for building the session close-response message;
+ * (1) Remove the socket bound to the backend session object from the epoll instance, close it, and record
+ * the session information for building the session close response message;
  * (2) Delete the session instance from the hash table and detach it from the doubly linked lists;
  * (3) Release the resources occupied by the session instance.
  */
@@ -370,6 +383,16 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 /*
  * STEP 1(1).
  */
+    BACKEND_SESS_UNREGISTER_EPOLL(sess, &ret);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+/*
+ * Even if the unregistration operation fails, high_speed_delete_sess should not return BACKEND_PROXY_PROCESS_ERROR immediately.
+ * It should continue executing to ensure all resources occupied by the session to be freed are released.
+ */
+        error_print("high_speed_delete_sess: failed to unregister socket from epoll instance!");
+    }
+
     close(sess->sock_fd);
 
     frontend_sess_id    = sess->frontend_sess_id;

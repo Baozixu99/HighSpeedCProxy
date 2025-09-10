@@ -666,6 +666,11 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
  * Insert the message segment into the front-to-end message queue.
  */
     SESS_MSG_SEG_INSERT_QUEUE(sess, msg_seg, f2b);
+/*
+ * Insert the session into the front-end to back-end active session queue. The backend proxy protocol will process all sessions in the active session queue,
+ * detach them one by one, and process all message segments in the selected session.
+ */
+    BACKEND_SESS_LINK_TO_QUEUE(sess, f2b);
 
     return BACKEND_PROXY_PROCESS_OK;
 }

@@ -3,6 +3,7 @@
 
 #include <stdint.h> 
 #include <sys/queue.h>
+#include <sys/epoll.h>
 #include "uthash.h"
 #include "poller.h"
 #include "shared_mem_io.h"
@@ -223,6 +224,95 @@ struct BackendSession {
 } while (0)
 
 
+
+/**
+ * @brief Enumeration representing epoll registration status of a session
+ */
+typedef enum {
+    EPOLL_REG_STATUS_UNREGISTERED,  // Socket not registered with epoll (initial state)
+    EPOLL_REG_STATUS_REGISTERED     // Socket registered with epoll
+} EpollRegistrationStatus;
+
+
+/**
+ * @brief Register or modify the socket file descriptor of BackendSession in epoll instance with specified events, with converted return value
+ * 
+ * @param[in]  sess        Pointer to struct BackendSession (the session containing the socket to process)
+ * @param[in]  reg_events  Epoll event to register (e.g., EPOLLIN, EPOLLET, EPOLLOUT, etc.)
+ * @param[out] ret_ptr     Pointer to int (output: receives converted result; 
+ *                         BACKEND_PROXY_PROCESS_OK on success, BACKEND_PROXY_PROCESS_ERROR on failure)
+ * 
+ * @details 1. Initialize epoll_event structure with the specified events and update NetChannel's events
+ *          2. Determine operation type (EPOLL_CTL_ADD or EPOLL_CTL_MOD) based on NetChannel status
+ *          3. Execute epoll_ctl operation and get its raw return value
+ *          4. Convert return value: 0 → BACKEND_PROXY_PROCESS_OK; -1 → BACKEND_PROXY_PROCESS_ERROR
+ *          5. Store converted result in *ret_ptr
+ * 
+ * @note - ret_ptr must be a valid pointer to an int (cannot be NULL)
+ *       - event can be a combination of epoll event flags (e.g., EPOLLIN | EPOLLET)
+ *       - BACKEND_PROXY_PROCESS_OK and BACKEND_PROXY_PROCESS_ERROR are assumed to be predefined status codes
+ */
+#define BACKEND_SESS_REGISTER_EPOLL(sess, reg_events, ret_ptr) do { \
+    struct epoll_event ev; \
+    int op; \
+    int epoll_ret;  /* Temporary variable to store raw epoll_ctl return value */ \
+    \
+    ev.events = (reg_events); \
+    (sess)->net_channel.events = (reg_events); \
+    ev.data.ptr = &(sess)->net_channel; \
+    \
+    if ((sess)->net_channel.status == EPOLL_REG_STATUS_UNREGISTERED) { \
+        op = EPOLL_CTL_ADD; \
+        (sess)->net_channel.status = EPOLL_REG_STATUS_REGISTERED; \
+    } else { \
+        op = EPOLL_CTL_MOD; \
+    } \
+    \
+    /* Get raw return value from epoll_ctl */ \
+    epoll_ret = epoll_ctl(((NetPoller*)(sess)->net_channel.arg)->epfd, \
+                          op, \
+                          (sess)->net_channel.sock_fd, \
+                          &ev); \
+    \
+    /* Convert to predefined status codes */ \
+    *(ret_ptr) = (epoll_ret == 0) ? BACKEND_PROXY_PROCESS_OK : BACKEND_PROXY_PROCESS_ERROR; \
+} while(0)
+
+
+
+/**
+ * @brief Unregister the socket file descriptor of BackendSession from epoll instance, with converted return value
+ * 
+ * @param[in]  sess     Pointer to struct BackendSession (the session containing the socket to unregister)
+ * @param[out] ret_ptr  Pointer to int (output: receives converted result;
+ *                      BACKEND_PROXY_PROCESS_OK on success, BACKEND_PROXY_PROCESS_ERROR on failure)
+ * 
+ * @details 1. Retrieve epoll instance descriptor (epfd) from NetPoller via NetChannel's arg member
+ *          2. Perform epoll_ctl DEL operation to remove the socket from epoll monitoring
+ *          3. Set NetChannel status to EPOLL_REG_STATUS_UNREGISTERED (unregistered state)
+ *          4. Convert epoll_ctl return value: 0 → BACKEND_PROXY_PROCESS_OK; -1 → BACKEND_PROXY_PROCESS_ERROR
+ *          5. Store converted result in *ret_ptr
+ * 
+ * @note - ret_ptr must be a valid pointer to an int (cannot be NULL)
+ *       - Refer to epoll_ctl(2) man page for detailed error codes (stored in errno on failure)
+ *       - The socket itself is not closed by this macro (caller must handle closing if needed)
+ *       - BACKEND_PROXY_PROCESS_OK and BACKEND_PROXY_PROCESS_ERROR are assumed to be predefined status codes
+ */
+#define BACKEND_SESS_UNREGISTER_EPOLL(sess, ret_ptr) do { \
+    int epoll_ret;  /* Temporary variable to store raw epoll_ctl return value */ \
+    \
+    /* Execute epoll_ctl DEL operation and get raw return value */ \
+    epoll_ret = epoll_ctl(((NetPoller*)(sess)->net_channel.arg)->epfd, \
+                          EPOLL_CTL_DEL, \
+                          (sess)->net_channel.sock_fd, \
+                          NULL); \
+    \
+    /* Update status (maintain state consistency regardless of epoll_ctl result) */ \
+    (sess)->net_channel.status = EPOLL_REG_STATUS_UNREGISTERED; \
+    \
+    /* Convert to predefined status codes */ \
+    *(ret_ptr) = (epoll_ret == 0) ? BACKEND_PROXY_PROCESS_OK : BACKEND_PROXY_PROCESS_ERROR; \
+} while(0)
 
 
 struct BackendProtocolProcess {
