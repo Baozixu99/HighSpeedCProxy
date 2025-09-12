@@ -1,6 +1,9 @@
 #include "engine.h"
 #include "iniparser.h"
-
+#include "poller.h"
+#include "backend_proto.h"
+#include "session.h"
+#include "session_pool.h"
 
 BackendEngine *p_g_bk_eng;
 BackendEngine g_bk_eng;
@@ -638,7 +641,49 @@ void engine_init()
     }
 }
 
+/**
+ * @brief Main loop function of the engine, handling message processing and data transmission cyclically
+ * 
+ * This function executes a continuous loop consisting of four main steps, returning to the first step
+ * after completing all steps, to realize the core operation of the backend engine.
+ * 
+ * @details The loop process is as follows:
+ * 
+ * 1. Read data from the RX queue of the shared memory queue owned by the BackendEngine instance,
+ *    and process them sequentially through the backend proxy protocol stack. There are two cases:
+ *    (a) For device messages, strategy messages, and session messages:
+ *        The backend proxy protocol stack performs corresponding processing for each type, constructs
+ *        response packets, and returns them to the frontend proxy through the TX queue of the shared memory.
+ *    (b) For sessions that receive data messages:
+ *        These sessions are put into the frontend-to-backend active queue, to be processed in step (2).
+ * 
+ * 2. Access and process session instances in the frontend-to-backend active queue sequentially:
+ *    Read data messages from these sessions, extract and process the payload, then send the processed
+ *    payload through the socket corresponding to the session.
+ * 
+ * 3. Access sockets that have received data in the epoll list, handling two scenarios:
+ *    (a) If a socket close event is detected (e.g., TCP four-way handshake), construct a session close
+ *        message and send it to the frontend proxy through the TX queue of the shared memory queue.
+ *    (b) If data is detected, read the data, construct a data message, put it into the send buffer of the
+ *        session instance corresponding to the socket, and add the corresponding session instance to the
+ *        backend-to-frontend active queue.
+ * 
+ * 4. Sequentially process sessions in the backend-to-frontend active queue:
+ *    Read data messages from these sessions and send them to the frontend proxy through the TX queue of
+ *    the shared memory.
+ * 
+ * After completing the above four steps, the function returns to step (1) to continue the loop.
+ */
 void engine_run()
 {
-    
+    BackendEngine                   *eng;
+    struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
+
+    uint8_t                         *proxy_msg;
+
+
+
+    do{
+
+    }while(1);
 }
