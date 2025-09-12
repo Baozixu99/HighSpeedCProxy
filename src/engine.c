@@ -679,6 +679,13 @@ void engine_run()
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
 
+    eng = get_global_backend_engine();
+
+    if(NULL == eng){
+        error_print("engine_run failed: the global backend engine is not initialized!");
+        return ;
+    }
+
     uint8_t                         *proxy_msg;
 
 
