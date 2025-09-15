@@ -643,48 +643,40 @@ void engine_init()
 
 
 /**
- * @brief Get data from the RX queue of the backend engine (data resides in shared memory)
- * @param eng Pointer to the BackendEngine instance
- * @param[out] buf_ptr Double pointer to store the address of data in shared memory 
- *                     (will point to the actual data location in shared memory on success)
+ * @brief Get data from the specified RX queue (residing in shared memory)
+ * @param queue Pointer to the SharedMemoryPoolQueue (RX queue) to operate on
+ * @param[out] buf_ptr Double pointer to store the address of data in shared memory
+ *                     (points to actual data location in shared memory on success)
  * @param buf_max_len Maximum allowed length of data that can be retrieved (in bytes)
  * @param[out] out_len Pointer to store the actual length of obtained data (in bytes)
- * @return BACKEND_PROXY_PROCESS_OK if data is retrieved successfully (buf_ptr and out_len are valid);
- *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., invalid shared memory handle);
- *         BACKEND_PROXY_PROCESS_AGAIN if data is temporarily unavailable (e.g., RX queue is empty)
- * @note The data pointed to by buf_ptr is located in shared memory managed by eng->mem_pool;
- *       Do not free this pointer manually - it will be managed by the shared memory pool.
+ * @return BACKEND_PROXY_PROCESS_OK if data is retrieved successfully;
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., invalid queue handle);
+ *         BACKEND_PROXY_PROCESS_AGAIN if data is temporarily unavailable (e.g., queue is empty)
+ * @note The caller is responsible for managing the lock of the shared memory pool 
+ *       (lock once before multiple calls to reduce overhead)
  */
-int backend_engine_rx_queue_get(BackendEngine *eng, void **buf_ptr, size_t buf_max_len, size_t *out_len){
-    struct SharedMemoryPoolQueue    *rx_queue;
-
-    if(NULL == eng || NULL == eng->rx_queue){
-        error_print("backend_engine_rx_queue_get failed: global backend engine is not initialized or RX queue is not initialized!");
-        return BACKEND_PROXY_PROCESS_ERROR;
-    }
-
-
-
+int backend_engine_rx_queue_get(struct SharedMemoryPoolQueue *queue, void **buf_ptr, 
+                               size_t buf_max_len, size_t *out_len){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 /**
- * @brief Send data through the TX queue of the backend engine (data resides in shared memory)
- * @param eng Pointer to the BackendEngine instance
+ * @brief Send data through the specified TX queue (residing in shared memory)
+ * @param queue Pointer to the SharedMemoryPoolQueue (TX queue) to operate on
  * @param[in] data_ptr Double pointer to the data in shared memory to be sent
- *                     (points to the actual data location in shared memory)
+ *                     (points to actual data location in shared memory)
  * @param data_len Length of the data to be sent (in bytes)
  * @param[out] sent_len Pointer to store the actual length of data sent (in bytes)
- * @return BACKEND_PROXY_PROCESS_OK if data is sent successfully (sent_len is valid);
- *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., shared memory access violation);
- *         BACKEND_PROXY_PROCESS_AGAIN if data cannot be sent temporarily (e.g., TX queue is full)
- * @note The data pointed to by data_ptr must reside in shared memory managed by eng->mem_pool;
- *       The function will handle synchronization with the shared memory pool internally.
+ * @return BACKEND_PROXY_PROCESS_OK if data is sent successfully;
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., queue access violation);
+ *         BACKEND_PROXY_PROCESS_AGAIN if data cannot be sent temporarily (e.g., queue is full)
+ * @note The caller is responsible for managing the lock of the shared memory pool
+ *       (lock once before multiple calls to reduce overhead)
  */
-int backend_engine_tx_queue_send(BackendEngine *eng, const void **data_ptr, size_t data_len, size_t *sent_len){
+int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void **data_ptr, 
+                                size_t data_len, size_t *sent_len){
     return BACKEND_PROXY_PROCESS_OK;
 }
-
 
 /**
  * @brief Main loop function of the engine, handling message processing and data transmission cyclically
@@ -730,6 +722,7 @@ void engine_run()
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
     uint8_t                         *proxy_msg;
+    uint32_t                        msg_size;
     int                             ret;
 
     eng = get_global_backend_engine();
@@ -743,15 +736,67 @@ void engine_run()
         error_print("Failed to run engine: The global backend engine's RX queue or TX queue has not been initialized!");
         return ;
     }
+
+    rx_queue = eng->rx_queue;
+    tx_queue = eng->tx_queue;
     
 
     do{
 /*
  * STEP (1)
  */
-
     eng_run_step1:
-    ;
+/* 
+ * Acquire access lock for the RX queue.
+ */
+    ret = SHARED_MEM_QUEUE_LOCK(rx_queue);
+
+/* 
+ * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid lock handle, shared memory pool corruption)
+ * Failed to acquire the lock; print error message and exit the current flow.
+ */
+    if(BACKEND_PROXY_PROCESS_ERROR == ret){
+        error_print("engine_run failed: failed to get the lock of the RX queue!");
+        return;
+    }
+
+/* 
+ * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates lock acquisition timed out (temporary unavailability, e.g., lock held by another process)
+ * No error occurred; jump to eng_run_step3 to retry or proceed with alternative logic.
+ */
+    if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+        goto eng_run_step3;
+    }
+
+    do{
+    /*
+     * Retrieve data from the RX queue.
+     */
+        ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+
+    /*
+     * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid queue handle, shared memory access exception, etc.)
+     * Processing cannot continue; print error message and return directly.
+     */
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            error_print("engine_run failed: failed to get data from RX queue!");
+            return;
+        }
+
+    /*
+     * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates temporary inability to retrieve data (e.g., empty queue, resource temporarily occupied, etc., non-error state)     
+     * No error reporting needed; jump to eng_run_step2 to execute the next process.
+     */
+        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            goto eng_run_step2;
+        }
+
+    /*
+     * Process the proxy message.
+     */
+        backend_proxy_msg_process(proxy_msg);
+
+    }while(BACKEND_PROXY_PROCESS_OK == ret);
 
 /*
  * STEP (2)

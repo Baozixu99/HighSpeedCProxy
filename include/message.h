@@ -29,7 +29,8 @@ typedef enum {
 #define PROXY_MSG_HDR_SIZE                               8
 #define PROXY_MSG_MIN_SIZE                               1
 #define PROXY_MSG_MAX_SIZE                               4088
-
+// Sum of header size and maximum message size (total maximum size including header, in bytes)
+#define PROXY_MSG_HDR_PLUS_MAX_SIZE                      (PROXY_MSG_HDR_SIZE + PROXY_MSG_MAX_SIZE) 
 #define PROXY_MSG_INVALID_LEN                            -1
 
 struct IPv4Address {

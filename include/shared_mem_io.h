@@ -51,7 +51,7 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool);
 
 
 
-struct SharedMemoryPoolQueue* shared_mem_pool_queue_create(struct SharedMemoryPool* pool,
+struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool,
                                                            size_t max_elements,
                                                            size_t element_size);
 
@@ -71,5 +71,28 @@ int shared_mem_pool_queue_recv(struct SharedMemoryPoolQueue *queue,
                                size_t buffer_size, 
                                size_t *out_data_size);
 
+
+/**
+ * @brief Acquire access right to the shared memory queue by obtaining the shared memory pool lock
+ * @param queue Pointer to the SharedMemoryPoolQueue instance to be accessed
+ * @return BACKEND_PROXY_PROCESS_OK if lock is acquired successfully;
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., invalid pool handle);
+ *         BACKEND_PROXY_PROCESS_AGAIN if lock acquisition times out (retry may succeed)
+ * @note Retrieves the lock associated with the shared memory pool (queue->pool) to control queue access;
+ *       Must be paired with SHARED_MEM_QUEUE_UNLOCK using the same queue to prevent deadlocks;
+ *       BACKEND_PROXY_PROCESS_AGAIN indicates temporary unavailability - callers should retry later
+ */
+#define SHARED_MEM_QUEUE_LOCK(queue)  (fetch_shared_mem_pool_lock((queue)->pool))
+
+/**
+ * @brief Release access right to the shared memory queue by releasing the shared memory pool lock
+ * @param queue Pointer to the SharedMemoryPoolQueue instance that was accessed
+ * @return BACKEND_PROXY_PROCESS_OK if lock is released successfully;
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., releasing an unheld lock)
+ * @note Releases the lock associated with the shared memory pool (queue->pool) to end controlled access;
+ *       Must be paired with SHARED_MEM_QUEUE_LOCK using the same queue to prevent deadlocks;
+ *       Does not return BACKEND_PROXY_PROCESS_AGAIN - release operation either succeeds or fails
+ */
+#define SHARED_MEM_QUEUE_UNLOCK(queue)  (release_shared_mem_pool_lock((queue)->pool))
 
 #endif

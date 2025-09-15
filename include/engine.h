@@ -122,7 +122,36 @@ void engine_destory_mem_pool_lock(BackendEngine *eng);
 int engine_choose_hs_net(BackendEngine *eng, int *selected_dev_id);
 
 
-int backend_engine_rx_queue_get(BackendEngine *eng, void **buf_ptr, size_t buf_max_len, size_t *out_len);
-int backend_engine_tx_queue_send(BackendEngine *eng, const void **data_ptr, size_t data_len, size_t *sent_len);
+/**
+ * @brief Get data from the specified RX queue (residing in shared memory)
+ * @param queue Pointer to the SharedMemoryPoolQueue (RX queue) to operate on
+ * @param[out] buf_ptr Double pointer to store the address of data in shared memory
+ *                     (points to actual data location in shared memory on success)
+ * @param buf_max_len Maximum allowed length of data that can be retrieved (in bytes)
+ * @param[out] out_len Pointer to store the actual length of obtained data (in bytes)
+ * @return BACKEND_PROXY_PROCESS_OK if data is retrieved successfully;
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., invalid queue handle);
+ *         BACKEND_PROXY_PROCESS_AGAIN if data is temporarily unavailable (e.g., queue is empty)
+ * @note The caller is responsible for managing the lock of the shared memory pool 
+ *       (lock once before multiple calls to reduce overhead)
+ */
+int backend_engine_rx_queue_get(struct SharedMemoryPoolQueue *queue, void **buf_ptr, 
+                               size_t buf_max_len, size_t *out_len);
+
+/**
+ * @brief Send data through the specified TX queue (residing in shared memory)
+ * @param queue Pointer to the SharedMemoryPoolQueue (TX queue) to operate on
+ * @param[in] data_ptr Double pointer to the data in shared memory to be sent
+ *                     (points to actual data location in shared memory)
+ * @param data_len Length of the data to be sent (in bytes)
+ * @param[out] sent_len Pointer to store the actual length of data sent (in bytes)
+ * @return BACKEND_PROXY_PROCESS_OK if data is sent successfully;
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., queue access violation);
+ *         BACKEND_PROXY_PROCESS_AGAIN if data cannot be sent temporarily (e.g., queue is full)
+ * @note The caller is responsible for managing the lock of the shared memory pool
+ *       (lock once before multiple calls to reduce overhead)
+ */
+int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void **data_ptr, 
+                                size_t data_len, size_t *sent_len);
 
 #endif
