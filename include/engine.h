@@ -120,4 +120,9 @@ void engine_destory_mem_pool(BackendEngine *eng);
 void engine_destory_mem_pool_lock(BackendEngine *eng);
 
 int engine_choose_hs_net(BackendEngine *eng, int *selected_dev_id);
+
+
+int backend_engine_rx_queue_get(BackendEngine *eng, void **buf_ptr, size_t buf_max_len, size_t *out_len);
+int backend_engine_tx_queue_send(BackendEngine *eng, const void **data_ptr, size_t data_len, size_t *sent_len);
+
 #endif

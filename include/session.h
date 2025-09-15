@@ -8,8 +8,14 @@
 #include "poller.h"
 #include "shared_mem_io.h"
 
+// Backend proxy processing result: Success (data read/written normally, logic executed completely)
 #define BACKEND_PROXY_PROCESS_OK               0
+
+// Backend proxy processing result: Failure (system-level error, such as memory allocation failure, invalid handle, protocol parsing error, etc. Requires error investigation)
 #define BACKEND_PROXY_PROCESS_ERROR            -1
+
+// Backend proxy processing result: Process temporarily unavailable (non-error state, only data read/write cannot be completed, such as empty queue, data not ready, resource temporarily occupied, etc. Retry is allowed)
+#define BACKEND_PROXY_PROCESS_AGAIN            1
 
 struct ControlMsg{
     uint16_t dev_id;

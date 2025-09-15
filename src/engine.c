@@ -641,43 +641,96 @@ void engine_init()
     }
 }
 
+
+/**
+ * @brief Get data from the RX queue of the backend engine (data resides in shared memory)
+ * @param eng Pointer to the BackendEngine instance
+ * @param[out] buf_ptr Double pointer to store the address of data in shared memory 
+ *                     (will point to the actual data location in shared memory on success)
+ * @param buf_max_len Maximum allowed length of data that can be retrieved (in bytes)
+ * @param[out] out_len Pointer to store the actual length of obtained data (in bytes)
+ * @return BACKEND_PROXY_PROCESS_OK if data is retrieved successfully (buf_ptr and out_len are valid);
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., invalid shared memory handle);
+ *         BACKEND_PROXY_PROCESS_AGAIN if data is temporarily unavailable (e.g., RX queue is empty)
+ * @note The data pointed to by buf_ptr is located in shared memory managed by eng->mem_pool;
+ *       Do not free this pointer manually - it will be managed by the shared memory pool.
+ */
+int backend_engine_rx_queue_get(BackendEngine *eng, void **buf_ptr, size_t buf_max_len, size_t *out_len){
+    struct SharedMemoryPoolQueue    *rx_queue;
+
+    if(NULL == eng || NULL == eng->rx_queue){
+        error_print("backend_engine_rx_queue_get failed: global backend engine is not initialized or RX queue is not initialized!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief Send data through the TX queue of the backend engine (data resides in shared memory)
+ * @param eng Pointer to the BackendEngine instance
+ * @param[in] data_ptr Double pointer to the data in shared memory to be sent
+ *                     (points to the actual data location in shared memory)
+ * @param data_len Length of the data to be sent (in bytes)
+ * @param[out] sent_len Pointer to store the actual length of data sent (in bytes)
+ * @return BACKEND_PROXY_PROCESS_OK if data is sent successfully (sent_len is valid);
+ *         BACKEND_PROXY_PROCESS_ERROR if a system-level error occurs (e.g., shared memory access violation);
+ *         BACKEND_PROXY_PROCESS_AGAIN if data cannot be sent temporarily (e.g., TX queue is full)
+ * @note The data pointed to by data_ptr must reside in shared memory managed by eng->mem_pool;
+ *       The function will handle synchronization with the shared memory pool internally.
+ */
+int backend_engine_tx_queue_send(BackendEngine *eng, const void **data_ptr, size_t data_len, size_t *sent_len){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
 /**
  * @brief Main loop function of the engine, handling message processing and data transmission cyclically
  * 
- * This function executes a continuous loop consisting of four main steps, returning to the first step
- * after completing all steps, to realize the core operation of the backend engine.
+ * This function executes a continuous loop consisting of four main steps. After completing all steps,
+ * it returns to the first step to implement the core operation of the backend engine.
  * 
  * @details The loop process is as follows:
  * 
  * 1. Read data from the RX queue of the shared memory queue owned by the BackendEngine instance,
- *    and process them sequentially through the backend proxy protocol stack. There are two cases:
+ *    and process them sequentially through the backend proxy protocol stack.
+ *    
+ *    If any data is read, there are two cases:
  *    (a) For device messages, strategy messages, and session messages:
  *        The backend proxy protocol stack performs corresponding processing for each type, constructs
- *        response packets, and returns them to the frontend proxy through the TX queue of the shared memory.
+ *        response packets, and returns them to the frontend proxy through the shared memory's TX queue.
  *    (b) For sessions that receive data messages:
- *        These sessions are put into the frontend-to-backend active queue, to be processed in step (2).
+ *        These sessions are placed into the frontend-to-backend active queue for processing in step (2).
+ *     
+ *    If no data message is found, the procedure jumps to step (3).
  * 
  * 2. Access and process session instances in the frontend-to-backend active queue sequentially:
  *    Read data messages from these sessions, extract and process the payload, then send the processed
  *    payload through the socket corresponding to the session.
  * 
- * 3. Access sockets that have received data in the epoll list, handling two scenarios:
+ * 3. Check sockets with events in the epoll list (focusing on those with received data), handling two scenarios:
  *    (a) If a socket close event is detected (e.g., TCP four-way handshake), construct a session close
- *        message and send it to the frontend proxy through the TX queue of the shared memory queue.
- *    (b) If data is detected, read the data, construct a data message, put it into the send buffer of the
- *        session instance corresponding to the socket, and add the corresponding session instance to the
+ *        message and send it to the frontend proxy through the shared memory's TX queue.
+ *    (b) If data is detected, read the data, construct a data message, place it into the send buffer of the
+ *        session instance corresponding to the socket, and add the session instance to the
  *        backend-to-frontend active queue.
+ *    
+ *    If no data is found in the socket set managed by the epoll list, the function returns directly to step (1).
  * 
  * 4. Sequentially process sessions in the backend-to-frontend active queue:
- *    Read data messages from these sessions and send them to the frontend proxy through the TX queue of
- *    the shared memory.
+ *    Read data messages from these sessions and send them to the frontend proxy through the shared memory's TX queue.
  * 
  * After completing the above four steps, the function returns to step (1) to continue the loop.
  */
+
 void engine_run()
 {
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
+    uint8_t                         *proxy_msg;
+    int                             ret;
 
     eng = get_global_backend_engine();
 
@@ -686,11 +739,37 @@ void engine_run()
         return ;
     }
 
-    uint8_t                         *proxy_msg;
-
-
+    if(NULL == eng->rx_queue || NULL == eng->tx_queue){
+        error_print("Failed to run engine: The global backend engine's RX queue or TX queue has not been initialized!");
+        return ;
+    }
+    
 
     do{
+/*
+ * STEP (1)
+ */
+
+    eng_run_step1:
+    ;
+
+/*
+ * STEP (2)
+ */
+    eng_run_step2:
+    ;
+
+/*
+ * STEP (3)
+ */
+    eng_run_step3:
+    ;
+
+/*
+ * STEP (4)
+ */
+    eng_run_step4:
+    ;
 
     }while(1);
 }
