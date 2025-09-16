@@ -721,6 +721,7 @@ void engine_run()
 {
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
+    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
     uint8_t                         *proxy_msg;
     uint32_t                        msg_size;
     int                             ret;
@@ -733,19 +734,26 @@ void engine_run()
     }
 
     if(NULL == eng->rx_queue || NULL == eng->tx_queue){
-        error_print("Failed to run engine: The global backend engine's RX queue or TX queue has not been initialized!");
+        error_print("engine_run failed: The global backend engine's RX queue or TX queue has not been initialized!");
         return ;
     }
 
     rx_queue = eng->rx_queue;
     tx_queue = eng->tx_queue;
     
+    BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
+    BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
+
+    if(NULL == active_queue_f2b || NULL == active_queue_b2f){
+        error_print("engine_run failed: The global backend engine's f2b session queue or b2f session queue has not been initialized!");
+        return ;
+    }
 
     do{
 /*
  * STEP (1)
  */
-    eng_run_step1:
+eng_run_step1:
 /* 
  * Acquire access lock for the RX queue.
  */
@@ -801,19 +809,21 @@ void engine_run()
 /*
  * STEP (2)
  */
-    eng_run_step2:
+eng_run_step2:
+
+    BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
     ;
 
 /*
  * STEP (3)
  */
-    eng_run_step3:
+eng_run_step3:
     ;
 
 /*
  * STEP (4)
  */
-    eng_run_step4:
+eng_run_step4:
     ;
 
     }while(1);

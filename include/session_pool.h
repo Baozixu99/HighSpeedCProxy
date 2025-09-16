@@ -23,6 +23,9 @@ struct BackendSessionPool {
     struct BackendSession           *htable;        // Hash table storing sessions (for efficient lookup by ID)
 };
 
+
+
+
 struct BackendSessionPoolOps {
     int (*create_sess)(struct BackendSessionPool *s_pool, struct BackendSession **sess,  struct SessMsgPara *para);
     int (*insert_sess)(struct BackendSessionPool *s_pool, struct BackendSession *sess);
@@ -31,8 +34,7 @@ struct BackendSessionPoolOps {
 
     int (*delete_sess)(struct BackendSessionPool *s_pool, struct BackendSession *sess);
 
-    int (*data_process)(struct BackendSession *sess, uint8_t *in, 
-        uint32_t in_size, uint8_t *out, uint32_t *out_size);
+    int (*data_process)(struct BackendSession *sess);
 
     void (*destroy_pool)(struct BackendSessionPool *s_pool);
 };

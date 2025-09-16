@@ -123,6 +123,71 @@ int engine_choose_hs_net(BackendEngine *eng, int *selected_dev_id);
 
 
 /**
+ * @brief Get the f2b queue from BackendEngine's session pool
+ * 
+ * This macro retrieves the f2b queue from the BackendSessionPool associated with a BackendEngine.
+ * It includes null pointer checks for the engine and its session pool. Error messages are printed
+ * via error_print() when checks fail, with the macro name included for debugging.
+ * 
+ * @param engine Pointer to a BackendEngine structure; must not be NULL for valid queue retrieval
+ * @param result_var Variable to store the result (pointer to BackendSessionQueue or NULL)
+ * 
+ * @note The result is stored in the provided result_var, which should be of type
+ *       'struct BackendSessionQueue *'
+ */
+#define BACKEND_ENGINE_GET_F2B_QUEUE(engine, result_var) \
+    do { \
+        /* Initialize result to NULL by default */ \
+        (result_var) = NULL; \
+ \
+        /* Check if BackendEngine pointer is NULL */ \
+        if (!(engine)) { \
+            error_print("[BACKEND_ENGINE_GET_F2B_QUEUE] Error: BackendEngine pointer is NULL when getting f2b queue"); \
+        } \
+        /* Check if session pool within BackendEngine is NULL */ \
+        else if (!(engine)->sess_pool) { \
+            error_print("[BACKEND_ENGINE_GET_F2B_QUEUE] Error: BackendSessionPool in BackendEngine is NULL when getting f2b queue"); \
+        } \
+        /* All checks passed - retrieve the f2b queue */ \
+        else { \
+            (result_var) = &(engine)->sess_pool->queue_f2b; \
+        } \
+    } while (0)
+
+/**
+ * @brief Get the b2f queue from BackendEngine's session pool
+ * 
+ * This macro retrieves the b2f queue from the BackendSessionPool associated with a BackendEngine.
+ * It includes null pointer checks for the engine and its session pool. Error messages are printed
+ * via error_print() when checks fail, with the macro name included for debugging.
+ * 
+ * @param engine Pointer to a BackendEngine structure; must not be NULL for valid queue retrieval
+ * @param result_var Variable to store the result (pointer to BackendSessionQueue or NULL)
+ * 
+ * @note The result is stored in the provided result_var, which should be of type
+ *       'struct BackendSessionQueue *'
+ */
+#define BACKEND_ENGINE_GET_B2F_QUEUE(engine, result_var) \
+    do { \
+        /* Initialize result to NULL by default */ \
+        (result_var) = NULL; \
+ \
+        /* Check if BackendEngine pointer is NULL */ \
+        if (!(engine)) { \
+            error_print("[BACKEND_ENGINE_GET_B2F_QUEUE] Error: BackendEngine pointer is NULL when getting b2f queue"); \
+        } \
+        /* Check if session pool within BackendEngine is NULL */ \
+        else if (!(engine)->sess_pool) { \
+            error_print("[BACKEND_ENGINE_GET_B2F_QUEUE] Error: BackendSessionPool in BackendEngine is NULL when getting b2f queue"); \
+        } \
+        /* All checks passed - retrieve the b2f queue */ \
+        else { \
+            (result_var) = &(engine)->sess_pool->queue_b2f; \
+        } \
+    } while (0)
+
+
+/**
  * @brief Get data from the specified RX queue (residing in shared memory)
  * @param queue Pointer to the SharedMemoryPoolQueue (RX queue) to operate on
  * @param[out] buf_ptr Double pointer to store the address of data in shared memory

@@ -19,8 +19,7 @@ int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSess
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession *sess);
 struct BackendSession* high_speed_search_sess(struct BackendSessionPool *s_pool, uint16_t id);
 int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSession *sess);
-int high_speed_data_process(struct BackendSession *sess, uint8_t *in, 
-        uint32_t in_size, uint8_t *out, uint32_t *out_size);
+int high_speed_data_process(struct BackendSession *sess);
 void high_speed_destroy_pool(struct BackendSessionPool *s_pool);
 
 
@@ -430,10 +429,61 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-int high_speed_data_process(struct BackendSession *sess, uint8_t *in, 
-        uint32_t in_size, uint8_t *out, uint32_t *out_size)
+int high_speed_data_process(struct BackendSession *sess)
 {
-    return 0;
+    int fd, buf_size, ret;
+    socklen_t buf_len;
+    struct SessMsgSeg *cur_seg, *next_seg;
+
+    fd = sess->sock_fd;
+    buf_len = sizeof(buf_size);
+
+    if (getsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buf_size, &buf_len) == -1) {
+        error_print("high_speed_data_process failed: failed to get the size of the send buffer size!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_f2b, entry, next_seg) {
+
+        /* 1. Send the data from current segment */
+        if (cur_seg->data && cur_seg->len > 0) {
+            if(buf_size > cur_seg->len){
+                ret = send(fd, cur_seg->data, cur_seg->len, 0);
+
+                if(-1 == ret){
+                    error_print("high_speed_data_process: Failed to send data via session socket");
+                    return BACKEND_PROXY_PROCESS_ERROR;
+                }
+
+                buf_size -= ret;
+
+            }else{
+            /* Unable to send all the data in the queue because the socket's send buffer is not enough. */
+                return BACKEND_PROXY_PROCESS_AGAIN;
+            }
+        }
+
+        /* 2. Remove the segment from the queue */
+        TAILQ_REMOVE(&sess->msg_f2b, cur_seg, entry);
+
+        /* 3. Deallocate memory based on segment type */
+        if (cur_seg->type == SESS_MSG_SEG_DYNAMIC_ALLOC) {
+            // Free dynamically allocated data buffer
+            free(cur_seg->data);
+        } else if (cur_seg->type == SESS_MSG_SEG_SHARED_MEM) {
+
+            // if (current_seg->mem_pool) {
+            //     shared_memory_pool_release(current_seg->mem_pool, current_seg->data);
+            // }
+        }
+        /* 4. Free the segment structure itself */
+        free(cur_seg);
+
+
+    }// TAILQ_FOREACH_SAFE
+
+
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 void high_speed_destroy_pool(struct BackendSessionPool *s_pool)

@@ -343,6 +343,30 @@ struct BackendSessionID {
 };
 TAILQ_HEAD(BackendSessionIDQueue, BackendSessionID);
 
+
+#ifndef TAILQ_HEAD
+#define TAILQ_HEAD(name, type) \
+struct name { \
+    struct type *tqh_first; /* First element */ \
+    struct type **tqh_last; /* Last element's next pointer */ \
+}
+#endif
+
+
+#ifndef TAILQ_END
+#define TAILQ_END(head) NULL  // Standard definition: end of queue is NULL
+#endif
+
+// Manually define TAILQ_FOREACH_SAFE macro (only use if the system header doesn't support it)
+#ifndef TAILQ_FOREACH_SAFE
+#define TAILQ_FOREACH_SAFE(var, head, field, next_var) \
+    for ((var) = TAILQ_FIRST((head)), \
+         (next_var) = TAILQ_NEXT((var), field); \
+         (var) != TAILQ_END((head)); \
+         (var) = (next_var), (next_var) = TAILQ_NEXT((var), field))
+#endif
+
+
 int session_send(struct BackendSession* sess, const uint8_t* data, uint32_t size);
 int session_recv(struct BackendSession* sess, uint8_t* data, uint32_t size);
 void delete_session(struct BackendSession* sess);
