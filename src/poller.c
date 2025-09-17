@@ -7,9 +7,13 @@
 #include <string.h>
 #include <errno.h>
 
-#include "poller.h"
+#include "engine.h"
 #include "channel.h"
+#include "poller.h"
 #include "session.h"
+#include "session_pool.h"
+#include "common_utils.h"
+
 
 /*
 * usage:
@@ -35,7 +39,7 @@
 #define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
 
-
+#if 0
 void poller_run(NetPoller *reactor)
 {
     struct epoll_event events[MAX_EVENTS + 1];
@@ -54,6 +58,39 @@ void poller_run(NetPoller *reactor)
                 printf ("epoll error\n");
                 // todo, close fd,session
                 // close (events[i].data.fd);
+                continue;
+        }
+        if ((events[i].events & EPOLLIN) && (ch->events & EPOLLIN)) 
+        {
+                ch->callback(ch->sock_fd, events[i].events, ch);
+        }
+        if ((events[i].events & EPOLLOUT) && (ch->events & EPOLLOUT)) 
+        {
+                ch->callback(ch->sock_fd, events[i].events, ch);
+        }
+    }
+}
+#endif
+
+void poller_run(struct BackendEngine_ *eng, NetPoller *reactor)
+{
+    struct epoll_event events[MAX_EVENTS + 1];
+    int nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, 0);
+    if (nready < 0) 
+    {
+        printf("epoll_wait error, exit\n");
+        return;
+    }
+    for (int i = 0; i < nready; i++) 
+    {
+        NetChannel *ch = (NetChannel *) events[i].data.ptr;
+        if ((events[i].events & EPOLLERR) || 
+            (events[i].events & EPOLLHUP))
+        {
+                error_print("poller_run: epoll error occurs!");
+                // todo, close fd,session
+                // close (events[i].data.fd);
+
                 continue;
         }
         if ((events[i].events & EPOLLIN) && (ch->events & EPOLLIN)) 

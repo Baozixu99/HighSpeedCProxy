@@ -3,12 +3,14 @@
 
 #include "channel.h"
 
+struct BackendEngine_;
+
 
 typedef struct NetPoller_{
     int epfd;
 }NetPoller;
 
-void poller_run(NetPoller *reactor);
+void poller_run(struct BackendEngine_ *eng, NetPoller *reactor);
 void channel_set(NetChannel *ch, int fd, CALLBACK callback, void *arg);
 void channel_set_sess(NetChannel *ch, struct BackendSession *sess);
 int event_add(int ep_fd, int events, NetChannel *ch);

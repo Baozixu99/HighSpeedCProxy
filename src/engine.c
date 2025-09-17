@@ -722,6 +722,10 @@ void engine_run()
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
     struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+    struct BackendSession           *cur_sess, *next_sess;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    NetPoller                       *net_poller;
     uint8_t                         *proxy_msg;
     uint32_t                        msg_size;
     int                             ret;
@@ -748,6 +752,16 @@ void engine_run()
         error_print("engine_run failed: The global backend engine's f2b session queue or b2f session queue has not been initialized!");
         return ;
     }
+
+    if(NULL == eng->sess_pool || NULL == eng->sess_pool->ops){
+        error_print("engine_run failed: Global backend engine's session pool (sess_pool) or its operation set (ops) is not initialized!");
+        return ;
+    }
+
+    sess_pool       = eng->sess_pool;
+    sess_pool_ops   = sess_pool->ops;
+
+    net_poller      = &eng->poller;
 
     do{
 /*
@@ -811,20 +825,65 @@ eng_run_step1:
  */
 eng_run_step2:
 
+/*
+ * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
+ */
     BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
-    ;
+
+    TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
+/*
+ * Call the data_process function in the session pool's operation set (sess_pool_ops), which attempts to send the front-to-end to back-end data maintained by the current session (cur_sess)
+ * via the socket maintained by this session.
+ *
+ * The return value corresponds to three scenarios:
+ * Returns BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
+ * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been sent, and no errors occurred.
+ * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
+ */
+        ret = sess_pool_ops->data_process(cur_sess);
+
+/*
+ * If data_process returns BACKEND_PROXY_PROCESS_OK, it means all the message segments in the front-to-end message queue have been sent via the socket of the session. This type of 
+ * session should be detached from the front-to-end active queue. 
+ */
+        if(BACKEND_PROXY_PROCESS_OK == ret){
+            TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+            cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+        }
+/*
+ * If data_process returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
+ * detached from the front-to-end active queue, but also be removed from the session pool.
+ */
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+            sess_pool_ops->delete_sess(sess_pool, cur_sess);
+        }
+ /*
+  * Nothing to do when not all data has been sent and there are no errors.
+  */
+    }
+
 
 /*
  * STEP (3)
  */
 eng_run_step3:
-    ;
+/*
+ * The execution process of poller_run function is as follows:
+ * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
+ * (2) Mark the sessions that have received data as active back-to-front active sessions.
+ */
+    poller_run(eng, net_poller);
 
 /*
  * STEP (4)
  */
 eng_run_step4:
-    ;
+/*
+ * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
+ */
+    BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
+
 
     }while(1);
 }
