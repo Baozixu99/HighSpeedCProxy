@@ -74,16 +74,26 @@ void poller_run(NetPoller *reactor)
 
 void poller_run(struct BackendEngine_ *eng, NetPoller *reactor)
 {
-    struct epoll_event events[MAX_EVENTS + 1];
-    int nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, 0);
+    struct BackendSession           *sess;
+    struct epoll_event              events[MAX_EVENTS + 1];
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    NetChannel                      *ch;
+    int                             nready, ret;
+
+    nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, 0);
+    
     if (nready < 0) 
     {
         printf("epoll_wait error, exit\n");
         return;
     }
+    
+    sess_pool_ops = eng->sess_pool->ops;
+    
     for (int i = 0; i < nready; i++) 
     {
-        NetChannel *ch = (NetChannel *) events[i].data.ptr;
+        ch      = (NetChannel *) events[i].data.ptr;
+        sess    = ch->sess;
         if ((events[i].events & EPOLLERR) || 
             (events[i].events & EPOLLHUP))
         {
@@ -95,12 +105,34 @@ void poller_run(struct BackendEngine_ *eng, NetPoller *reactor)
         }
         if ((events[i].events & EPOLLIN) && (ch->events & EPOLLIN)) 
         {
-                ch->callback(ch->sock_fd, events[i].events, ch);
+            
+/*
+ * Call the data_process_nns function pointer in the session pool's operation set (sess_pool_ops), which attempts to read data via the socket maintained by this session,
+ * and organize it into the backend-to-frontend message queue, which will be sent to the shared memory TX queue.
+ * 
+ * The return value corresponds to three scenarios:
+ * Returns BACKEND_PROXY_PROCESS_OK: All data has been read successfully.
+ * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been read, and no errors occurred.
+ * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the reading process.
+ */
+            ret = sess_pool_ops->data_process_nns(sess);
+
+
+            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+
+            }
+
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+
+            }
+//            ch->callback(ch->sock_fd, events[i].events, ch);
         }
+#if 0
         if ((events[i].events & EPOLLOUT) && (ch->events & EPOLLOUT)) 
         {
                 ch->callback(ch->sock_fd, events[i].events, ch);
         }
+#endif
     }
 }
 

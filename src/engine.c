@@ -832,18 +832,18 @@ eng_run_step2:
 
     TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
 /*
- * Call the data_process function in the session pool's operation set (sess_pool_ops), which attempts to send the front-to-end to back-end data maintained by the current session (cur_sess)
- * via the socket maintained by this session.
+ * Call the data_process_f2b function pointer in the session pool's operation set (sess_pool_ops), which attempts to send the front-to-end to back-end data maintained by the 
+ * current session (cur_sess) via the socket maintained by this session.
  *
  * The return value corresponds to three scenarios:
  * Returns BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
  * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been sent, and no errors occurred.
  * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
  */
-        ret = sess_pool_ops->data_process(cur_sess);
+        ret = sess_pool_ops->data_process_f2b(cur_sess);
 
 /*
- * If data_process returns BACKEND_PROXY_PROCESS_OK, it means all the message segments in the front-to-end message queue have been sent via the socket of the session. This type of 
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, it means all the message segments in the front-to-end message queue have been sent via the socket of the session. This type of 
  * session should be detached from the front-to-end active queue. 
  */
         if(BACKEND_PROXY_PROCESS_OK == ret){
@@ -851,7 +851,7 @@ eng_run_step2:
             cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
         }
 /*
- * If data_process returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
  * detached from the front-to-end active queue, but also be removed from the session pool.
  */
         if(BACKEND_PROXY_PROCESS_ERROR == ret){

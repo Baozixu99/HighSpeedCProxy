@@ -40,7 +40,7 @@ struct BackendSessionPoolOps {
 
     int (*data_process_b2f)(struct BackendSession *sess);
 
-    int (*data_process_ns)(struct BackendSession *sess);
+    int (*data_process_nns)(struct BackendSession *sess);
 
     void (*destroy_pool)(struct BackendSessionPool *s_pool);
 };
