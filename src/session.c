@@ -133,8 +133,28 @@ void sess_msg_queue_free_all(struct SessMsgQueue *queue) {
 
     struct SessMsgSeg *seg, *next_seg;
 
-    seg->entry;
 
+    TAILQ_FOREACH_SAFE(seg, queue, entry, next_seg) {
+        /* 1. Remove the segment from the queue */
+        TAILQ_REMOVE(queue, seg, entry);
+
+        /* 2. Deallocate memory based on segment type */
+        if (seg->type == SESS_MSG_SEG_DYNAMIC_ALLOC) {
+            // Free dynamically allocated data buffer
+            free(seg->data);
+        } else if (seg->type == SESS_MSG_SEG_SHARED_MEM) {
+
+            // if (current_seg->mem_pool) {
+            //     shared_memory_pool_release(current_seg->mem_pool, current_seg->data);
+            // }
+        }
+        /* 3. Free the segment structure itself */
+        free(seg);
+
+    }// TAILQ_FOREACH_SAFE
+
+
+#if 0
     TAILQ_FOREACH(seg, queue, entry){
         // Manually save the next node before releasing current node
         next_seg = TAILQ_NEXT(seg, entry);
@@ -167,6 +187,7 @@ void sess_msg_queue_free_all(struct SessMsgQueue *queue) {
         // Move to next node (since current node is freed)
         seg = next_seg;
     }
+#endif
 
     TAILQ_INIT(queue);
 }

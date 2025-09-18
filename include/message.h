@@ -132,6 +132,27 @@ typedef struct {
     (sizeof(ProxyMsgHeader) + (p_msg_header)->payload_len)
 
 
+/**
+ * @brief Macro to calculate total shared queue memory size with fixed fragment size
+ * 
+ * For cross-system shared memory usage with strict size regulations, each fragment 
+ * occupies a fixed size regardless of actual payload:
+ * - Each fragment = sizeof(ProxyMsgHeader) + PROXY_MSG_MAX_SIZE
+ * - Total memory = number of fragments × fixed fragment size
+ * 
+ * Number of fragments is calculated using ceiling division to ensure all data is covered.
+ * 
+ * @param data_size Size of the data payload to be sent (in bytes)
+ * @return size_t Total shared queue memory required (in bytes)
+ */
+#define PROXY_MSG_TOTAL_MEM_SIZE(data_size) \
+    ( \
+        /* Calculate number of fragments (ceiling division) */ \
+        ( ((data_size) + PROXY_MSG_MAX_SIZE - 1) / PROXY_MSG_MAX_SIZE ) \
+        * (sizeof(ProxyMsgHeader) + PROXY_MSG_MAX_SIZE) /* Fixed size per fragment */ \
+    )
+
+
 typedef enum {
     ACTION_TYPE_COMMAND = 0,  // Command
     ACTION_TYPE_RESPONSE      // Response

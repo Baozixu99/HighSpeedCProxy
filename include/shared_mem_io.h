@@ -24,19 +24,211 @@ struct DequeNode{
 };
 
 
-/*
- * Double-ended queue implemented based on SharedMemoryPool, 
+
+/**
+ * @brief FIFO queue (ring buffer implementation) based on SharedMemoryPool
+ * 
+ * A high-efficiency first-in-first-out (FIFO) queue implemented with a ring buffer structure,
+ * which allocates memory from an associated shared memory pool. It is designed for inter-process
+ * or inter-thread communication, with core parameters reflecting memory size and element quantity:
+ * - `capacity` represents total allocated memory size for the queue
+ * - `max_num_items` represents maximum number of elements (calculated as capacity/block_size)
+ * - Ring buffer indexes (`header`/`tail`) manage element enqueue/dequeue efficiently
  */
 struct SharedMemoryPoolQueue {
-    struct SharedMemoryPool *pool;       // Associated shared memory pool
-    // Pointers to core nodes of the deque (head and tail)
-    struct DequeNode        *head;
-    struct DequeNode        *tail;
-    // Other properties
-    size_t                  length;      // Queue length
-    size_t                  capacity;    // Capacity of the queue
-    size_t                  block_size;  // Size of each memory block in the queue
+    /* Pointer to the associated shared memory pool. All memory for the queue
+       (including control block and data blocks) is allocated from this pool. */
+    struct SharedMemoryPool *pool;
+
+    /* Physical address of the queue control block in shared memory.
+       Used for direct access across processes or between kernel and user spaces. */
+    uint64_t                phy_addr;
+
+    /* Virtual address of the queue control block in the current process.
+       Used for normal access to the queue's control structure. */
+    uint64_t                virt_addr;
+
+    /* Head index of the ring buffer, pointing to the next element to be dequeued.
+       Works with `tail` to maintain FIFO order. */
+    uint16_t                header;
+
+    /* Tail index of the ring buffer, pointing to the next free slot for enqueuing.
+       Works with `header` to maintain FIFO order. */
+    uint16_t                tail;
+
+    /* Current number of elements in the queue. Dynamically updated with
+       enqueue (increment) and dequeue (decrement) operations. */
+    size_t                  length;
+
+    /* Total memory size (in bytes) allocated to this queue from the shared memory pool.
+       Determines the maximum storage space available for elements. */
+    size_t                  capacity;
+
+    /* Maximum number of elements the queue can hold. Calculated as (capacity / block_size),
+       representing the upper limit of elements based on allocated memory and element size. */
+    size_t                  max_num_items;
+
+    /* Remaining number of elements that can be enqueued. Calculated as (max_num_items - length),
+       indicating available slots in the queue. */
+    size_t                  surplus;
+
+    /* Size (in bytes) of each element's memory block. All elements in the queue
+       occupy a fixed size to simplify memory management and access. */
+    size_t                  block_size;
 };
+
+
+/**
+ * @brief FIFO queue PUSH operation macro (standard C compatible version)
+ * 
+ * This macro implements the PUSH operation for SharedMemoryPoolQueue. It uses a do...while structure 
+ * to ensure syntax compatibility and returns the operation result through the second parameter. 
+ * The specific logic is as follows:
+ * 1. Increment the header index; if it exceeds max_num_items, wrap around (circular nature)
+ * 2. Check if the operation triggers a queue exception (header equals tail or out of bounds)
+ * 3. If abnormal, roll back the header and set an error status; otherwise, set a success status
+ * 
+ * @param queue Pointer to the SharedMemoryPoolQueue structure (input)
+ * @param result Variable to receive the operation result (output), which can be:
+ *               - BACKEND_PROXY_PROCESS_OK: Operation succeeded
+ *               - BACKEND_PROXY_PROCESS_ERROR: Operation failed (queue is full or abnormal)
+ */
+#define SHMP_QUEUE_PUSH(queue, result) do { \
+    /* Initialize result to success status */ \
+    (result) = BACKEND_PROXY_PROCESS_OK; \
+    /* Save original header for rollback in case of exception */ \
+    uint16_t original_header = (queue)->header; \
+    \
+    /* Update header: increment by 1, wrap around if exceeding max_num_items */ \
+    (queue)->header++; \
+    if ((queue)->header >= (queue)->max_num_items) { \
+        (queue)->header -= (queue)->max_num_items; \
+    } \
+    \
+    /* Check for abnormal status: header conflicts with tail or out of bounds */ \
+    if ((queue)->header == (queue)->tail || (queue)->header >= (queue)->max_num_items) { \
+        /* Roll back header to pre-operation state */ \
+        (queue)->header = original_header; \
+        /* Set error result */ \
+        (result) = BACKEND_PROXY_PROCESS_ERROR; \
+    } \
+} while(0)
+
+
+/**
+ * @brief FIFO queue POP operation macro (standard C compatible version)
+ * 
+ * This macro implements the POP operation for SharedMemoryPoolQueue with priority on empty queue check.
+ * It first verifies if the queue is empty before modifying any indices. The logic is:
+ * 1. Check if queue is empty (tail equals header) - return error immediately if true
+ * 2. Save original tail for rollback in case of subsequent errors
+ * 3. Increment the tail index; if exceeding max_num_items, wrap around (circular nature)
+ * 4. Check for out-of-bounds error; rollback and return error if detected
+ * 5. Return success status if all operations complete normally
+ * 
+ * @param queue Pointer to the SharedMemoryPoolQueue structure (input)
+ * @param result Variable to receive the operation result (output), which can be:
+ *               - BACKEND_PROXY_PROCESS_OK: Operation succeeded
+ *               - BACKEND_PROXY_PROCESS_ERROR: Operation failed (queue is empty or abnormal)
+ */
+#define SHMP_QUEUE_POP(queue, result) do { \
+    /* First check if queue is empty (tail equals header) */ \
+    if ((queue)->tail == (queue)->header) { \
+        (result) = BACKEND_PROXY_PROCESS_ERROR; \
+    } else { \
+        /* Initialize result to success status */ \
+        (result) = BACKEND_PROXY_PROCESS_OK; \
+        /* Save original tail for rollback in case of exception */ \
+        uint16_t original_tail = (queue)->tail; \
+        \
+        /* Update tail: increment by 1 */ \
+        (queue)->tail++; \
+        \
+        /* Handle wrap-around if exceeding max_num_items */ \
+        if ((queue)->tail >= (queue)->max_num_items) { \
+            (queue)->tail -= (queue)->max_num_items; \
+        } \
+        \
+        /* Check for out-of-bounds error */ \
+        if ((queue)->tail >= (queue)->max_num_items) { \
+            /* Roll back tail to pre-operation state */ \
+            (queue)->tail = original_tail; \
+            (result) = BACKEND_PROXY_PROCESS_ERROR; \
+        } \
+    } \
+} while(0)
+
+
+/**
+ * @brief Macro to get the virtual address of the element pointed by header in the shared memory queue
+ * 
+ * Calculates the virtual address of the queue element that the header index points to.
+ * The address is derived from the queue's base virtual address plus the offset calculated by
+ * header index multiplied by block size.
+ * 
+ * @param queue Pointer to the SharedMemoryPoolQueue structure
+ * @return uint64_t Virtual address of the element at header position
+ */
+#define SHMP_QUEUE_HEADER_VIRT_ADDR(queue) \
+    ((uint64_t)(queue)->virt_addr + (uint64_t)(queue)->header * (uint64_t)(queue)->block_size)
+
+
+/**
+ * @brief Macro to get the virtual address of the position pointed by tail in the shared memory queue
+ * 
+ * Calculates the virtual address of the queue position that the tail index points to (next available slot for enqueuing).
+ * The address is derived from the queue's base virtual address plus the offset calculated by
+ * tail index multiplied by block size.
+ * 
+ * @param queue Pointer to the SharedMemoryPoolQueue structure
+ * @return uint64_t Virtual address of the position at tail index
+ */
+#define SHMP_QUEUE_TAIL_VIRT_ADDR(queue) \
+    ((uint64_t)(queue)->virt_addr + (uint64_t)(queue)->tail * (uint64_t)(queue)->block_size)
+
+
+/**
+ * @brief Macro to calculate used memory size using header and tail indices
+ * 
+ * Computes the total memory occupied by elements in the queue using header and tail indices,
+ * without relying on the length field. Follows circular queue logic:
+ * - When tail >= header: used elements = tail - header
+ * - When tail < header: used elements = (max_num_items - header) + tail
+ * Total used memory is then elements count multiplied by block size.
+ * 
+ * @param queue Pointer to the SharedMemoryPoolQueue structure
+ * @return size_t Total used memory size in bytes
+ */
+#define SHMP_QUEUE_USED_MEMORY(queue) \
+    ((size_t)( \
+        ((queue)->tail >= (queue)->header) ? \
+        ((queue)->tail - (queue)->header) : \
+        ((queue)->max_num_items - (queue)->header + (queue)->tail) \
+    ) * (size_t)(queue)->block_size)
+
+
+/**
+ * @brief Macro to calculate surplus (available) memory in the shared memory queue
+ * 
+ * Implements a two-step internal calculation:
+ * 1. First compute the number of available slots using header, tail and max capacity:
+ *    - When tail >= header: surplus slots = max_num_items - (tail - header)
+ *    - When tail < header: surplus slots = header - tail
+ * 2. Then multiply available slots by block size to get surplus memory in bytes
+ * 
+ * @param queue Pointer to the SharedMemoryPoolQueue structure
+ * @return size_t Surplus memory size in bytes
+ */
+#define SHMP_QUEUE_SURPLUS_MEMORY(queue) \
+    ((size_t)( \
+        /* Step 1: Calculate number of surplus slots */ \
+        ((queue)->tail >= (queue)->header) ? \
+        ((queue)->max_num_items - ((queue)->tail - (queue)->header)) : \
+        ((queue)->header - (queue)->tail) \
+        /* Step 2: Convert slots to memory size */ \
+    ) * (size_t)(queue)->block_size)
+
+
 
 
 int init_shared_mem_pool(struct SharedMemoryPool *mem_pool);

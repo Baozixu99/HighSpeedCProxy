@@ -882,6 +882,21 @@ eng_run_step4:
 /*
  * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
  */
+
+/* 
+ * Acquire access lock for the TX queue.
+ */
+    ret = SHARED_MEM_QUEUE_LOCK(tx_queue);
+
+/* 
+ * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid lock handle, shared memory pool corruption)
+ * Failed to acquire the lock; print error message and exit the current flow.
+ */
+    if(BACKEND_PROXY_PROCESS_ERROR == ret){
+        error_print("engine_run failed: failed to get the lock of the TX queue!");
+        return;
+    }
+
     BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
 
 

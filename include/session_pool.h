@@ -36,6 +36,12 @@ struct BackendSessionPoolOps {
 
     int (*data_process)(struct BackendSession *sess);
 
+    int (*data_process_f2b)(struct BackendSession *sess);
+
+    int (*data_process_b2f)(struct BackendSession *sess);
+
+    int (*data_process_ns)(struct BackendSession *sess);
+
     void (*destroy_pool)(struct BackendSessionPool *s_pool);
 };
 
@@ -53,6 +59,10 @@ void fill_id_queue(struct BackendSessionIDQueue *id_q);
 void inc_sess_num(struct BackendSessionPool *pool);
 void dec_sess_num(struct BackendSessionPool *pool);
 
+
+int high_speed_data_process_f2b(struct BackendSession *sess);
+int high_speed_data_process_b2f(struct BackendSession *sess);
+int high_speed_data_process_nns(struct BackendSession *sess);
 
 int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
 
