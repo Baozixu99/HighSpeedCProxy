@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <linux/sockios.h>
 #include "session_pool.h"
 #include "message.h"
 #include "netns_socket.h"
@@ -433,20 +435,37 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 
 
 /**
- * @brief High-speed data processing function from front-end to back-end, used to send data from the message queue via the backend session
+ * @brief Processes high-speed data transmission from frontend to backend (f2b) using the Linux native network stack (NNS)
  * 
- * The main function of this function is to read the data segments to be sent from the message queue of the backend session,
- * and send the data through the socket associated with the session. During the sending process, it checks the size of the socket's send buffer
- * to ensure that data can be effectively sent. After sending, the processed data segments are removed from the queue and related memory is deallocated.
+ * This function handles data forwarding from the frontend-to-backend message queue (msg_f2b) of a backend session,
+ * sending the queued data through the session's socket to the backend. It manages socket send buffer constraints
+ * and ensures proper memory deallocation of processed message segments.
  * 
- * @param[in] sess Pointer to the backend session structure (BackendSession), containing the following key information:
- *                 - sock_fd: Socket file descriptor used for data transmission
- *                 - msg_f2b: Queue of data segments to be sent (TAILQ linked list structure)
+ * @detail The processing workflow follows these key steps:
+ *         1. Retrieve the socket file descriptor from the backend session context (struct BackendSession).
+ *         2. Use getsockopt with SO_SNDBUF to query the current size of the socket's send buffer.
+ *         3. If fetching the send buffer size fails, log an error and return BACKEND_PROXY_PROCESS_ERROR.
+ *         4. Safely iterate over all message segments in the frontend-to-backend queue (msg_f2b) using TAILQ_FOREACH_SAFE:
+ *             a. For each segment with valid data (non-null data and positive length):
+ *                i. Check if the send buffer has sufficient space for the segment's data.
+ *                ii. If sufficient space exists, send the data through the socket using send().
+ *                iii. If send() fails, log an error, and return BACKEND_PROXY_PROCESS_ERROR.
+ *                iv. Decrement the remaining send buffer size by the number of bytes sent.
+ *                v. If insufficient space exists (send buffer smaller than segment length), return 
+ *                   BACKEND_PROXY_PROCESS_AGAIN to indicate a retry is needed after buffer space is freed.
+ *             b. Remove the processed segment from the msg_f2b queue using TAILQ_REMOVE.
+ *             c. Deallocate memory based on the segment's allocation type:
+ *                - For dynamically allocated segments (SESS_MSG_SEG_DYNAMIC_ALLOC), free the data buffer.
+ *                - For shared memory segments (SESS_MSG_SEG_SHARED_MEM), placeholder logic for releasing shared memory.
+ *             d. Free the segment structure itself.
+ *         5. Once all queued segments are processed successfully, return BACKEND_PROXY_PROCESS_OK.
  * 
- * @return The return value is of type int, with possible return values and their meanings as follows:
- *         - BACKEND_PROXY_PROCESS_OK: All data segments have been successfully sent and processed
- *         - BACKEND_PROXY_PROCESS_ERROR: An error occurred during processing (e.g., failed to get socket options, failed to send data)
- *         - BACKEND_PROXY_PROCESS_AGAIN: The socket's send buffer is insufficient to send the current data segment, requiring another attempt
+ * @param[in] sess Pointer to the BackendSession structure containing session context (socket FD, msg_f2b queue, etc.)
+ * 
+ * @return Processing result status code:
+ *         - BACKEND_PROXY_PROCESS_OK: All queued data processed and sent successfully
+ *         - BACKEND_PROXY_PROCESS_AGAIN: Incomplete processing (insufficient send buffer space) requiring retry
+ *         - BACKEND_PROXY_PROCESS_ERROR: Critical error occurred (e.g., failed to get send buffer size or send data)
  */
 int high_speed_data_process_f2b(struct BackendSession *sess)
 {
@@ -465,9 +484,9 @@ int high_speed_data_process_f2b(struct BackendSession *sess)
     TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_f2b, entry, next_seg) {
 
         /* 1. Send the data from current segment */
-        if (cur_seg->data && cur_seg->len > 0) {
+        if (cur_seg->data && cur_seg->len > sizeof(ProxyMsgHeader)) {
             if(buf_size > cur_seg->len){
-                ret = send(fd, cur_seg->data, cur_seg->len, 0);
+                ret = send(fd, cur_seg->data + sizeof(ProxyMsgHeader), cur_seg->len - sizeof(ProxyMsgHeader), 0);
 
                 if(-1 == ret){
                     error_print("high_speed_data_process: Failed to send data via session socket");
@@ -513,12 +532,94 @@ int high_speed_data_process_b2f(struct BackendSession *sess){
 }
 
 
+/**
+ * @brief Processes high-speed data transmission using the Linux native network stack (NNS)
+ * 
+ * This function handles data retrieval from a backend session's socket receive buffer, encapsulates the data into 
+ * proxy message format, and routes it to the backend-to-frontend message queue (msg_b2f). It facilitates data 
+ * forwarding from kernel space to the user-space proxy layer, ensuring efficient handling of network data.
+ * 
+ * @detail The processing workflow follows these key steps:
+ *         1. Retrieve the socket file descriptor from the backend session context (struct BackendSession).
+ *         2. Use ioctl with SIOCINQ to query the size of available data in the socket's receive buffer.
+ *         3. If fetching available data size fails, log an error and return BACKEND_PROXY_PROCESS_ERROR.
+ *         4. Enter a loop to process all available data in the receive buffer:
+ *             a. Allocate a message segment (SessMsgSeg) with sufficient space for the proxy message header + maximum payload.
+ *             b. If allocation fails (likely due to temporary memory constraints), log a non-fatal error and return 
+ *                BACKEND_PROXY_PROCESS_AGAIN to indicate a retry is needed.
+ *             c. Map pointers to the message header (ProxyMsgHeader) and payload data region within the allocated segment.
+ *             d. Read data from the socket into the payload region, up to PROXY_MSG_MAX_SIZE bytes.
+ *             e. If the read operation fails, free the allocated segment, log an error, and return 
+ *                BACKEND_PROXY_PROCESS_ERROR.
+ *             f. Populate the proxy message header with metadata: protocol version, frontend/backend session IDs, 
+ *                message type (data), and actual payload length.
+ *             g. Insert the fully constructed message segment into the backend-to-frontend queue (msg_b2f) using the 
+ *                SESS_MSG_SEG_INSERT_QUEUE macro.
+ *             h. Decrement the remaining available data size by the number of bytes read in the current iteration.
+ *         5. Once all data is processed, return BACKEND_PROXY_PROCESS_OK.
+ * 
+ * @param[in] sess Pointer to the BackendSession structure containing session context (socket FD, IDs, etc.)
+ * 
+ * @return Processing result status code:
+ *         - BACKEND_PROXY_PROCESS_OK: All data processed successfully
+ *         - BACKEND_PROXY_PROCESS_AGAIN: Incomplete processing (e.g., memory allocation failure) requiring retry
+ *         - BACKEND_PROXY_PROCESS_ERROR: Critical error occurred (e.g., socket read failure)
+ */
 int high_speed_data_process_nns(struct BackendSession *sess){
-    int fd, buf_size, ret;
+    int fd, bytes_available, ret;
     struct SessMsgSeg *cur_seg;
+    uint8_t           *msg_data;
+    ProxyMsgHeader    *msg_hdr;
+
+    fd = sess->sock_fd;
 
 
+    if (-1 == ioctl(fd, SIOCINQ, &bytes_available)) {
+        error_print("high_speed_data_process_nns failed: failed to fetch the availble data size in socket!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
+
+/*
+ * high_speed_data_process_nns reads data from the socket's receive buffer, converts it into proxy message data, and then organizes these messages into the
+ * backend-to-frontend queue (msg_b2f).
+ */
+    while(bytes_available > 0){
+        cur_seg = sess_msg_seg_alloc(PROXY_MSG_HDR_PLUS_MAX_SIZE, SESS_MSG_SEG_DYNAMIC_ALLOC, NULL, NULL);
+
+        if(NULL == cur_seg){
+            error_print("high_speed_data_process_nns failed (may not be an error): insufficient memory for allocating message segment \
+                         to hold the data from backend to frontend. Should retry next time!");
+            return BACKEND_PROXY_PROCESS_AGAIN;
+        }
+    /*
+     * Copy the data into the memory area that the message segment maintains.
+     */
+
+        msg_hdr = (ProxyMsgHeader *)cur_seg->data;
+        msg_data = cur_seg->data + sizeof(ProxyMsgHeader);
+
+        ret = read(fd, msg_data, PROXY_MSG_MAX_SIZE);
+
+        if(-1 == ret){
+            error_print("high_speed_data_process_nns failed: failed to read data from the session's socket!");
+        /*
+         * Only free the message segment. Freeing the message is left to the poller procedure when a data read error occurs.
+         */
+            sess_msg_seg_free(cur_seg);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        msg_hdr->version            = PROXY_PROTO_VERSION_1;
+        msg_hdr->frontend_sess_id   = sess->frontend_sess_id;
+        msg_hdr->backend_sess_id    = sess->backend_sess_id;
+        msg_hdr->proxy_msg_type     = PROXY_MSG_TYPE_DATA;
+        msg_hdr->payload_len        = ret;
+
+        SESS_MSG_SEG_INSERT_QUEUE(sess, cur_seg, b2f);
+
+        bytes_available -= ret;
+    }
     return BACKEND_PROXY_PROCESS_OK;
 }
 
