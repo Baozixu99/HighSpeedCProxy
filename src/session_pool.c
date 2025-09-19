@@ -12,6 +12,8 @@
 #include "message.h"
 #include "netns_socket.h"
 #include "engine.h"
+#include "shared_mem_io.h"
+#include "common_utils.h"
 
 
 int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct BackendSession **sess, uint16_t new_sess_id, struct SessMsgPara *para);
@@ -524,10 +526,80 @@ int high_speed_data_process_f2b(struct BackendSession *sess)
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-
+/**
+ * @brief Processes high-speed data transmission from backend to frontend via shared memory queue
+ * 
+ * This function handles data forwarding from the backend-to-frontend message queue (msg_b2f) to the shared memory 
+ * TX queue. It copies message data from each segment in msg_b2f to the TX queue, then cleans up the processed 
+ * message segments to free resources. This facilitates efficient data transfer between backend and frontend 
+ * through shared memory.
+ * 
+ * @detail The processing workflow follows these key steps:
+ *         1. Retrieve the backend engine context and shared memory TX queue from the session.
+ *         2. Iterate over all message segments in the backend-to-frontend queue (msg_b2f) using TAILQ_FOREACH_SAFE:
+ *             a. Allocate a slot in the shared memory TX queue using SHM_POOL_QUEUE_HEAD_ALLOC, storing the 
+ *                virtual address in 'addr'.
+ *             b. If TX queue is full (allocation returns BACKEND_PROXY_PROCESS_ERROR), log a non-fatal error and 
+ *                return BACKEND_PROXY_PROCESS_AGAIN to indicate a retry is needed.
+ *             c. Copy data from the current message segment (cur_seg->data) to the allocated TX queue slot (addr),
+ *                using the segment's length (cur_seg->len) to determine copy size.
+ *             d. Remove the processed segment from msg_b2f using TAILQ_REMOVE.
+ *             e. Deallocate the segment's data buffer based on its allocation type:
+ *                - For dynamically allocated segments (SESS_MSG_SEG_DYNAMIC_ALLOC), free the data buffer with free().
+ *                - For shared memory segments (SESS_MSG_SEG_SHARED_MEM), reserved for future implementation (currently a no-op).
+ *             f. Free the message segment structure itself with free().
+ *         3. Once all segments in msg_b2f are processed, return BACKEND_PROXY_PROCESS_OK.
+ * 
+ * @param[in] sess Pointer to the BackendSession structure containing session context, including msg_b2f queue and engine reference
+ * 
+ * @return Processing result status code:
+ *         - BACKEND_PROXY_PROCESS_OK: All message segments processed and transferred successfully
+ *         - BACKEND_PROXY_PROCESS_AGAIN: Incomplete processing (TX queue is full) requiring retry
+ *         - BACKEND_PROXY_PROCESS_ERROR: Critical error occurred (implied by allocation failure handling)
+ */
 int high_speed_data_process_b2f(struct BackendSession *sess){
-    struct SessMsgSeg *cur_seg, *next_seg;
+    BackendEngine                   *eng;
+    struct SharedMemoryPoolQueue    *tx_queue;
+    struct SessMsgSeg               *cur_seg, *next_seg;
+    int                             ret;
+    uint64_t                        addr;
 
+    eng         = sess->eng;
+    tx_queue    = eng->tx_queue;
+
+    /*
+     * 1. Copy data in each message segment in the backend-to-frontend queue (msg_b2f) to the shared memory TX queue. The front-end will read these messages latter.
+     */
+    TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_b2f, entry, next_seg){
+        ret = SHM_POOL_QUEUE_HEAD_ALLOC(tx_queue, &addr);
+
+/*
+ * The TX queue is full. The high_speed_data_process_b2f should return and notice that the sending procedure from backend to front end continue next time.
+ */
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            error_print("high_speed_data_process_b2f failed (may not be an error): the send procedure failed because the TX queue is full. It should retry the next time.");
+            return BACKEND_PROXY_PROCESS_AGAIN;
+        }
+
+        memcpy((void *)addr, cur_seg->data, cur_seg->len);
+
+        /* 2. Remove the segment from the queue */
+        TAILQ_REMOVE(&sess->msg_b2f, cur_seg, entry);
+
+        /* 3. Deallocate memory based on segment type */
+        if (cur_seg->type == SESS_MSG_SEG_DYNAMIC_ALLOC) {
+            // Free dynamically allocated data buffer
+            free(cur_seg->data);
+        } else if (cur_seg->type == SESS_MSG_SEG_SHARED_MEM) {
+
+            // if (current_seg->mem_pool) {
+            //     shared_memory_pool_release(current_seg->mem_pool, current_seg->data);
+            // }
+        }
+        /* 4. Free the segment structure itself */
+        free(cur_seg);
+
+    }
     return BACKEND_PROXY_PROCESS_OK;
 }
 

@@ -229,6 +229,46 @@ struct SharedMemoryPoolQueue {
     ) * (size_t)(queue)->block_size)
 
 
+/**
+ * @brief Allocate a memory slot from the queue head
+ * @param queue Pointer to the SharedMemoryPoolQueue structure
+ * @param addr_ptr Pointer to store the virtual address of allocated slot (output)
+ * @return Returns BACKEND_PROXY_PROCESS_OK on success, BACKEND_PROXY_PROCESS_ERROR on failure
+ * @note Allocation logic: 
+ *       1. Check if queue is full (next header == tail)
+ *       2. If not full, store current header's slot address in addr_ptr
+ *       3. Update header with wrap-around handling (mod max_num_items)
+ */
+#define SHM_POOL_QUEUE_HEAD_ALLOC(queue, addr_ptr) ({ \
+    int _status = BACKEND_PROXY_PROCESS_ERROR; \
+    if ((queue != NULL) && (addr_ptr != NULL)) { \
+        uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->max_num_items; \
+        if (_next_header != queue->tail) { \
+            *addr_ptr = (uintptr_t)(queue->virt_addr + queue->header * queue->block_size); \
+            queue->header = _next_header; \
+            _status = BACKEND_PROXY_PROCESS_OK; \
+        } else { \
+            *addr_ptr = 0; \
+        } \
+    } \
+    _status; \
+})
+
+
+
+/**
+ * @brief Roll back the head position (for reverting when allocation fails)
+ * @param queue Pointer to the SharedMemoryPoolQueue structure
+ * @note Rollback logic: Restore header to previous position with wrap-around handling
+ *       (undoes the header increment from a failed allocation attempt)
+ */
+#define SHM_POOL_QUEUE_HEAD_ROLLBACK(queue) do { \
+    if (queue != NULL) { \
+        queue->header = (queue->header == 0) ? \
+            (uint16_t)(queue->max_num_items - 1) : \
+            (queue->header - 1); \
+    } \
+} while (0)
 
 
 int init_shared_mem_pool(struct SharedMemoryPool *mem_pool);
