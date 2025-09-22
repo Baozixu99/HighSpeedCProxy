@@ -68,8 +68,8 @@ struct SharedMemoryPoolQueue {
        representing the upper limit of elements based on allocated memory and element size. */
     size_t                  max_num_items;
 
-    /* Remaining number of elements that can be enqueued. Calculated as (max_num_items - length),
-       indicating available slots in the queue. */
+    /* Remaining memory size (in bytes) that can be used for enqueuing elements. Calculated as 
+       (capacity - length * block_size), indicating available memory in the queue. */
     size_t                  surplus;
 
     /* Size (in bytes) of each element's memory block. All elements in the queue
@@ -79,7 +79,29 @@ struct SharedMemoryPoolQueue {
 
 
 /**
- * @brief FIFO queue PUSH operation macro (standard C compatible version)
+ * @brief Configuration parameters structure for initializing SharedMemoryPoolQueue
+ * 
+ * A structure containing all necessary parameters required to initialize a SharedMemoryPoolQueue
+ * instance. It aggregates external input parameters that define the queue's memory properties
+ * and association with a shared memory pool, serving as a clean interface for queue initialization.
+ * 
+ * Key parameters include:
+ * - `pool`: Reference to the associated shared memory pool (mandatory)
+ * - `phy_addr`/`virt_addr`: Addresses of the control block in shared memory and current process
+ * - `capacity`: Total memory size allocated to the queue from the pool
+ * - `block_size`: Fixed size of each element's memory block (determines max element count)
+ */
+typedef struct SharedMemoryPoolQueueConfig_{
+    struct SharedMemoryPool *pool;        // Associated shared memory pool
+    uint64_t                phy_addr;     // Physical address of control block in shared memory
+    uint64_t                virt_addr;    // Virtual address of control block in current process
+    size_t                  capacity;     // Total memory size (bytes) allocated to the queue
+    size_t                  block_size;   // Size (bytes) of each element's memory block
+} SharedMemoryPoolQueueConfig;
+
+
+/**
+ * @brief FIFO queue ENQUEUE operation macro (standard C compatible version)
  * 
  * This macro implements the PUSH operation for SharedMemoryPoolQueue. It uses a do...while structure 
  * to ensure syntax compatibility and returns the operation result through the second parameter. 
@@ -93,7 +115,7 @@ struct SharedMemoryPoolQueue {
  *               - BACKEND_PROXY_PROCESS_OK: Operation succeeded
  *               - BACKEND_PROXY_PROCESS_ERROR: Operation failed (queue is full or abnormal)
  */
-#define SHMP_QUEUE_PUSH(queue, result) do { \
+#define SHMP_QUEUE_ENQUEUE(queue, result) do { \
     /* Initialize result to success status */ \
     (result) = BACKEND_PROXY_PROCESS_OK; \
     /* Save original header for rollback in case of exception */ \
@@ -116,9 +138,9 @@ struct SharedMemoryPoolQueue {
 
 
 /**
- * @brief FIFO queue POP operation macro (standard C compatible version)
+ * @brief FIFO-queue DEQUEUE operation macro (standard C compatible version)
  * 
- * This macro implements the POP operation for SharedMemoryPoolQueue with priority on empty queue check.
+ * This macro implements the DEQUEUE operation for SharedMemoryPoolQueue with priority on empty queue check.
  * It first verifies if the queue is empty before modifying any indices. The logic is:
  * 1. Check if queue is empty (tail equals header) - return error immediately if true
  * 2. Save original tail for rollback in case of subsequent errors
@@ -131,7 +153,7 @@ struct SharedMemoryPoolQueue {
  *               - BACKEND_PROXY_PROCESS_OK: Operation succeeded
  *               - BACKEND_PROXY_PROCESS_ERROR: Operation failed (queue is empty or abnormal)
  */
-#define SHMP_QUEUE_POP(queue, result) do { \
+#define SHMP_QUEUE_DEQUEUE(queue, result) do { \
     /* First check if queue is empty (tail equals header) */ \
     if ((queue)->tail == (queue)->header) { \
         (result) = BACKEND_PROXY_PROCESS_ERROR; \
@@ -287,21 +309,51 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPo
                                                            size_t max_elements,
                                                            size_t element_size);
 
-int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue);
+int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const SharedMemoryPoolQueueConfig *config);
 
 int shared_mem_pool_queue_destroy(struct SharedMemoryPoolQueue* queue);
 
 
 
 int shared_mem_pool_queue_send(struct SharedMemoryPoolQueue *queue, 
-                               const void **data, 
+                               const void *data, 
                                size_t data_size);
 
+/**
+ * @brief Sends a variable-size block (up to block_size) to the SharedMemoryPoolQueue: One Copy
+ * 
+ * Stores a variable-length data block (with size ≤ block_size) into the queue using one-copy semantics.
+ * The data is transferred to a shared memory slot through a single copy operation. Regardless of the 
+ * actual data size, the entire block_size space in shared memory is occupied to maintain fixed-size 
+ * slot management. Explicitly handles full queue cases.
+ * 
+ * @param queue        Pointer to the SharedMemoryPoolQueue instance
+ * @param data         Input pointer to the variable-length data block to be sent. Must point to valid memory 
+ *                     containing the data (not a pointer to a pointer).
+ * @param data_size    Size of the input data block (must be > 0 and ≤ queue->block_size for valid operation)
+ * 
+ * @return int Returns:
+ *             - BACKEND_PROXY_PROCESS_OK: Success, data was copied to shared memory and queue state updated
+ *             - BACKEND_PROXY_PROCESS_AGAIN: Queue is full (next tail position equals header)
+ *             - BACKEND_PROXY_PROCESS_ERROR: Invalid input parameters (NULL pointers for queue or data), 
+ *                                           invalid block_size (0 bytes), data_size = 0, or data_size > queue->block_size
+ * 
+ * @note The input data block (pointed to by data) must remain valid until the copy operation completes. 
+ *       One-copy semantics involve a single data transfer (e.g., via memcpy) from the input buffer to the 
+ *       target shared memory slot. 
+ *       Critical behavior: Even if data_size < block_size, the entire block_size space in shared memory is 
+ *       reserved and counted as occupied (surplus decreases by block_size, not data_size).
+ *       Queue state (tail, length, surplus) is updated via the SHMP_QUEUE_ENQUEUE macro after the copy completes.
+ *       Address calculation: Target slot address is derived from queue->virt_addr + (tail * block_size).
+ */
+int shared_mem_pool_queue_send_oc(struct SharedMemoryPoolQueue *queue, 
+                                  const void *data, 
+                                  size_t data_size);
 
-int shared_mem_pool_queue_recv(struct SharedMemoryPoolQueue *queue, 
-                               void **buffer, 
-                               size_t buffer_size, 
-                               size_t *out_data_size);
+
+int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
+                              void **buffer,
+                              size_t *out_data_size);
 
 
 /**

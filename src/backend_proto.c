@@ -898,8 +898,8 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
  *                               On success, points to a newly allocated buffer containing the complete message.
  *                               Caller must free this memory with appropriate function (e.g., free()) when done.
  *                               Must not be NULL.
- * @return int                   Returns BACKEND_PROXY_PROCESS_OK (0) on successful message construction;
- *                               Returns BACKEND_PROXY_PROCESS_ERROR (-1) if any parameter is invalid (e.g., NULL pointers,
+ * @return int                   Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
+ *                               Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
  *                               mismatched lengths) or memory allocation fails
  */
 int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
@@ -1278,7 +1278,7 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
     tx_queue    = eng->tx_queue;
     msg_header  = (ProxyMsgHeader *)msg;
     
-    ret = shared_mem_pool_queue_send(tx_queue, &msg, PROXY_MSG_TOTAL_SIZE(msg_header));
+    ret = shared_mem_pool_queue_send_oc(tx_queue, msg, PROXY_MSG_TOTAL_SIZE(msg_header));
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         free_shared_mem(eng->mem_pool, (uint64_t)msg);
@@ -1333,7 +1333,7 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
     eng = sess->eng;
     tx_queue = sess->eng->tx_queue;
 
-    ret = shared_mem_pool_queue_send(tx_queue, &msg, PROXY_MSG_TOTAL_SIZE(msg_header));
+    ret = shared_mem_pool_queue_send_oc(tx_queue, msg, PROXY_MSG_TOTAL_SIZE(msg_header));
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         free_shared_mem(eng->mem_pool, (uint64_t)msg);

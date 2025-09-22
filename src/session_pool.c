@@ -571,17 +571,14 @@ int high_speed_data_process_b2f(struct BackendSession *sess){
      * 1. Copy data in each message segment in the backend-to-frontend queue (msg_b2f) to the shared memory TX queue. The front-end will read these messages latter.
      */
     TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_b2f, entry, next_seg){
-        ret = SHM_POOL_QUEUE_HEAD_ALLOC(tx_queue, &addr);
-
+        ret = shared_mem_pool_queue_send_oc(tx_queue, cur_seg->data, cur_seg->len);
 /*
  * The TX queue is full. The high_speed_data_process_b2f should return and notice that the sending procedure from backend to front end continue next time.
  */
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
             error_print("high_speed_data_process_b2f failed (may not be an error): the send procedure failed because the TX queue is full. It should retry the next time.");
             return BACKEND_PROXY_PROCESS_AGAIN;
         }
-
-        memcpy((void *)addr, cur_seg->data, cur_seg->len);
 
         /* 2. Remove the segment from the queue */
         TAILQ_REMOVE(&sess->msg_b2f, cur_seg, entry);

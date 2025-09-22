@@ -657,7 +657,38 @@ void engine_init()
  */
 int backend_engine_rx_queue_get(struct SharedMemoryPoolQueue *queue, void **buf_ptr, 
                                size_t buf_max_len, size_t *out_len){
-    return BACKEND_PROXY_PROCESS_OK;
+    int             ret;
+    size_t          msg_size, buf_size;
+    ProxyMsgHeader  *msg_hdr;
+
+    if(NULL == queue || NULL == buf_ptr || NULL == out_len){
+            error_print("backend_engine_rx_queue_get failed: invalid input parameters (NULL pointers)");
+        return BACKEND_PROXY_PROCESS_ERROR;   
+    }
+
+    ret = shared_mem_pool_queue_recv_zc(queue, buf_ptr, &buf_size);
+
+    if(BACKEND_PROXY_PROCESS_ERROR == ret){
+        error_print("backend_engine_rx_queue_get failed: failed to retrieve data from RX queue");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+        error_print("backend_engine_rx_queue_get returns: the RX queue is empty");
+        return BACKEND_PROXY_PROCESS_AGAIN;
+    }
+
+    msg_hdr     = (ProxyMsgHeader *)(*buf_ptr);
+    msg_size    = msg_hdr->payload_len;
+
+    if(msg_size + sizeof(ProxyMsgHeader) > buf_max_len){
+        error_print("backend_engine_rx_queue_get failed: message total size (header + payload) exceeds buffer maximum length");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    *out_len = msg_size;
+
+    return ret;
 }
 
 /**
@@ -720,7 +751,7 @@ int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void
 void engine_run()
 {
     BackendEngine                   *eng;
-    struct SharedMemoryPoolQueue    *tx_queue, *rx_queue;
+    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
     struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
     struct BackendSession           *cur_sess, *next_sess;
     struct BackendSessionPool       *sess_pool;
@@ -737,6 +768,13 @@ void engine_run()
         return ;
     }
 
+/* 
+ * rx_queue: Local receive queue, which actually maps to the front-end's transmit queue (tx_queue).
+ * Data sent by the front-end through its tx_queue will be received by the local side via this rx_queue.
+ * 
+ * tx_queue: Local transmit queue, which is used as the front-end's receive queue (rx_queue).
+ * Data sent by the local side through this tx_queue will be received by the front-end via its rx_queue.
+ */
     if(NULL == eng->rx_queue || NULL == eng->tx_queue){
         error_print("engine_run failed: The global backend engine's RX queue or TX queue has not been initialized!");
         return ;
@@ -843,8 +881,8 @@ eng_run_step2:
         ret = sess_pool_ops->data_process_f2b(cur_sess);
 
 /*
- * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, it means all the message segments in the front-to-end message queue have been sent via the socket of the session. This type of 
- * session should be detached from the front-to-end active queue. 
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the front-to-back (F2B) message queue have been sent via the session's socket. 
+ * Such sessions should be detached from the F2B active queue, and their "linked to queue" state flag should be cleared.
  */
         if(BACKEND_PROXY_PROCESS_OK == ret){
             TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
@@ -863,6 +901,11 @@ eng_run_step2:
   */
     }
 
+/*
+ * Complete data reception from the shared memory region for this operation.
+ * Unlock the RX queue to allow the front-end to write data into it.
+ */
+    SHARED_MEM_QUEUE_UNLOCK(rx_queue);
 
 /*
  * STEP (3)
@@ -899,6 +942,47 @@ eng_run_step4:
 
     BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
 
+    TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
+/*
+ * Call the data_process_b2f function pointer from the session pool's operation set (sess_pool_ops). This function attempts to send the back-to-front 
+ * (B2F) data maintained by the current session (cur_sess) via the shared-memory TX queue.
+ *
+ * Return value scenarios:
+ * - BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
+ * - BACKEND_PROXY_PROCESS_AGAIN: Not all data was sent, and no errors occurred.
+ * - BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
+ */
+        ret = sess_pool_ops->data_process_b2f(cur_sess);
 
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-front (B2F) message queue have been successfully
+ * sent via the shared memory TX queue. Such sessions should be detached from the B2F active queue.
+ */
+        if(BACKEND_PROXY_PROCESS_OK == ret){
+            TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
+            cur_sess->state_b2f &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+        }
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_ERROR, an error occurred while attempting to send data via the session's socket. Such sessions need to 
+ * be both detached from the B2F active queue and removed from the session pool.
+ */
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_f2b);
+            sess_pool_ops->delete_sess(sess_pool, cur_sess);
+        }
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_AGAIN, the shared-memory TX queue is full (not all data sent, no errors). Sending to the TX queue should 
+ * stop, and ownership of the shared-memory TX queue should be transferred to the front-end. The front-end will then read this data from its RX queue, which
+ * maps to the local TX queue (queue mapping: local TX <---> front-end RX).
+ */
+         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            break;
+        }
+    }
+
+    SHARED_MEM_QUEUE_UNLOCK(tx_queue);
+/*
+ * Go back to STEP 1.
+ */
     }while(1);
 }
