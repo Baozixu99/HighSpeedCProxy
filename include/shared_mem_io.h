@@ -270,7 +270,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
             queue->header = _next_header; \
             _status = BACKEND_PROXY_PROCESS_OK; \
         } else { \
-            *addr_ptr = 0; \
+            *addr_ptr = ERROR_SHARED_MEM_ADDR; \
         } \
     } \
     _status; \

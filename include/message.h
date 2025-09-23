@@ -473,9 +473,15 @@ typedef struct{
 } GeneralProxyMsgHeader;
 
 struct BackendEngine_;
+struct SharedMemoryPoolQueue;
 
-int build_proxy_general_message(struct BackendEngine_ *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+typedef enum {
+    MEMORY_ALLOC_SHARED,    // Allocate in shared memory
+    MEMORY_ALLOC_CALLER     // Allocated by caller
+} MemoryAllocMode;
 
+int build_proxy_general_message(struct BackendEngine_ *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, 
+                                uint8_t **result_msg, MemoryAllocMode alloc_mode, struct SharedMemoryPoolQueue *ring_buf);
 int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);

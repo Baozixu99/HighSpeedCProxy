@@ -884,6 +884,15 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
  * Builds a complete proxy general message by combining the general header and payload.
  * The function will allocate memory for the output message (caller is responsible for freeing it).
  * 
+ * Constructs a complete proxy general message by integrating the provided header and payload.
+ * The memory for the output message is managed based on the specified allocation mode:
+ * For MEMORY_ALLOC_SHARED: Memory is allocated within shared memory, which is organized in a FIFO RING buffer.
+ * The caller does not need to handle memory deallocation, as the shared memory is managed by the FIFO RING buffer mechanism.
+ * For MEMORY_ALLOC_CALLER: Memory must be pre-allocated by the caller. The function will directly populate the
+ * provided buffer without checking its size; the caller is solely responsible for ensuring the buffer is large
+ * enough to hold the complete message (header + payload).
+ * 
+ * 
  * @param[in]  engine            Pointer to a BackendEngine object containing backend proxy's global context,
  *                               such as runtime configuration, memory allocator handles, or system resources.
  *                               Used for accessing backend-specific settings or memory management during message construction.
@@ -894,15 +903,22 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
  *                               Can be NULL only if payload_len is 0.
  * @param[in]  payload_len       Length of the payload in bytes. Must be non-negative and match
  *                               header->payload_len (if header contains payload length field) for consistency.
+
  * @param[out] result_msg        Double pointer to receive the address of the constructed proxy message.
- *                               On success, points to a newly allocated buffer containing the complete message.
- *                               Caller must free this memory with appropriate function (e.g., free()) when done.
- *                               Must not be NULL.
+                                 For MEMORY_ALLOC_SHARED: On success, points to the message location within the shared FIFO RING buffer. 
+                                 No caller action is needed for deallocation.
+                                 For MEMORY_ALLOC_CALLER: Must point to a pre-allocated buffer. On success, the buffer is populated with 
+                                 the complete message. Caller must ensure sufficient size.Must not be NULL.
+ * @param[in] ring_buf           Pointer to a struct SharedMemoryPoolQueue. Required and must not be NULL when alloc_mode is MEMORY_ALLOC_SHARED 
+                                 (used for FIFO RING buffer operations).
+                                 Ignored when alloc_mode is MEMORY_ALLOC_CALLER (can be NULL).
  * @return int                   Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
  *                               Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
- *                               mismatched lengths) or memory allocation fails
+ *                               mismatched lengths) or memory allocation fails (for MEMORY_ALLOC_SHARED)
  */
-int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *header, 
+                                const uint8_t *payload, size_t payload_len, uint8_t **result_msg, 
+                                MemoryAllocMode alloc_mode, struct SharedMemoryPoolQueue *ring_buf){
     uint8_t         *msg_buf;
     uint64_t        mem_addr;
     uint16_t        proxy_msg_payload_len;
@@ -929,15 +945,22 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
 /*
  * Allocate shared-memory for storing the proxy message.
  */
-    mem_addr = alloc_shared_mem(engine->mem_pool);
-    if(ERROR_SHARED_MEM_ADDR == mem_addr){
-        error_print("build_proxy_general_message failed: failed to allocate shared memory!");
-        return BACKEND_PROXY_PROCESS_ERROR;
+    if(MEMORY_ALLOC_SHARED == alloc_mode){
+        if(NULL == ring_buf){
+            error_print("build_proxy_general_message failed: MEMORY_ALLOC_SHARED mode requires a non-NULL ring buffer (FIFO queue)!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        ret = SHM_POOL_QUEUE_HEAD_ALLOC(ring_buf, &mem_addr);
+
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            error_print("build_proxy_general_message failed: shared memory FIFO queue is full, cannot allocate new block!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        msg_buf         = (uint8_t *)mem_addr;
+        *result_msg     = msg_buf;
     }
-
-    msg_buf         = (uint8_t *)mem_addr;
-    *result_msg     = msg_buf;
-
 /*
  * Fill the proxy message header.
  */
@@ -978,7 +1001,8 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("build_proxy_general_message failed: failed to build proxy message!");
-        free_shared_mem(engine->mem_pool, mem_addr);
+//        free_shared_mem(engine->mem_pool, mem_addr);
+        SHM_POOL_QUEUE_HEAD_ROLLBACK(ring_buf);
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -986,6 +1010,15 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
  * Compute the payload length and fill it into the corresponding field of the proxy message header.
  */
     proxy_msg_hdr->payload_len = payload_len + proxy_msg_payload_len;
+
+/*
+ * In MEMORY_ALLOC_SHARED mode, the build_proxy_general_message function is responsible for
+ * enqueuing the constructed message into the shared memory FIFO queue (ring_buf)
+ */
+    if(MEMORY_ALLOC_SHARED == alloc_mode){
+        SHMP_QUEUE_ENQUEUE(ring_buf, ret);
+        return ret;
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -1159,7 +1192,7 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
 
     payload_data                            = (uint8_t *)op_resp;
 
-    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg);
+    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
 //    ret = build_proxy_sess_message(&header, payload_data, sizeof(SessOpRespData), msg);
     return ret;
 }
@@ -1228,7 +1261,7 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
 
     payload_data                            = (uint8_t *)op_resp;
 
-    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg);
+    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
 
     return ret;
 }
@@ -1275,6 +1308,7 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+#if 0
     tx_queue    = eng->tx_queue;
     msg_header  = (ProxyMsgHeader *)msg;
     
@@ -1285,7 +1319,7 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
         error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: failed to push the message into the tx queue!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
-
+#endif
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -1329,7 +1363,7 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
         error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: the session creation/close-response message cannot be constructed successfully!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
-
+#if 0
     eng = sess->eng;
     tx_queue = sess->eng->tx_queue;
 
@@ -1340,6 +1374,6 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
         error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: failed to push the message into the tx queue!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
-
+#endif
     return BACKEND_PROXY_PROCESS_OK;
 }
