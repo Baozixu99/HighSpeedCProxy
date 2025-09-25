@@ -112,6 +112,7 @@ int engine_init_hs_net_dev(BackendEngine *eng);
 int engine_init_sess_pool(BackendEngine *eng);
 int engine_init_shared_mem_pool(BackendEngine *eng);
 int engine_init_shared_mem_pool_lock(BackendEngine *eng);
+int engine_init_shared_mem_queue(BackendEngine *eng);
 int engine_init_poller(BackendEngine *eng);
 
 void engine_destory_hs_net_dev(BackendEngine *eng);
