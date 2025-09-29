@@ -35,4 +35,6 @@ int scenario_msg_inject(BackendEngine *engine,
                         size_t desc_len);
 
 
+int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
+
 #endif

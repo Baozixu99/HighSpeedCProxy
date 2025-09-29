@@ -158,3 +158,38 @@ int scenario_msg_inject(BackendEngine *engine,
 
     return BACKEND_PROXY_PROCESS_OK;
 }
+
+
+
+
+
+/**
+ * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly constructs multi-type proxy messages and injects them into the shared memory RX queue
+ * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
+ *          1. Automatically constructs all core proxy message types, including device messages, strategy messages, session messages, and data messages;
+ *          2. Calls the underlying packet-building functions (e.g., scenario_msg_inject build_proxy_general_message, build_proxy_sess_message) to complete the structured packaging of messages;
+ *          3. Obtains the shared memory RX queue handle from the input BackendEngine global context (which must be initialized in advance), and injects the constructed messages into the queue following FIFO rules;
+ *          4. Does not require external input of message parameters (e.g., msg_header, msg_payload). All test message parameters (such as device ID, session ID, data payload) are preset according to the test scenarios in the document 
+ *             (e.g., frontend_sess_id = 1 preset for session messages, "query strategy" command preset for strategy messages) to ensure test consistency.
+ * 
+ * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
+ *                   - Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that resources such as the memory pool handle and shared memory RX queue (engine->rx_queue) are ready 
+ *                   - The context must contain valid runtime configurations (e.g., shared memory queue size, session pool capacity) to avoid resource unavailability errors during message construction or injection 
+ *                     (refer to the parameter verification logic in "Section 1.2 Abnormal Scenarios" of the document).
+ * 
+ * @return int Follows the unified error code specification in the document, with return value meanings as follows:
+ *             - BACKEND_PROXY_PROCESS_OK: All types of proxy messages are successfully constructed and injected into the RX queue;
+ *             - BACKEND_PROXY_PROCESS_ERROR: All abnormal scenarios are covered, including uninitialized BackendEngine, NULL internal resources (e.g., rx_queue), full shared memory RX queue, and failed calls to underlying packet-building functions 
+ *              
+ * 
+ * @note 1. Precondition: The engine must be initialized before calling this function (refer to the normal scenario process in "Test Process - Engine Initialization Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
+ *       2. Message coverage: The current version covers 4 core message types in "Section 3. Protocol Message Processing Module" of the document:
+ *          - Device messages: Preset with "device status query" commands;
+ *          - Strategy messages: Preset with "query strategy configuration" commands (corresponding to the "strategy configuration command execution" scenario;
+ *          - Session messages: Preset with "create session" (valid device ID) and "close session" (valid session ID) commands (corresponding to the "session creation" scenario;
+ *          - Data messages: Preset with two boundary scenarios: empty payload and maximum-length payload (4088 bytes);
+ *       3. Result feedback: The function internally uses error_print to print detailed logs of message construction/injection (e.g., "Device message injected successfully", "RX queue full, data message injection failed"), 
+ *          and the log format complies with the log specification for "configuration file loading failure";
+ *       4. Subsequent triggering: After message injection is completed, the engine_run function (entry of "Main Loop Test Process" in the document) must be called to trigger the engine to read and process messages from the RX queue, thus completing the full test link.
+ */
+int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
