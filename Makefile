@@ -1,4 +1,4 @@
-SOURCE  := $(wildcard src/*.c) 
+SOURCE  := $(wildcard src/*.c senario_src/*.c) 
 OBJS    := $(patsubst %.c,%.o,$(SOURCE))
   
 #target you can change test to what you want
@@ -9,7 +9,7 @@ ARCH ?=
 LIBS    :=
 LDFLAGS :=
 DEFINES :=
-INCLUDE := -I./include
+INCLUDE := -I./include -I./senario_inc
 CFLAGS  := -g -Wall -O0 $(DEFINES) $(INCLUDE)
 CXXFLAGS:= $(CFLAGS)
 
