@@ -42,6 +42,65 @@ const ResultMsgSupportedItem g_result_msg_supported_values[] = {
 // Length of the global array (facilitates traversal/lookup in test code, no document dependency)
 const size_t g_result_msg_supported_count = sizeof(g_result_msg_supported_values) / sizeof(ResultMsgSupportedItem);
 
+
+// GeneralProxyMsgHeader  dev_enable_msg_hdr, strgy_query_msg_hdr, sess_create_msg_hdr, data_msg_hdr;
+
+
+GeneralProxyMsgHeader dev_enable_msg_hdr = {
+    .outer_header = {
+        .version          = PROXY_PROTO_VERSION_1,        // Protocol version, fixed to 1 as specified
+        .proxy_msg_type   = PROXY_MSG_TYPE_DEV,           // Proxy message type: Device message (0)
+        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,    // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id  = BACKEND_ADMIN_SESSION_ID,     // Backend admin session ID, used to match backend-backend sessions in frontend proxy
+        .payload_len = 0                                  // Payload length, set according to actual payload
+    },
+    .inner_header.dev_hdr = {                       // Use device message inner header
+        .version = PROXY_PROTO_DEV_VERSION_1,       // Protocol version, fixed to 1
+        .msg_type = 1,                              // Message type: Enable (1)
+        .msg_id = 0,                                // Message ID, used for command-response matching
+        .action_type = 0,                           // Signaling type: Command (0)
+        .payload_len = 0                            // Payload length, set according to actual payload
+    }
+};
+
+
+// Strategy query message header
+GeneralProxyMsgHeader strgy_query_msg_hdr = {
+    .outer_header = {
+        .version          = PROXY_PROTO_VERSION_1,        // Protocol version, fixed to 1 as specified
+        .proxy_msg_type   = PROXY_MSG_TYPE_STRGY,         // Proxy message type: Strategy message (1)
+        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,    // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id  = BACKEND_ADMIN_SESSION_ID,     // Backend admin session ID, used to match backend-backend sessions in frontend proxy
+        .payload_len = 0                                  // Payload length, set according to actual payload
+    },
+    .inner_header.strgy_hdr = {                     // Use strategy message inner header
+        .version = PROXY_PROTO_STRGY_VERSION_1,     // Protocol version, fixed to 1
+        .msg_type = 1,                              // Message type: Query (1)
+        .msg_id = 0,                                // Message ID, used for command-response matching
+        .action_type = 0,                           // Signaling type: Command (0)
+        .payload_len = 0                            // Payload length, set according to actual payload
+    }
+};
+
+
+// Session create message header
+GeneralProxyMsgHeader sess_create_msg_hdr = {
+    .outer_header = {
+        .version          = PROXY_PROTO_VERSION_1,        // Protocol version, fixed to 1 as specified
+        .proxy_msg_type   = PROXY_MSG_TYPE_SESS,          // Proxy message type: Session message (2)
+        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,    // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id  = BACKEND_ADMIN_SESSION_ID,     // Backend admin session ID, used to match backend-backend sessions in frontend proxy
+        .payload_len = 0                            // Payload length, set according to actual payload
+    },
+    .inner_header.sess_hdr = {                      // Use session message inner header
+        .version = PROXY_PROTO_SESS_VERSION_1,      // Protocol version, fixed to 1
+        .msg_type = 0,                              // Message type: Create (0)
+        .action_type = 0,                           // Signaling type: Command (0)
+        .ip_version = 4,                            // IP version: IPv4 (4), can be changed to 6 if needed
+        .payload_len = 0                            // Payload length, set according to actual payload
+    }
+};
+
 /**
  * @brief Simulate front-end requests, construct proxy messages via build_proxy_general_message, and inject them into the shared memory RX queue of the back-end protocol stack
  * @details Implements the core responsibility of "scenario functions" in the "Backend Protocol Stack Unit Test.doc": 
