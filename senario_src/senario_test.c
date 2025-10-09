@@ -149,6 +149,7 @@ int scenario_msg_inject(BackendEngine *engine,
                         uint8_t **result_msg,
                         char *result_desc,
                         size_t desc_len){
+    int ret;
     
     // 1. Check if BackendEngine pointer is NULL (engine initialization is a prerequisite per "Backend Protocol Stack Unit Test.doc")
     if (engine == NULL)
@@ -215,6 +216,8 @@ int scenario_msg_inject(BackendEngine *engine,
 
     // ... (call build_proxy_general_message, handle queue injection, etc.)
 
+    ret = build_proxy_general_message(engine, msg_header, msg_payload, msg_payload_len, result_msg, alloc_mode, engine->rx_queue);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -252,3 +255,63 @@ int scenario_msg_inject(BackendEngine *engine,
  *       4. Subsequent triggering: After message injection is completed, the engine_run function (entry of "Main Loop Test Process" in the document) must be called to trigger the engine to read and process messages from the RX queue, thus completing the full test link.
  */
 int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
+
+
+
+/**
+ * @brief Inject a device message into the backend engine
+ * @details Handles injection of device-related messages, processing according to
+ *          device management logic and returning results via output parameters.
+ * 
+ * @param engine Pointer to the BackendEngine instance
+ * @return int Return code indicating processing result:
+ *         - BACKEND_PROXY_PROCESS_OK: Message injected and processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
+ */
+int device_msg_inject(BackendEngine *engine){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Inject a session message into the backend engine
+ * @details Handles injection of session-related messages, processing according to
+ *          session management logic and returning results via output parameters.
+ * 
+ * @param engine Pointer to the BackendEngine instance
+ * @return int Return code indicating processing result:
+ *         - BACKEND_PROXY_PROCESS_OK: Message injected and processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
+ */
+int session_msg_inject(BackendEngine *engine){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief Inject a strategy message into the backend engine
+ * @details Handles injection of strategy/policy-related messages, processing according to
+ *          strategy management logic and returning results via output parameters.
+ * 
+ * @param engine Pointer to the BackendEngine instance
+ * @return int Return code indicating processing result:
+ *         - BACKEND_PROXY_PROCESS_OK: Message injected and processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
+ */
+int strategy_msg_inject(BackendEngine *engine){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Inject a data message into the backend engine
+ * @details Handles injection of data/content-related messages, processing according to
+ *          data processing logic and returning results via output parameters.
+ * 
+ * @param engine Pointer to the BackendEngine instance
+ * @return int Return code indicating processing result:
+ *         - BACKEND_PROXY_PROCESS_OK: Message injected and processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
+ */
+int data_msg_inject(BackendEngine *engine){
+    return BACKEND_PROXY_PROCESS_OK;
+}

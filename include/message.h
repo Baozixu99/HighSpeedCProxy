@@ -461,6 +461,32 @@ struct SessMsgPara{
 };
 
 
+/**
+ * @brief Session parameters structure for IPv4-based sessions
+ * @details Contains parameters required to establish and manage an IPv4 session,
+ *          including transport protocol, device selection, and destination endpoint.
+ *          Uses packed alignment to ensure contiguous memory layout.
+ */
+typedef struct {
+    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
+    uint16_t            device_selection;       /**< Device selection identifier (2 bytes) */
+    IPv4PortTuple       dest_endpoint;          /**< Destination endpoint containing IPv4 address and port */
+} __attribute__((packed)) SessIPv4Params;
+
+
+
+/**
+ * @brief Session parameters structure for IPv6-based sessions
+ * @details Contains parameters required to establish and manage an IPv6 session,
+ *          including transport protocol, device selection, and destination endpoint.
+ *          Uses packed alignment to ensure contiguous memory layout.
+ */
+typedef struct {
+    uint16_t transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
+    uint16_t device_selection;       /**< Device selection identifier (2 bytes) */
+    IPv6PortTuple dest_endpoint;     /**< Destination endpoint containing IPv6 address and port */
+} __attribute__((packed)) SessIPv6Params;
+
 
 typedef struct{
     ProxyMsgHeader  outer_header;
