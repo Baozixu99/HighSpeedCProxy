@@ -454,7 +454,7 @@ struct SessMsgPara{
     uint16_t        dev_id;
 // IP version, of type uint16_t, of type uint16_t, supported values include: 4 (IPv4), 6 (IPv6).
     uint16_t        ip_version;
-// Transport layer protocol type, of type uint16_t, supported values include: 0 (UDP protocol), 1 (TCP protocol), 2 (FastPath protocol).
+// Transport layer protocol type, of type uint16_t, supported values include: SESS_UDP_PROTO (0, UDP protocol), SESS_TCP_PROTO(1, TCP protocol), SESS_FASTPATH_PROTO(2, FastPath protocol).
     uint16_t        trans_proto;
 // Tuple of IP address and port number, used to describe the combination of IP address and corresponding port number of the communication endpoint.
     IPPortTuple     ip_port_tuple;
@@ -468,7 +468,7 @@ struct SessMsgPara{
  *          Uses packed alignment to ensure contiguous memory layout.
  */
 typedef struct {
-    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
+    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., SESS_TCP_PROTO for TCP, SESS_UDP_PROTO for UDP) */
     uint16_t            device_selection;       /**< Device selection identifier (2 bytes) */
     IPv4PortTuple       dest_endpoint;          /**< Destination endpoint containing IPv4 address and port */
 } __attribute__((packed)) SessIPv4Params;
@@ -482,9 +482,9 @@ typedef struct {
  *          Uses packed alignment to ensure contiguous memory layout.
  */
 typedef struct {
-    uint16_t transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
-    uint16_t device_selection;       /**< Device selection identifier (2 bytes) */
-    IPv6PortTuple dest_endpoint;     /**< Destination endpoint containing IPv6 address and port */
+    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
+    uint16_t            device_selection;       /**< Device selection identifier (2 bytes) */
+    IPv6PortTuple       dest_endpoint;          /**< Destination endpoint containing IPv6 address and port */
 } __attribute__((packed)) SessIPv6Params;
 
 

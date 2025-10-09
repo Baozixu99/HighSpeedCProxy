@@ -298,7 +298,23 @@ int session_msg_inject(BackendEngine *engine){
  *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
  */
 int strategy_msg_inject(BackendEngine *engine){
-    return BACKEND_PROXY_PROCESS_OK;
+    GeneralProxyMsgHeader *sess_msg_hdr;
+    SessIPv4Params sess_ipv4_paras;
+    int ret, desc_len = 100;
+    char *res_string, *desc_string;
+    char *ip_port_string = "192.168.100.100:80";
+
+    sess_msg_hdr = &sess_create_msg_hdr;
+    sess_msg_hdr->inner_header.sess_hdr.payload_len = sizeof(sess_ipv4_paras);
+
+
+    sess_ipv4_paras.transport_layer_proto   = SESS_UDP_PROTO;
+    sess_ipv4_paras.device_selection        = 0xFF;
+    IPV4_PORT_STR_TO_TUPLE(ip_port_string, sess_ipv4_paras.dest_endpoint);
+
+    ret = scenario_msg_inject(engine, sess_msg_hdr, &sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, &res_string, res_string, desc_len);
+
+    return ret;
 }
 
 
