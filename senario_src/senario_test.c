@@ -86,18 +86,18 @@ GeneralProxyMsgHeader strgy_query_msg_hdr = {
 // Session create message header
 GeneralProxyMsgHeader sess_create_msg_hdr = {
     .outer_header = {
-        .version          = PROXY_PROTO_VERSION_1,        // Protocol version, fixed to 1 as specified
-        .proxy_msg_type   = PROXY_MSG_TYPE_SESS,          // Proxy message type: Session message (2)
-        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,    // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
-        .backend_sess_id  = BACKEND_ADMIN_SESSION_ID,     // Backend admin session ID, used to match backend-backend sessions in frontend proxy
-        .payload_len = 0                            // Payload length, set according to actual payload
+        .version          = PROXY_PROTO_VERSION_1,           // Protocol version, fixed to 1 as specified
+        .proxy_msg_type   = PROXY_MSG_TYPE_SESS,             // Proxy message type: Session message (2)
+        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,       // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id  = BACKEND_HANDOVER_SESSION_ID,     // Backend admin session ID, set to BACKEND_HANDOVER_SESSION_ID to trigger the handover procedure 
+        .payload_len = 0                                     // Payload length, set according to actual payload
     },
-    .inner_header.sess_hdr = {                      // Use session message inner header
-        .version = PROXY_PROTO_SESS_VERSION_1,      // Protocol version, fixed to 1
-        .msg_type = 0,                              // Message type: Create (0)
-        .action_type = 0,                           // Signaling type: Command (0)
-        .ip_version = 4,                            // IP version: IPv4 (4), can be changed to 6 if needed
-        .payload_len = 0                            // Payload length, set according to actual payload
+    .inner_header.sess_hdr = {                               // Use session message inner header
+        .version = PROXY_PROTO_SESS_VERSION_1,               // Protocol version, fixed to 1
+        .msg_type = 0,                                       // Message type: Create (0)
+        .action_type = 0,                                    // Signaling type: Command (0)
+        .ip_version = 4,                                     // IP version: IPv4 (4), can be changed to 6 if needed
+        .payload_len = sizeof(SessIPv4Params)                // Payload length, set according to actual payload
     }
 };
 
@@ -269,6 +269,26 @@ int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
  *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
  */
 int device_msg_inject(BackendEngine *engine){
+    GeneralProxyMsgHeader *dev_msg_hdr;
+    int ret;
+
+    dev_msg_hdr = &dev_enable_msg_hdr;
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Inject a strategy message into the backend engine
+ * @details Handles injection of strategy/policy-related messages, processing according to
+ *          strategy management logic and returning results via output parameters.
+ * 
+ * @param engine Pointer to the BackendEngine instance
+ * @return int Return code indicating processing result:
+ *         - BACKEND_PROXY_PROCESS_OK: Message injected and processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
+ */
+int strategy_msg_inject(BackendEngine *engine){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -284,27 +304,15 @@ int device_msg_inject(BackendEngine *engine){
  *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
  */
 int session_msg_inject(BackendEngine *engine){
-    return BACKEND_PROXY_PROCESS_OK;
-}
-
-/**
- * @brief Inject a strategy message into the backend engine
- * @details Handles injection of strategy/policy-related messages, processing according to
- *          strategy management logic and returning results via output parameters.
- * 
- * @param engine Pointer to the BackendEngine instance
- * @return int Return code indicating processing result:
- *         - BACKEND_PROXY_PROCESS_OK: Message injected and processed successfully
- *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
- */
-int strategy_msg_inject(BackendEngine *engine){
     GeneralProxyMsgHeader *sess_msg_hdr;
     SessIPv4Params sess_ipv4_paras;
     int ret, desc_len = 100;
-    char *res_string, *desc_string;
+    uint8_t **res_string;
+    char *desc_string;
     char *ip_port_string = "192.168.100.100:80";
 
-    sess_msg_hdr = &sess_create_msg_hdr;
+    sess_msg_hdr                                    = &sess_create_msg_hdr;
+    sess_msg_hdr->outer_header.payload_len          = sizeof(sess_msg_hdr->inner_header.sess_hdr) + sizeof(sess_ipv4_paras);
     sess_msg_hdr->inner_header.sess_hdr.payload_len = sizeof(sess_ipv4_paras);
 
 
@@ -312,7 +320,7 @@ int strategy_msg_inject(BackendEngine *engine){
     sess_ipv4_paras.device_selection        = 0xFF;
     IPV4_PORT_STR_TO_TUPLE(ip_port_string, sess_ipv4_paras.dest_endpoint);
 
-    ret = scenario_msg_inject(engine, sess_msg_hdr, &sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, &res_string, res_string, desc_len);
+    ret = scenario_msg_inject(engine, sess_msg_hdr, &sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
     return ret;
 }
