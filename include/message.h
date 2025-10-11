@@ -116,13 +116,22 @@ union IPAddress {
 } while (0)
 
 
+/**
+ * @brief Proxy message header structure
+ * 
+ * This structure defines the header format for proxy messages, containing metadata 
+ * such as protocol version, message type, session identifiers, and payload length.
+ */
 typedef struct {
-    uint8_t     version;             // Protocol version, not used currently, set to 1.
-    uint8_t     proxy_msg_type;      // Proxy message type, divided into device message (0), strategy message (1), session message (2), and data message (3).
-    uint16_t    frontend_sess_id;   // Frontend session ID, used to match frontend and backend sessions in the frontend proxy.
-    uint16_t    backend_sess_id;    // Backend session ID, used to match frontend and backend sessions in the backend proxy.
-    uint16_t    payload_len;        // Payload length, range from 1 to 4088, ensure it does not exceed one physical page.
+    uint8_t     version;             // Protocol version. Currently unused, set to 1.
+    uint8_t     proxy_msg_type;      // Proxy message type. Possible values: device message (0), strategy message (1), session message (2), data message (3).
+    uint16_t    frontend_sess_id;    // Frontend session ID. Used for matching frontend and backend sessions in the frontend proxy.
+    uint16_t    backend_sess_id;     // Backend session ID. Used for matching frontend and backend sessions in the backend proxy.
+    uint16_t    payload_len;         // Payload length in bytes. Valid range: 1 to 4088. Must not exceed one physical page.
 } __attribute__((packed)) ProxyMsgHeader;
+
+
+
 
 /**
  * Calculate the total memory space occupied by the complete message described by ProxyMsgHeader
@@ -159,12 +168,18 @@ typedef enum {
 } ActionType;
 
 
+/**
+ * @brief Device message header structure
+ * 
+ * This structure defines the header format for device-related messages, containing metadata such as
+ * protocol version, message type, message identifier, signaling type, and payload length.
+ */
 typedef struct {
-    uint16_t version;        // Protocol version, not used currently, set to 1.
-    uint16_t msg_type;       // Message type, values: Disable (0), Enable (1), Query (2)
-    uint16_t msg_id;         // Message ID, used to match commands and responses
-    uint16_t action_type;    // Signaling type: Command (0) / Response (1) 
-    uint16_t payload_len;    // Payload length
+    uint16_t version;        // Protocol version. Currently unused; set to 1.
+    uint16_t msg_type;       // Message type. Possible values: Disable (0), Enable (1), Query (2)
+    uint16_t msg_id;         // Message ID. Used to match commands with their corresponding responses.
+    uint16_t action_type;    // Signaling type. Possible values: Command (0), Response (1)
+    uint16_t payload_len;    // Payload length in bytes.
 } __attribute__((packed)) DevMsgHeader;
 
 
@@ -180,6 +195,30 @@ typedef enum {
      (dev_msg_type) == DEV_MSG_ENABLE || \
      (dev_msg_type) == DEV_MSG_QUERY)
 
+
+/**
+ * @brief Device message mask structure
+ * 
+ * Used to store the content of the "Enable"/"Disable" commands, specifically representing the mask 
+ * that indicates which devices are selected for enabling or disabling.
+ */
+typedef struct {
+    uint16_t data;   // Content of the "Enable"/"Disable" commands, representing the mask that indicates which devices are selected to enable or disable.
+} __attribute__((packed)) DevMsgMask;
+
+
+
+/**
+ * @brief Device message report structure
+ * 
+ * This structure contains the response data for the "Query" command, including 
+ * status information, error details, and the active device mask.
+ */
+typedef struct {
+    uint8_t status;    // Status code indicating the overall result of the operation
+    uint8_t error;     // Error code providing specific details about any errors encountered
+    uint16_t data;     // Response data from the "Query" command, returning the mask indicating which devices are active
+} __attribute__((packed)) DevMsgReport;
 
 
 /**
@@ -222,19 +261,19 @@ typedef enum {
 #define DEV_MSG_HEADER_PAYLOAD_LEN(header) \
     DEV_MSG_PAYLOAD_LEN((header)->msg_type, (header)->action_type)
 
-typedef struct {
-    uint8_t status;    // Status code
-    uint8_t error;     // Error code
-    uint8_t data[0];   // Placeholder. data points to the response of the "Query" command, which returns the device code.
-} __attribute__((packed)) DevMsgReport;
 
-
+/**
+ * @brief Strategy message header structure
+ * 
+ * This structure defines the header format for strategy-related messages, containing metadata such as
+ * protocol version, message type, message identifier, signaling type, and payload length.
+ */
 typedef struct {
-    uint16_t version;       // Protocol version, not in use currently, set to 1
-    uint16_t msg_type;      // Message type, values: Set (0), Query (1)
-    uint16_t msg_id;        // Message ID, used to match commands and responses
-    uint16_t action_type;   // Signaling type: Command (0) / Response (1) 
-    uint16_t payload_len;   // Payload length
+    uint16_t version;       // Protocol version. Currently unused; set to 1.
+    uint16_t msg_type;      // Message type. Possible values: Set (0), Query (1)
+    uint16_t msg_id;        // Message ID. Used to match commands with their corresponding responses.
+    uint16_t action_type;   // Signaling type. Possible values: Command (0), Response (1)
+    uint16_t payload_len;   // Payload length in bytes.
 } __attribute__((packed)) StrgyMsgHeader;
 
 
@@ -286,42 +325,74 @@ typedef enum {
     DEV_MSG_PAYLOAD_LEN((header)->msg_type, (header)->action_type)
 
 
+/**
+ * @brief Strategy command enable message structure
+ * 
+ * This structure defines the format for strategy command enable messages, specifically containing
+ * parameters required when enabling a specified strategy. It is used to传递 configuration details
+ * for strategy activation.
+ */
 typedef struct {
-    StrgyMsgHeader  header;   // Strategy message header
-    uint16_t        cmd_type;       // Command type. 0: Enable specified strategy; 1: Query current strategy
-    uint16_t        strat_para;     //  Strategy parameter (0: Round Robin; 1: Select device with highest current available bandwidth; 2: Select device with lowest current latency)
-} __attribute__((packed))StrgyCMDMessage;
+    uint16_t        strgy_para;    // Strategy parameter. Possible values: 0 (Round Robin), 1 (Select device with highest current available bandwidth), 2 (Select device with lowest current latency)
+} __attribute__((packed)) StrgyCMDEnableMessage;
 
 
+/**
+ * @brief Strategy message report structure
+ * 
+ * This structure contains the response data for strategy-related "Query" commands, including
+ * a status code, error code, and the active strategy information returned by the query.
+ */
 typedef struct {
-    uint8_t status;     // Status code
-    uint8_t error;      // Error code
-    uint8_t data[];     //  Placeholder. data points to the response of the "Query" command and returns the active strategy code.
-} __attribute__((packed))StrgyMsgReport;
+    uint8_t    status;      // Status code indicating the overall result of the strategy operation (e.g., success or failure)
+    uint8_t    error;       // Error code providing specific details if the strategy operation encountered an error (0 for no error)
+    uint16_t   data[];      // Flexible array member acting as a placeholder. Stores the response data from the "Query" command, specifically the active strategy code.
+} __attribute__((packed)) StrgyMsgReport;
 
 
+/**
+ * @brief Session message header structure
+ * 
+ * This structure defines the header format for session-related messages, containing metadata such as
+ * protocol version, message type, signaling type, IP version, and payload length. It is used for
+ * managing session operations like creation and closure.
+ */
 typedef struct {
-    uint16_t version;        // Protocol version, not in use currently, set to 1
-    uint16_t msg_type;       // Message type, values: Create (0), Close (1)
-    uint16_t action_type;    // Signaling type: Command (0) / Response (1)
-    uint16_t ip_version;     // IP version: SESS_IPV4_PROTO (4) / SESS_IPV6_PROTO(6)
-    uint16_t payload_len;    // Payload length
+    uint16_t   version;        // Protocol version. Currently unused; set to 1.
+    uint16_t   msg_type;       // Message type. Possible values: Create (0), Close (1)
+    uint16_t   action_type;    // Signaling type. Possible values: Command (0), Response (1)
+    uint16_t   ip_version;     // IP version. Possible values: SESS_IPV4_PROTO (4), SESS_IPV6_PROTO (6)
+    uint16_t   payload_len;    // Payload length in bytes.
 } __attribute__((packed)) SessMsgHeader;
 
 
+
+/**
+ * @brief IPv4 session parameter structure
+ * 
+ * This structure contains parameters required for establishing or managing an IPv4-based session,
+ * including device identification, transport protocol, IPv4 address, and corresponding port information.
+ */
 typedef struct{
-    uint16_t            dev_id;
-    uint16_t            trans_proto;
-    struct IPv4Address  ipv4_addr;
-    uint16_t            port;
+    uint16_t            dev_id;         // Device identifier, uniquely identifies the target device in the session
+    uint16_t            trans_proto;    // Transport protocol used for the session (e.g., TCP, UDP)
+    struct IPv4Address  ipv4_addr;      // IPv4 address structure containing the device's IPv4 address information
+    uint16_t            port;           // Port number associated with the IPv4 address for the session
 } __attribute__((packed)) SessParaIPv4;
 
 
+
+/**
+ * @brief IPv6 session parameter structure
+ * 
+ * This structure contains parameters required for establishing or managing an IPv6-based session,
+ * including device identification, transport protocol, IPv6 address, and corresponding port information.
+ */
 typedef struct{
-    uint16_t            dev_id;
-    uint16_t            trans_proto;
-    struct IPv6Address  ipv6_addr;
-    uint16_t            port;
+    uint16_t            dev_id;         // Device identifier, uniquely identifies the target device in the session
+    uint16_t            trans_proto;    // Transport protocol used for the session (e.g., TCP, UDP)
+    struct IPv6Address  ipv6_addr;      // IPv6 address structure containing the device's IPv6 address information
+    uint16_t            port;           // Port number associated with the IPv6 address for the session
 } __attribute__((packed)) SessParaIPv6;
 
 

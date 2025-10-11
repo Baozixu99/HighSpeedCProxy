@@ -104,13 +104,11 @@ int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
 
 
 
-
-
-int session_msg_inject(BackendEngine *engine);
+int device_msg_inject(BackendEngine *engine);
 
 int strategy_msg_inject(BackendEngine *engine);
 
-int device_msg_inject(BackendEngine *engine);
+int session_msg_inject(BackendEngine *engine);
 
 int data_msg_inject(BackendEngine *engine);
 

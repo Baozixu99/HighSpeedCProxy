@@ -48,37 +48,37 @@ const size_t g_result_msg_supported_count = sizeof(g_result_msg_supported_values
 
 GeneralProxyMsgHeader dev_enable_msg_hdr = {
     .outer_header = {
-        .version          = PROXY_PROTO_VERSION_1,        // Protocol version, fixed to 1 as specified
-        .proxy_msg_type   = PROXY_MSG_TYPE_DEV,           // Proxy message type: Device message (0)
-        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,    // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
-        .backend_sess_id  = BACKEND_ADMIN_SESSION_ID,     // Backend admin session ID, used to match backend-backend sessions in frontend proxy
-        .payload_len = 0                                  // Payload length, set according to actual payload
+        .version            = PROXY_PROTO_VERSION_1,                       // Protocol version, fixed to 1 as specified
+        .proxy_msg_type     = PROXY_MSG_TYPE_DEV,                          // Proxy message type: Device message (0)
+        .frontend_sess_id   = FRONTEND_ADMIN_SESSION_ID,                   // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id    = BACKEND_ADMIN_SESSION_ID,                    // Backend admin session ID, used to match backend-backend sessions in frontend proxy
+        .payload_len        = sizeof(DevMsgHeader) + sizeof(DevMsgMask)    // Payload length, set according to actual payload
     },
-    .inner_header.dev_hdr = {                       // Use device message inner header
-        .version = PROXY_PROTO_DEV_VERSION_1,       // Protocol version, fixed to 1
-        .msg_type = 1,                              // Message type: Enable (1)
-        .msg_id = 0,                                // Message ID, used for command-response matching
-        .action_type = 0,                           // Signaling type: Command (0)
-        .payload_len = 0                            // Payload length, set according to actual payload
+    .inner_header.dev_hdr   = {                                            // Use device message inner header
+        .version            = PROXY_PROTO_DEV_VERSION_1,                   // Protocol version, fixed to 1
+        .msg_type           = DEV_MSG_ENABLE,                              // Message type: Enable (1)
+        .msg_id             = 0,                                           // Message ID, used for command-response matching
+        .action_type        = ACTION_TYPE_COMMAND,                         // Signaling type: Command (0)
+        .payload_len        = sizeof(DevMsgMask)                           // Payload length, set according to actual payload
     }
 };
 
 
-// Strategy query message header
-GeneralProxyMsgHeader strgy_query_msg_hdr = {
+// Strategy set message header
+GeneralProxyMsgHeader strgy_set_msg_hdr = {
     .outer_header = {
-        .version          = PROXY_PROTO_VERSION_1,        // Protocol version, fixed to 1 as specified
-        .proxy_msg_type   = PROXY_MSG_TYPE_STRGY,         // Proxy message type: Strategy message (1)
-        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,    // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
-        .backend_sess_id  = BACKEND_ADMIN_SESSION_ID,     // Backend admin session ID, used to match backend-backend sessions in frontend proxy
-        .payload_len = 0                                  // Payload length, set according to actual payload
+        .version            = PROXY_PROTO_VERSION_1,                                    // Protocol version, fixed to 1 as specified
+        .proxy_msg_type     = PROXY_MSG_TYPE_STRGY,                                     // Proxy message type: Strategy message (1)
+        .frontend_sess_id   = FRONTEND_ADMIN_SESSION_ID,                                // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id    = BACKEND_ADMIN_SESSION_ID,                                 // Backend admin session ID, used to match backend-backend sessions in frontend proxy
+        .payload_len        = sizeof(StrgyMsgHeader) + sizeof(StrgyCMDEnableMessage)    // Payload length, set according to actual payload
     },
-    .inner_header.strgy_hdr = {                     // Use strategy message inner header
-        .version = PROXY_PROTO_STRGY_VERSION_1,     // Protocol version, fixed to 1
-        .msg_type = 1,                              // Message type: Query (1)
-        .msg_id = 0,                                // Message ID, used for command-response matching
-        .action_type = 0,                           // Signaling type: Command (0)
-        .payload_len = 0                            // Payload length, set according to actual payload
+    .inner_header.strgy_hdr = {                                                         // Use strategy message inner header
+        .version            = PROXY_PROTO_STRGY_VERSION_1,                              // Protocol version, fixed to 1
+        .msg_type           = STRGY_MSG_SET,                                            // Message type: Set (0)
+        .msg_id             = 0,                                                        // Message ID, used for command-response matching
+        .action_type        = ACTION_TYPE_COMMAND,                                      // Signaling type: Command (0)
+        .payload_len        = sizeof(StrgyCMDEnableMessage)                             // Payload length, set according to actual payload
     }
 };
 
@@ -86,18 +86,18 @@ GeneralProxyMsgHeader strgy_query_msg_hdr = {
 // Session create message header
 GeneralProxyMsgHeader sess_create_msg_hdr = {
     .outer_header = {
-        .version          = PROXY_PROTO_VERSION_1,           // Protocol version, fixed to 1 as specified
-        .proxy_msg_type   = PROXY_MSG_TYPE_SESS,             // Proxy message type: Session message (2)
-        .frontend_sess_id = FRONTEND_ADMIN_SESSION_ID,       // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
-        .backend_sess_id  = BACKEND_HANDOVER_SESSION_ID,     // Backend admin session ID, set to BACKEND_HANDOVER_SESSION_ID to trigger the handover procedure 
-        .payload_len = 0                                     // Payload length, set according to actual payload
+        .version            = PROXY_PROTO_VERSION_1,                            // Protocol version, fixed to 1 as specified
+        .proxy_msg_type     = PROXY_MSG_TYPE_SESS,                              // Proxy message type: Session message (2)
+        .frontend_sess_id   = FRONTEND_ADMIN_SESSION_ID,                        // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id    = BACKEND_HANDOVER_SESSION_ID,                      // Backend admin session ID, set to BACKEND_HANDOVER_SESSION_ID to trigger the handover procedure 
+        .payload_len        = sizeof(SessMsgHeader) + sizeof(SessIPv4Params)    // Payload length, set according to actual payload
     },
-    .inner_header.sess_hdr = {                               // Use session message inner header
-        .version = PROXY_PROTO_SESS_VERSION_1,               // Protocol version, fixed to 1
-        .msg_type = 0,                                       // Message type: Create (0)
-        .action_type = 0,                                    // Signaling type: Command (0)
-        .ip_version = 4,                                     // IP version: IPv4 (4), can be changed to 6 if needed
-        .payload_len = sizeof(SessIPv4Params)                // Payload length, set according to actual payload
+    .inner_header.sess_hdr  = {                                                 // Use session message inner header
+        .version            = PROXY_PROTO_SESS_VERSION_1,                       // Protocol version, fixed to 1
+        .msg_type           = SESS_MSG_CREATE,                                  // Message type: Create (0)
+        .action_type        = ACTION_TYPE_COMMAND,                              // Signaling type: Command (0)
+        .ip_version         = SESS_IPV4_PROTO,                                  // IP version: IPv4 (4), can be changed to 6 if needed
+        .payload_len        = sizeof(SessIPv4Params)                            // Payload length, set according to actual payload
     }
 };
 
@@ -270,11 +270,17 @@ int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
  */
 int device_msg_inject(BackendEngine *engine){
     GeneralProxyMsgHeader *dev_msg_hdr;
-    int ret;
+    DevMsgMask            dev_msg_mask;
+    int                   ret, desc_len = 100;
+    uint8_t               **res_string;
+    char                  *desc_string;
 
-    dev_msg_hdr = &dev_enable_msg_hdr;
+    dev_msg_hdr          = &dev_enable_msg_hdr;
+    dev_msg_mask.data    = 0xFF;
 
-    return BACKEND_PROXY_PROCESS_OK;
+    ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_mask, sizeof(dev_msg_mask), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+
+    return ret;
 }
 
 
@@ -289,7 +295,18 @@ int device_msg_inject(BackendEngine *engine){
  *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
  */
 int strategy_msg_inject(BackendEngine *engine){
-    return BACKEND_PROXY_PROCESS_OK;
+    GeneralProxyMsgHeader  *strgy_msg_hdr;
+    StrgyCMDEnableMessage  strgy;
+    int                    ret, desc_len = 100;
+    uint8_t                **res_string;
+    char                   *desc_string;
+
+    strgy_msg_hdr          = &strgy_set_msg_hdr;
+    strgy.strgy_para       = 0;
+
+    ret = scenario_msg_inject(engine, strgy_msg_hdr, &strgy, sizeof(strgy), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+
+    return ret;
 }
 
 
@@ -311,10 +328,7 @@ int session_msg_inject(BackendEngine *engine){
     char *desc_string;
     char *ip_port_string = "192.168.100.100:80";
 
-    sess_msg_hdr                                    = &sess_create_msg_hdr;
-    sess_msg_hdr->outer_header.payload_len          = sizeof(sess_msg_hdr->inner_header.sess_hdr) + sizeof(sess_ipv4_paras);
-    sess_msg_hdr->inner_header.sess_hdr.payload_len = sizeof(sess_ipv4_paras);
-
+    sess_msg_hdr                            = &sess_create_msg_hdr;
 
     sess_ipv4_paras.transport_layer_proto   = SESS_UDP_PROTO;
     sess_ipv4_paras.device_selection        = 0xFF;
