@@ -64,7 +64,7 @@ int main(int argc, char** argv)
     print_pool(high_speed_pool);
     printf("hello!\n");
 
-    // engine_init();
+    engine_init();
     // run();
     return 0;
 }

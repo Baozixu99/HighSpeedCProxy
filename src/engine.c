@@ -340,8 +340,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         goto hs_net_error;
     }
 
-//    ini = iniparser_load(HS_NET_DEV_CFG);
-    ini = iniparser_load("hs_net_dev.ini");
+    ini = iniparser_load(HS_NET_DEV_CFG);
     if (NULL == ini) {
         error_print("engine_init_hs_net_dev() failed: opening INI file failed!");
         goto hs_net_error;
@@ -356,6 +355,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         goto hs_net_error;
     }
 
+    printf("dev_num = %d\n", dev_num);
 
     if(dev_num > MAX_HS_DEV_NUM){
         error_print("engine_init_hs_net_dev() failed: the number of high-speed network device exceeds MAX_HS_DEV_NUM!\n");
@@ -369,6 +369,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     for(; cnt < dev_num; cnt++){
         dev_name = iniparser_getsecname(ini, cnt);
         dev_name_len = strlen(dev_name);
+        printf("dev_name = %s, dev_name_len = %d\n", dev_name, dev_name_len);
 /*
  * Make sure the length of the device name in the INI file does not exceed MAX_DEV_NAME.
  */
@@ -381,8 +382,13 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         snprintf(hs_dev->name, dev_name_len, "%s", dev_name);
 
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        snprintf(dev_pro_item, dev_name_len + strlen("ip_addr"), "%s:ip_addr", dev_name);
+        snprintf(dev_pro_item, dev_name_len + strlen("ip_addr") + 2, "%s:ip_addr", dev_name);
+        printf("dev_pro_item = %s, dev_name_len+ strlen(ip_addr) = %d\n", dev_pro_item, dev_name_len + strlen("ip_addr"));
+
         ip_addr = iniparser_getstring(ini, dev_pro_item, NULL);
+
+        printf("ip_addr = %s\n", ip_addr);
+
         if(NULL == ip_addr){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device without an IP address configured in the INI file!\n");
             goto hs_net_error;
@@ -412,7 +418,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  * If valid, convert it to an integer.
  */
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        snprintf(dev_pro_item, dev_name_len + strlen("dev_id"), "%s:dev_id", dev_name);
+        snprintf(dev_pro_item, dev_name_len + strlen("dev_id") + 2, "%s:dev_id", dev_name);
         dev_id = iniparser_getint(ini, dev_pro_item, -1);
 
         if(-1 == dev_id){
@@ -421,6 +427,8 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             goto hs_net_error;
         }
 
+        printf("dev_id = %d\n", dev_id);
+
         hs_dev->dev_id = dev_id;
 
 /*
@@ -428,7 +436,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  * If valid, convert it to an integer.
  */
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        snprintf(dev_pro_item, dev_name_len + strlen("dev_type"), "%s:dev_type", dev_name);
+        snprintf(dev_pro_item, dev_name_len + strlen("dev_type") + 2, "%s:dev_type", dev_name);
         dev_type = iniparser_getint(ini, dev_pro_item, -1);
 
         if(!IS_VALID_HS_NET_DEV_TYPE(dev_type)){
@@ -436,6 +444,8 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
+
+        
 
         hs_dev->dev_type = dev_type;
 /*
@@ -849,54 +859,54 @@ eng_run_step1:
 /* 
  * Acquire access lock for the RX queue.
  */
-    ret = SHARED_MEM_QUEUE_LOCK(rx_queue);
+        ret = SHARED_MEM_QUEUE_LOCK(rx_queue);
 
 /* 
  * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid lock handle, shared memory pool corruption)
  * Failed to acquire the lock; print error message and exit the current flow.
  */
-    if(BACKEND_PROXY_PROCESS_ERROR == ret){
-        error_print("engine_run failed: failed to get the lock of the RX queue!");
-        return;
-    }
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            error_print("engine_run failed: failed to get the lock of the RX queue!");
+            return;
+        }
 
 /* 
  * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates lock acquisition timed out (temporary unavailability, e.g., lock held by another process)
  * No error occurred; jump to eng_run_step3 to retry or proceed with alternative logic.
  */
-    if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-        goto eng_run_step3;
-    }
+        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            goto eng_run_step3;
+        }
 
-    do{
+        do{
     /*
      * Retrieve data from the RX queue.
      */
-        ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+            ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
 
     /*
      * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid queue handle, shared memory access exception, etc.)
      * Processing cannot continue; print error message and return directly.
      */
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
-            error_print("engine_run failed: failed to get data from RX queue!");
-            return;
-        }
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                error_print("engine_run failed: failed to get data from RX queue!");
+                return;
+            }
 
     /*
      * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates temporary inability to retrieve data (e.g., empty queue, resource temporarily occupied, etc., non-error state)     
      * No error reporting needed; jump to eng_run_step2 to execute the next process.
      */
-        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-            goto eng_run_step2;
-        }
+            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+                goto eng_run_step2;
+            }
 
     /*
      * Process the proxy message.
      */
-        backend_proxy_msg_process(proxy_msg);
+            backend_proxy_msg_process(proxy_msg);
 
-    }while(BACKEND_PROXY_PROCESS_OK == ret);
+        }while(BACKEND_PROXY_PROCESS_OK == ret);
 
 /*
  * STEP (2)
@@ -906,9 +916,9 @@ eng_run_step2:
 /*
  * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
  */
-    BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
+        BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
 
-    TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
+        TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
 /*
  * Call the data_process_f2b function pointer in the session pool's operation set (sess_pool_ops), which attempts to send the front-to-end to back-end data maintained by the 
  * current session (cur_sess) via the socket maintained by this session.
@@ -918,28 +928,28 @@ eng_run_step2:
  * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been sent, and no errors occurred.
  * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
  */
-        ret = sess_pool_ops->data_process_f2b(cur_sess);
+            ret = sess_pool_ops->data_process_f2b(cur_sess);
 
 /*
  * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the front-to-back (F2B) message queue have been sent via the session's socket. 
  * Such sessions should be detached from the F2B active queue, and their "linked to queue" state flag should be cleared.
  */
-        if(BACKEND_PROXY_PROCESS_OK == ret){
-            TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
-            cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
-        }
+            if(BACKEND_PROXY_PROCESS_OK == ret){
+                TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+                cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+            }
 /*
  * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
  * detached from the front-to-end active queue, but also be removed from the session pool.
  */
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
-            TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
-            sess_pool_ops->delete_sess(sess_pool, cur_sess);
-        }
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+                sess_pool_ops->delete_sess(sess_pool, cur_sess);
+            }
  /*
   * Nothing to do when not all data has been sent and there are no errors.
   */
-    }
+        }
 
 /*
  * Complete data reception from the shared memory region for this operation.
@@ -956,7 +966,7 @@ eng_run_step3:
  * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
  * (2) Mark the sessions that have received data as active back-to-front active sessions.
  */
-    poller_run(eng, net_poller);
+        poller_run(eng, net_poller);
 
 /*
  * STEP (4)
@@ -969,20 +979,20 @@ eng_run_step4:
 /* 
  * Acquire access lock for the TX queue.
  */
-    ret = SHARED_MEM_QUEUE_LOCK(tx_queue);
+        ret = SHARED_MEM_QUEUE_LOCK(tx_queue);
 
 /* 
  * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid lock handle, shared memory pool corruption)
  * Failed to acquire the lock; print error message and exit the current flow.
  */
-    if(BACKEND_PROXY_PROCESS_ERROR == ret){
-        error_print("engine_run failed: failed to get the lock of the TX queue!");
-        return;
-    }
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            error_print("engine_run failed: failed to get the lock of the TX queue!");
+            return;
+        }
 
-    BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
+        BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
 
-    TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
+        TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
 /*
  * Call the data_process_b2f function pointer from the session pool's operation set (sess_pool_ops). This function attempts to send the back-to-front 
  * (B2F) data maintained by the current session (cur_sess) via the shared-memory TX queue.
@@ -992,35 +1002,35 @@ eng_run_step4:
  * - BACKEND_PROXY_PROCESS_AGAIN: Not all data was sent, and no errors occurred.
  * - BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
  */
-        ret = sess_pool_ops->data_process_b2f(cur_sess);
+            ret = sess_pool_ops->data_process_b2f(cur_sess);
 
 /*
  * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-front (B2F) message queue have been successfully
  * sent via the shared memory TX queue. Such sessions should be detached from the B2F active queue.
  */
-        if(BACKEND_PROXY_PROCESS_OK == ret){
-            TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
-            cur_sess->state_b2f &= ~BACKEND_SESS_LINKED_TO_QUEUE;
-        }
+            if(BACKEND_PROXY_PROCESS_OK == ret){
+                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
+                cur_sess->state_b2f &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+            }
 /*
  * If data_process_b2f returns BACKEND_PROXY_PROCESS_ERROR, an error occurred while attempting to send data via the session's socket. Such sessions need to 
  * be both detached from the B2F active queue and removed from the session pool.
  */
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
-            TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_f2b);
-            sess_pool_ops->delete_sess(sess_pool, cur_sess);
-        }
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_f2b);
+                sess_pool_ops->delete_sess(sess_pool, cur_sess);
+            }
 /*
  * If data_process_b2f returns BACKEND_PROXY_PROCESS_AGAIN, the shared-memory TX queue is full (not all data sent, no errors). Sending to the TX queue should 
  * stop, and ownership of the shared-memory TX queue should be transferred to the front-end. The front-end will then read this data from its RX queue, which
  * maps to the local TX queue (queue mapping: local TX <---> front-end RX).
  */
-         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-            break;
+            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+                break;
+            }
         }
-    }
 
-    SHARED_MEM_QUEUE_UNLOCK(tx_queue);
+        SHARED_MEM_QUEUE_UNLOCK(tx_queue);
 /*
  * Go back to STEP 1.
  */
