@@ -355,7 +355,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         goto hs_net_error;
     }
 
-    printf("dev_num = %d\n", dev_num);
+    utils_print("dev_num = %d\n", dev_num);
 
     if(dev_num > MAX_HS_DEV_NUM){
         error_print("engine_init_hs_net_dev() failed: the number of high-speed network device exceeds MAX_HS_DEV_NUM!\n");
@@ -369,7 +369,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     for(; cnt < dev_num; cnt++){
         dev_name = iniparser_getsecname(ini, cnt);
         dev_name_len = strlen(dev_name);
-        printf("dev_name = %s, dev_name_len = %d\n", dev_name, dev_name_len);
+        utils_print("dev_name = %s, dev_name_len = %d\n", dev_name, dev_name_len);
 /*
  * Make sure the length of the device name in the INI file does not exceed MAX_DEV_NAME.
  */
@@ -383,11 +383,11 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
         snprintf(dev_pro_item, dev_name_len + strlen("ip_addr") + 2, "%s:ip_addr", dev_name);
-        printf("dev_pro_item = %s, dev_name_len+ strlen(ip_addr) = %d\n", dev_pro_item, dev_name_len + strlen("ip_addr"));
+        utils_print("dev_pro_item = %s, dev_name_len+ strlen(ip_addr) = %d\n", dev_pro_item, dev_name_len + strlen("ip_addr"));
 
         ip_addr = iniparser_getstring(ini, dev_pro_item, NULL);
 
-        printf("ip_addr = %s\n", ip_addr);
+        utils_print("ip_addr = %s\n", ip_addr);
 
         if(NULL == ip_addr){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device without an IP address configured in the INI file!\n");
@@ -427,7 +427,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             goto hs_net_error;
         }
 
-        printf("dev_id = %d\n", dev_id);
+        utils_print("dev_id = %d\n", dev_id);
 
         hs_dev->dev_id = dev_id;
 
@@ -453,8 +453,10 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  * If valid, convert it to an integer.
  */
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        snprintf(dev_pro_item, dev_name_len + strlen("dev_status"), "%s:dev_status", dev_name);
+        snprintf(dev_pro_item, dev_name_len + strlen("dev_status") + 2, "%s:dev_status", dev_name);
         dev_status = iniparser_getint(ini, dev_pro_item, -1);
+
+        utils_print("dev_status = %d\n", dev_status);
 
         if(!IS_VALID_HS_NET_DEV_STATUS(dev_status)){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the dev status is either incorrectly configured \
@@ -472,13 +474,15 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  * If valid, convert it to an integer.
  */
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        snprintf(dev_pro_item, dev_name_len + strlen("ns_id"), "%s:ns_id", dev_name);
+        snprintf(dev_pro_item, dev_name_len + strlen("ns_id") + 2, "%s:ns_id", dev_name);
         ns_id = iniparser_getint(ini, dev_pro_item, -1);
         if(-1 == ns_id){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the dev ID is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
+
+        utils_print("ns_id = %d\n", ns_id);
 
         hs_dev->ns_id = ns_id;
 
@@ -662,12 +666,16 @@ void engine_init()
         return;
     }
 
+    utils_print("engine_init_sess_pool() succeeded!\n");
+
     ret = engine_init_shared_mem_pool(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_shared_mem_pool() failed!");
         return;
     }
+
+    utils_print("engine_init_shared_mem_pool() succeeded!\n");
 
     ret = engine_init_shared_mem_pool_lock(p_g_bk_eng);
 
@@ -676,6 +684,8 @@ void engine_init()
         return;
     }
 
+    utils_print("engine_init_shared_mem_pool_lock() succeeded!\n");
+
     ret = engine_init_shared_mem_queue(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
@@ -683,12 +693,16 @@ void engine_init()
         return;
     }
 
+    utils_print("engine_init_shared_mem_queue() succeeded!\n");
+
     ret = engine_init_poller(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_poller() failed!");
         return;
     }
+
+    utils_print("engine_init_poller() succeeded!\n");
 }
 
 

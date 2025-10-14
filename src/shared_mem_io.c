@@ -68,7 +68,7 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPo
     }
 
     queue->pool         = pool;
-    queue->length       = 0;
+//    queue->length       = 0;
     queue->capacity     = max_elements;
     queue->block_size   = element_size;
 
@@ -109,7 +109,7 @@ int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const 
     // Initialize base members from configuration parameters
     queue->pool = config->pool;
     queue->phy_addr = config->phy_addr;
-    queue->virt_addr = config->virt_addr;
+    queue->virt_addr1 = config->virt_addr;
     queue->capacity = config->capacity;
     queue->block_size = config->block_size;
     
@@ -119,8 +119,8 @@ int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const 
     // Initialize queue to empty state
     queue->header = 0;                  // Start with head at initial position
     queue->tail = 0;                    // Start with tail at initial position
-    queue->length = 0;                  // No elements in empty queue
-    queue->surplus = config->capacity;  // All slots available initially
+//    queue->length = 0;                  // No elements in empty queue
+//    queue->surplus = config->capacity;  // All slots available initially
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -201,7 +201,7 @@ int shared_mem_pool_queue_send_oc(struct SharedMemoryPoolQueue *queue,
     }
 
     // Calculate target address in shared memory (write to header position)
-    base_addr = (uint8_t *)queue->virt_addr;
+    base_addr = (uint8_t *)queue->virt_addr1;
     
     // Perform one-copy operation to shared memory slot
     memcpy(base_addr + queue->header * queue->block_size, data, data_size);
@@ -257,7 +257,7 @@ int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
         return BACKEND_PROXY_PROCESS_AGAIN;
     }
 
-    base_addr = (uint8_t *)queue->virt_addr;
+    base_addr = (uint8_t *)queue->virt_addr1;
     *buffer   = base_addr + queue->tail * queue->block_size;
 
     SHMP_QUEUE_DEQUEUE(queue, ret);

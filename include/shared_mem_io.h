@@ -23,30 +23,47 @@ struct DequeNode{
     struct DequeNode                *next;
 };
 
+/**
+ * Enumeration of shared memory mapping modes, describing the continuity relationship between physical and logical addresses
+ */
+typedef enum {
+    SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH,                  // Physical addresses are contiguous, logical addresses are contiguous
+    SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL  // Physical addresses are contiguous, logical addresses are discrete
+} ShareMemMapMode;
+
+#define MAX_MAP_TABLE_ENTRY_COUNT         256
+
+/**
+ * When the map mode is SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL, the shared memory queue maintains a mapping table.
+ * This table contains a set of MapTableEntries to establish the mapping relationship between physical addresses and virtual addresses.
+ * 
+ * Mapping table entry: Describes a single mapping relationship between a virtual address and a physical address.
+ */
+typedef struct {
+    uint64_t virt_addr;  /* Virtual address */
+    uint64_t phy_addr;   /* Physical address */
+} MapTableEntry;
+
+
+
 
 
 /**
  * @brief FIFO queue (ring buffer implementation) based on SharedMemoryPool
- * 
  * A high-efficiency first-in-first-out (FIFO) queue implemented with a ring buffer structure,
  * which allocates memory from an associated shared memory pool. It is designed for inter-process
- * or inter-thread communication, with core parameters reflecting memory size and element quantity:
- * - `capacity` represents total allocated memory size for the queue
- * - `max_num_items` represents maximum number of elements (calculated as capacity/block_size)
- * - Ring buffer indexes (`header`/`tail`) manage element enqueue/dequeue efficiently
+ * or inter-thread communication, managing element enqueue/dequeue via ring buffer indexes
+ * and reflecting memory allocation details through core parameters.
  */
 struct SharedMemoryPoolQueue {
-    /* Pointer to the associated shared memory pool. All memory for the queue
-       (including control block and data blocks) is allocated from this pool. */
-    struct SharedMemoryPool *pool;
-
-    /* Physical address of the queue control block in shared memory.
-       Used for direct access across processes or between kernel and user spaces. */
-    uint64_t                phy_addr;
-
-    /* Virtual address of the queue control block in the current process.
-       Used for normal access to the queue's control structure. */
-    uint64_t                virt_addr;
+    /* 
+     * the memory-maping mode in Linux side. 
+     */
+    uint8_t                map_mode1;
+    /* 
+     * the memory-maping mode in microkernel-OS side. 
+     */
+    uint8_t                map_mode2;
 
     /* Head index of the ring buffer, pointing to the next element to be dequeued.
        Works with `tail` to maintain FIFO order. */
@@ -58,7 +75,7 @@ struct SharedMemoryPoolQueue {
 
     /* Current number of elements in the queue. Dynamically updated with
        enqueue (increment) and dequeue (decrement) operations. */
-    size_t                  length;
+ //   size_t                  length;
 
     /* Total memory size (in bytes) allocated to this queue from the shared memory pool.
        Determines the maximum storage space available for elements. */
@@ -70,12 +87,47 @@ struct SharedMemoryPoolQueue {
 
     /* Remaining memory size (in bytes) that can be used for enqueuing elements. Calculated as 
        (capacity - length * block_size), indicating available memory in the queue. */
-    size_t                  surplus;
+//    size_t                  surplus;
 
     /* Size (in bytes) of each element's memory block. All elements in the queue
        occupy a fixed size to simplify memory management and access. */
     size_t                  block_size;
-};
+    
+    /* 
+     * Physical address of the queue control block in shared memory.
+     * Used for direct access across processes or between kernel and user spaces. 
+     */
+    uint64_t                phy_addr;
+    /* 
+     * Virtual address of the queue control block in the Linux size.
+     * Valid when map_mode1 is SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH.
+     */
+    uint64_t                virt_addr1;
+    /* 
+     * Virtual address of the queue control block in the microkernel-OS size.
+     * Valid when map_mode2 is SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH
+     */
+    uint64_t                virt_addr2;
+    /*
+     * Address mapping table for the Linux side, storing up to MAX_MAP_TABLE_ENTRY_COUNT entries
+     * that map virtual addresses to physical addresses.
+     * 
+     * * Valid when map_mode1 is SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL.
+     */
+    MapTableEntry           table1[MAX_MAP_TABLE_ENTRY_COUNT];
+    /*
+     * Address mapping table for the microkernel-OS side, storing up to MAX_MAP_TABLE_ENTRY_COUNT entries
+     * that map virtual addresses to physical addresses.
+     * 
+     * Valid when map_mode2 is SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL.
+     */
+    MapTableEntry           table2[MAX_MAP_TABLE_ENTRY_COUNT];
+    /* 
+     * Pointer to the associated shared memory pool. All memory for the queue
+     * (including control block and data blocks) is allocated from this pool. 
+     */
+    struct SharedMemoryPool *pool;
+}__attribute__((packed));
 
 
 /**
@@ -266,7 +318,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
     if ((queue != NULL) && (addr_ptr != NULL)) { \
         uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->max_num_items; \
         if (_next_header != queue->tail) { \
-            *addr_ptr = (uintptr_t)(queue->virt_addr + queue->header * queue->block_size); \
+            *addr_ptr = (uintptr_t)(queue->virt_addr1 + queue->header * queue->block_size); \
             queue->header = _next_header; \
             _status = BACKEND_PROXY_PROCESS_OK; \
         } else { \
