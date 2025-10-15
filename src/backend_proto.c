@@ -951,15 +951,18 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
-        ret = SHM_POOL_QUEUE_HEAD_ALLOC(ring_buf, &mem_addr);
+        SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
 
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+        if(ERROR_SHARED_MEM_ADDR == mem_addr){
             error_print("build_proxy_general_message failed: shared memory FIFO queue is full, cannot allocate new block!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
         msg_buf         = (uint8_t *)mem_addr;
         *result_msg     = msg_buf;
+
+//        SHM_POOL_QUEUE_LOOKUP_VIRTADDR(ring_buf, 1, 1, &mem_addr);
+//        SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
     }
 /*
  * Fill the proxy message header.

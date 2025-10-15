@@ -89,7 +89,7 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPo
  * @return int Returns BACKEND_PROXY_PROCESS_OK if initialization succeeds; 
  *             Returns BACKEND_PROXY_PROCESS_ERROR if input parameters are invalid (NULL pointers)
  * 
- * @note Derived parameters (max_num_items, surplus) are calculated based on 
+ * @note Derived parameters (capacity, surplus) are calculated based on 
  *       capacity and block_size to ensure consistent queue state. Invalid inputs 
  *       prevent any modification to the queue instance.
  */
@@ -100,7 +100,7 @@ int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const 
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    // Validate block size is positive to avoid division by zero in max_num_items calculation
+    // Validate block size is positive to avoid division by zero in capacity calculation
     if(0 == config->block_size){
             error_print("shared_mem_pool_queue_initialize failed: block size should be a positive number!");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -114,7 +114,7 @@ int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const 
     queue->block_size = config->block_size;
     
     // Calculate maximum number of items (avoid division by zero)
-    queue->max_num_items = config->block_size;
+    queue->capacity = config->block_size;
     
     // Initialize queue to empty state
     queue->header = 0;                  // Start with head at initial position
@@ -195,7 +195,7 @@ int shared_mem_pool_queue_send_oc(struct SharedMemoryPoolQueue *queue,
      * Check if queue is full (next header position equals tail)
      * Queue uses header for writing and tail for reading: (header+1) % max == tail means full
      */
-    if ((queue->header + 1) % queue->max_num_items == queue->tail) {
+    if ((queue->header + 1) % queue->capacity == queue->tail) {
         error_print("shared_mem_pool_queue_send_oc: queue is full!");
         return BACKEND_PROXY_PROCESS_AGAIN;
     }

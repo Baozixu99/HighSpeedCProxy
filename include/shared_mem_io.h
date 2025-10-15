@@ -79,23 +79,23 @@ struct SharedMemoryPoolQueue {
 
     /* Total memory size (in bytes) allocated to this queue from the shared memory pool.
        Determines the maximum storage space available for elements. */
-    size_t                  capacity;
+    /* 
+     * Maximum number of elements the queue can hold, representing the upper limit of elements 
+     * based on allocated memory and element size. 
+     */
+    uint16_t                  capacity;
 
     /* Maximum number of elements the queue can hold. Calculated as (capacity / block_size),
        representing the upper limit of elements based on allocated memory and element size. */
-    size_t                  max_num_items;
-
-    /* Remaining memory size (in bytes) that can be used for enqueuing elements. Calculated as 
-       (capacity - length * block_size), indicating available memory in the queue. */
-//    size_t                  surplus;
+//    size_t                  max_num_items;
 
     /* Size (in bytes) of each element's memory block. All elements in the queue
        occupy a fixed size to simplify memory management and access. */
-    size_t                  block_size;
-    
-    /* 
+    uint16_t                  block_size;
+    /*
      * Physical address of the queue control block in shared memory.
-     * Used for direct access across processes or between kernel and user spaces. 
+     * Used for direct access across processes or between kernel and user spaces.
+     * Can also assist in spinlock/mutex synchronization during sharing processes.
      */
     uint64_t                phy_addr;
     /* 
@@ -158,7 +158,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * This macro implements the PUSH operation for SharedMemoryPoolQueue. It uses a do...while structure 
  * to ensure syntax compatibility and returns the operation result through the second parameter. 
  * The specific logic is as follows:
- * 1. Increment the header index; if it exceeds max_num_items, wrap around (circular nature)
+ * 1. Increment the header index; if it exceeds max_num_items(capacity), wrap around (circular nature)
  * 2. Check if the operation triggers a queue exception (header equals tail or out of bounds)
  * 3. If abnormal, roll back the header and set an error status; otherwise, set a success status
  * 
@@ -173,14 +173,14 @@ typedef struct SharedMemoryPoolQueueConfig_{
     /* Save original header for rollback in case of exception */ \
     uint16_t original_header = (queue)->header; \
     \
-    /* Update header: increment by 1, wrap around if exceeding max_num_items */ \
+    /* Update header: increment by 1, wrap around if exceeding capacity */ \
     (queue)->header++; \
-    if ((queue)->header >= (queue)->max_num_items) { \
-        (queue)->header -= (queue)->max_num_items; \
+    if ((queue)->header >= (queue)->capacity) { \
+        (queue)->header -= (queue)->capacity; \
     } \
     \
     /* Check for abnormal status: header conflicts with tail or out of bounds */ \
-    if ((queue)->header == (queue)->tail || (queue)->header >= (queue)->max_num_items) { \
+    if ((queue)->header == (queue)->tail || (queue)->header >= (queue)->capacity) { \
         /* Roll back header to pre-operation state */ \
         (queue)->header = original_header; \
         /* Set error result */ \
@@ -196,7 +196,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * It first verifies if the queue is empty before modifying any indices. The logic is:
  * 1. Check if queue is empty (tail equals header) - return error immediately if true
  * 2. Save original tail for rollback in case of subsequent errors
- * 3. Increment the tail index; if exceeding max_num_items, wrap around (circular nature)
+ * 3. Increment the tail index; if exceeding capacity, wrap around (circular nature)
  * 4. Check for out-of-bounds error; rollback and return error if detected
  * 5. Return success status if all operations complete normally
  * 
@@ -218,13 +218,13 @@ typedef struct SharedMemoryPoolQueueConfig_{
         /* Update tail: increment by 1 */ \
         (queue)->tail++; \
         \
-        /* Handle wrap-around if exceeding max_num_items */ \
-        if ((queue)->tail >= (queue)->max_num_items) { \
-            (queue)->tail -= (queue)->max_num_items; \
+        /* Handle wrap-around if exceeding capacity */ \
+        if ((queue)->tail >= (queue)->capacity) { \
+            (queue)->tail -= (queue)->capacity; \
         } \
         \
         /* Check for out-of-bounds error */ \
-        if ((queue)->tail >= (queue)->max_num_items) { \
+        if ((queue)->tail >= (queue)->capacity) { \
             /* Roll back tail to pre-operation state */ \
             (queue)->tail = original_tail; \
             (result) = BACKEND_PROXY_PROCESS_ERROR; \
@@ -244,7 +244,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * @return uint64_t Virtual address of the element at header position
  */
 #define SHMP_QUEUE_HEADER_VIRT_ADDR(queue) \
-    ((uint64_t)(queue)->virt_addr + (uint64_t)(queue)->header * (uint64_t)(queue)->block_size)
+    ((uint64_t)(queue)->virt_addr + (uint64_t)((queue)->header + 1) * (uint64_t)(queue)->block_size)
 
 
 /**
@@ -258,7 +258,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * @return uint64_t Virtual address of the position at tail index
  */
 #define SHMP_QUEUE_TAIL_VIRT_ADDR(queue) \
-    ((uint64_t)(queue)->virt_addr + (uint64_t)(queue)->tail * (uint64_t)(queue)->block_size)
+    ((uint64_t)(queue)->virt_addr + (uint64_t)((queue)->tail + 1) * (uint64_t)(queue)->block_size)
 
 
 /**
@@ -267,7 +267,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * Computes the total memory occupied by elements in the queue using header and tail indices,
  * without relying on the length field. Follows circular queue logic:
  * - When tail >= header: used elements = tail - header
- * - When tail < header: used elements = (max_num_items - header) + tail
+ * - When tail < header: used elements = (capacity - header) + tail
  * Total used memory is then elements count multiplied by block size.
  * 
  * @param queue Pointer to the SharedMemoryPoolQueue structure
@@ -277,7 +277,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
     ((size_t)( \
         ((queue)->tail >= (queue)->header) ? \
         ((queue)->tail - (queue)->header) : \
-        ((queue)->max_num_items - (queue)->header + (queue)->tail) \
+        ((queue)->capacity - (queue)->header + (queue)->tail) \
     ) * (size_t)(queue)->block_size)
 
 
@@ -285,8 +285,8 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * @brief Macro to calculate surplus (available) memory in the shared memory queue
  * 
  * Implements a two-step internal calculation:
- * 1. First compute the number of available slots using header, tail and max capacity:
- *    - When tail >= header: surplus slots = max_num_items - (tail - header)
+ * 1. First compute the number of available slots using header, tail and capacity:
+ *    - When tail >= header: surplus slots = capacity - (tail - header)
  *    - When tail < header: surplus slots = header - tail
  * 2. Then multiply available slots by block size to get surplus memory in bytes
  * 
@@ -297,7 +297,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
     ((size_t)( \
         /* Step 1: Calculate number of surplus slots */ \
         ((queue)->tail >= (queue)->header) ? \
-        ((queue)->max_num_items - ((queue)->tail - (queue)->header)) : \
+        ((queue)->capacity - ((queue)->tail - (queue)->header)) : \
         ((queue)->header - (queue)->tail) \
         /* Step 2: Convert slots to memory size */ \
     ) * (size_t)(queue)->block_size)
@@ -311,12 +311,12 @@ typedef struct SharedMemoryPoolQueueConfig_{
  * @note Allocation logic: 
  *       1. Check if queue is full (next header == tail)
  *       2. If not full, store current header's slot address in addr_ptr
- *       3. Update header with wrap-around handling (mod max_num_items)
+ *       3. Update header with wrap-around handling (mod capacity)
  */
 #define SHM_POOL_QUEUE_HEAD_ALLOC(queue, addr_ptr) ({ \
     int _status = BACKEND_PROXY_PROCESS_ERROR; \
     if ((queue != NULL) && (addr_ptr != NULL)) { \
-        uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->max_num_items; \
+        uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->capacity; \
         if (_next_header != queue->tail) { \
             *addr_ptr = (uintptr_t)(queue->virt_addr1 + queue->header * queue->block_size); \
             queue->header = _next_header; \
@@ -331,6 +331,89 @@ typedef struct SharedMemoryPoolQueueConfig_{
 
 
 /**
+ * @brief Looks up the virtual address from table1 or table2 with boundary checks
+ * 
+ * This macro retrieves the virtual address from either table1 or table2 of the 
+ * SharedMemoryPoolQueue structure based on table_id, with validation of input parameters.
+ * 
+ * @param queue Pointer to SharedMemoryPoolQueue structure
+ * @param table_id Table identifier (must be 1 for table1 or 2 for table2)
+ * @param idx Index of the entry to look up (must be in range 0 to capacity-1)
+ * @param addr_ptr Pointer to store the retrieved virtual address. 
+ *                 Set to ERROR_SHARED_MEM_ADDR if parameters are invalid.
+ * 
+ * @note Performs validation on both table_id and index range. Ensures access
+ *       only to valid entries within the bounds defined by queue->capacity.
+ */
+#define SHM_POOL_QUEUE_LOOKUP_VIRTADDR(queue, table_id, idx, addr_ptr) \
+    do { \
+        /* Initialize to error value by default */ \
+        *(addr_ptr) = ERROR_SHARED_MEM_ADDR; \
+        \
+        /* Validate table_id is either 1 or 2 */ \
+        if (table_id != 1 && table_id != 2) { \
+            break; \
+        } \
+        \
+        /* Validate index is within [0, capacity-1] range */ \
+        if (idx >= (queue)->capacity || idx < 0) { \
+            break; \
+        } \
+        \
+        /* Look up virtual address from the specified valid table */ \
+        if (table_id == 1) { \
+            *(addr_ptr) = (queue)->table1[idx].virt_addr; \
+        } else { /* table_id == 2 */ \
+            *(addr_ptr) = (queue)->table2[idx].virt_addr; \
+        } \
+    } while (0)
+
+
+/**
+ * @def SHM_POOL_QUEUE_ALLOC_FROM_HEADER(queue, addr_ptr)
+ * @brief Allocates a memory block from the header of a shared memory pool queue
+ * 
+ * This macro allocates a memory block from the header position of a shared memory pool queue.
+ * It calculates the next header position, checks for available space, and assigns the memory 
+ * address based on the queue's memory mapping mode. If allocation fails (e.g., null pointers 
+ * or no available space), it sets the address to ERROR_SHARED_MEM_ADDR.
+ * 
+ * @param[in]  queue     Pointer to the shared memory pool queue structure
+ * @param[out] addr_ptr  Pointer to store the allocated memory block's address (as uintptr_t)
+ * 
+ * @details The allocation process works as follows:
+ * 1. Checks if both @p queue and @p addr_ptr are non-null
+ * 2. Calculates the next header position using modulo arithmetic with queue capacity
+ * 3. Checks if space is available (next header != queue tail)
+ * 4. Assigns address based on mapping mode:
+ *    - SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH: Directly calculates address from virtual base
+ *    - SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL: Uses lookup macro for virtual address
+ *    - Other modes: Sets error address
+ * 5. Updates queue header to next position on successful allocation
+ * 6. Sets @p addr_ptr to ERROR_SHARED_MEM_ADDR on errors (null pointers or no space)
+ */
+#define SHM_POOL_QUEUE_ALLOC_FROM_HEADER(queue, addr_ptr) \
+    do { \
+        if ((queue != NULL) && (addr_ptr != NULL)) { \
+            uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->capacity; \
+            if (_next_header != queue->tail) { \
+                if(SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH == queue->map_mode1) {\
+                    *addr_ptr = (uintptr_t)(queue->virt_addr1 + queue->header * queue->block_size); \
+                    queue->header = _next_header; \
+                } else if(SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL == queue->map_mode1){\
+                    SHM_POOL_QUEUE_LOOKUP_VIRTADDR(queue, 1, queue->header, addr_ptr);\
+                    queue->header = _next_header; \
+                } else { \
+                    *addr_ptr = ERROR_SHARED_MEM_ADDR;\
+                } \
+        } else { \
+            *addr_ptr = ERROR_SHARED_MEM_ADDR; \
+        } \
+        }\
+    }while(0)
+
+
+/**
  * @brief Roll back the head position (for reverting when allocation fails)
  * @param queue Pointer to the SharedMemoryPoolQueue structure
  * @note Rollback logic: Restore header to previous position with wrap-around handling
@@ -339,7 +422,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
 #define SHM_POOL_QUEUE_HEAD_ROLLBACK(queue) do { \
     if (queue != NULL) { \
         queue->header = (queue->header == 0) ? \
-            (uint16_t)(queue->max_num_items - 1) : \
+            (uint16_t)(queue->capacity - 1) : \
             (queue->header - 1); \
     } \
 } while (0)
