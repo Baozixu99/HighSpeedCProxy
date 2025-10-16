@@ -139,12 +139,20 @@ struct SharedMemoryPoolQueue {
  * 
  * Key parameters include:
  * - `pool`: Reference to the associated shared memory pool (mandatory)
+ * - `map_mode`: the memory mapping mode
  * - `phy_addr`/`virt_addr`: Addresses of the control block in shared memory and current process
- * - `capacity`: Total memory size allocated to the queue from the pool
+ * - `capacity`: Total number of elememts allocated to the queue from the pool
  * - `block_size`: Fixed size of each element's memory block (determines max element count)
  */
 typedef struct SharedMemoryPoolQueueConfig_{
     struct SharedMemoryPool *pool;        // Associated shared memory pool
+/*
+ * < Memory mapping mode (enumerated type). Specifies how the shared
+ * memory is mapped into the current process address space (e.g.,
+ * direct physical mapping, virtual address translation). Refer to
+ * SHARE_MEM_MAP_MODE_* macros for valid values.
+ */
+    uint16_t                map_mode;
     uint64_t                phy_addr;     // Physical address of control block in shared memory
     uint64_t                virt_addr;    // Virtual address of control block in current process
     size_t                  capacity;     // Total memory size (bytes) allocated to the queue
@@ -414,13 +422,33 @@ typedef struct SharedMemoryPoolQueueConfig_{
 
 
 /**
- * @brief Roll back the head position (for reverting when allocation fails)
- * @param queue Pointer to the SharedMemoryPoolQueue structure
- * @note Rollback logic: Restore header to previous position with wrap-around handling
- *       (undoes the header increment from a failed allocation attempt)
+ * @brief Roll back the head position of a shared memory pool queue after failed post-allocation processing
+ * This macro reverts the head pointer of a shared memory pool queue to its previous position,
+ * specifically intended for scenarios where an element was successfully allocated (head pointer incremented),
+ * but subsequent processing of the allocated element (e.g., data initialization, validation, or business logic) failed.
+ * It restores the queue to a consistent state, preventing invalid allocation markers.
+ * @param queue Pointer to the SharedMemoryPoolQueue structure. If NULL, the macro performs no operation.
+ * @note Rollback conditions and logic:
+ *     No action is taken if the input queue pointer is NULL (safety check)
+ *     Rollback is skipped if header == tail (queue is empty), as this would create an invalid underflow state
+ *     When rollback is performed:
+ *         If header is 0, it wraps around to (capacity - 1) to maintain circular queue semantics
+ *         For non-zero header values, it is simply decremented by 1
+ * @details Critical usage context:
+ * This macro should be invoked only after a successful element allocation (where the head pointer was already advanced)
+ * but before completing the element's processing. Common failure scenarios include:
+ *     Failed data writing to the allocated element
+ *     Validation errors in the data to be stored
+ *     Resource shortages during element initialization
+ *     Aborted business logic operations after allocation
+ * Without this rollback, the queue would retain an advanced head pointer, marking a "used" slot that contains no valid data,
+ * leading to lost queue capacity and potential data corruption in subsequent operations.
+ * The do-while(0) structure ensures the macro behaves like a single statement, safe for use in if/else blocks without extra braces.
  */
 #define SHM_POOL_QUEUE_HEAD_ROLLBACK(queue) do { \
     if (queue != NULL) { \
+        if(queue->header == queue->tail) \
+            break;\
         queue->header = (queue->header == 0) ? \
             (uint16_t)(queue->capacity - 1) : \
             (queue->header - 1); \
@@ -440,9 +468,7 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool);
 
 
 
-struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool,
-                                                           size_t max_elements,
-                                                           size_t element_size);
+struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool);
 
 int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const SharedMemoryPoolQueueConfig *config);
 

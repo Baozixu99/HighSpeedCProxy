@@ -613,14 +613,14 @@ int engine_init_shared_mem_queue(BackendEngine *eng){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    rx_queue = shared_mem_pool_queue_create(eng->mem_pool, 100, 4096);
+    rx_queue = shared_mem_pool_queue_create(eng->mem_pool);
 
     if(NULL == rx_queue){
         error_print("engine_init_shared_mem_queue() failed: out of memory for the shared memory RX queue allocation!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    tx_queue = shared_mem_pool_queue_create(eng->mem_pool, 100, 4096);
+    tx_queue = shared_mem_pool_queue_create(eng->mem_pool);
 
     if(NULL == tx_queue){
         error_print("engine_init_shared_mem_queue() failed: out of memory for the shared memory TX queue allocation!");

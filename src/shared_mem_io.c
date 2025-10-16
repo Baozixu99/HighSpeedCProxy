@@ -1,6 +1,15 @@
 #include "shared_mem_io.h"
 #include "backend_proto.h"
 
+
+SharedMemoryPoolQueueConfig high_speed_net_queue_config =     {.pool = NULL,
+    .map_mode       = SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH,  // Assumes virtual address mapping mode
+    .phy_addr       = 0ULL,                                // 64-bit unsigned integer zero value
+    .virt_addr      = 0ULL,                                // 64-bit unsigned integer zero value
+    .capacity       = 256,                                 // Total number of element 
+    .block_size     = 4096                                 // 4096 bytes per element block
+};
+
 int init_shared_mem_pool(struct SharedMemoryPool *mem_pool){
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -50,14 +59,10 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool){
  * Create and initialize a shared memory pool queue.
  * 
  * @param pool Pointer to the underlying SharedMemoryPool to allocate deque nodes from.
- * @param max_elements Maximum number of elements the deque can hold (0 for unlimited, if supported).
- * @param element_size Size of each element in the deque (bytes). Use 0 for variable-size elements.
  * @return Pointer to the newly created SharedMemoryPoolQueue on success; NULL on failure 
  *         (e.g., invalid pool/lock, insufficient memory, invalid parameters).
  */
-struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool,
-                                                           size_t max_elements,
-                                                           size_t element_size){
+struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool){
     struct SharedMemoryPoolQueue *queue;
 
     queue = malloc(sizeof(struct SharedMemoryPoolQueue));
@@ -69,8 +74,6 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPo
 
     queue->pool         = pool;
 //    queue->length       = 0;
-    queue->capacity     = max_elements;
-    queue->block_size   = element_size;
 
     return queue;
 }
