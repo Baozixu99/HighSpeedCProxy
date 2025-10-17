@@ -11,7 +11,35 @@ BackendEngine g_bk_eng;
 HSDevSelector *p_hs_dev_sel;
 HSDevSelector  hs_dev_sel[HS_DEV_SELECTOR_NUM];
 
+/**
+ * Configuration structure for the high-speed network receive queue.
+ * 
+ * This global instance initializes parameters for managing the receive queue's shared memory,
+ * including memory mapping mode, addresses, capacity, and block size.
+ */
+SharedMemoryPoolQueueConfig high_speed_net_rx_queue_config =     {
+    .pool = NULL,
+    .map_mode       = SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH,  // Assumes virtual address mapping mode
+    .phy_addr       = HSNET_RX_PHY_ADDR_BASE,              // 64-bit unsigned integer zero value
+    .virt_addr      = 0ULL,                                // 64-bit unsigned integer zero value
+    .capacity       = MAX_MAP_TABLE_ENTRY_COUNT,           // Total number of element 
+    .block_size     = 4096                                 // 4096 bytes per element block
+};
 
+/**
+ * Configuration structure for the high-speed network transmit queue.
+ * 
+ * This global instance initializes parameters for managing the transmit queue's shared memory,
+ * including memory mapping mode, addresses, capacity, and block size.
+ */
+SharedMemoryPoolQueueConfig high_speed_net_tx_queue_config =    {
+    .pool = NULL,
+    .map_mode       = SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH,  // Assumes virtual address mapping mode
+    .phy_addr       = HSNET_TX_PHY_ADDR_BASE,              // 64-bit unsigned integer zero value
+    .virt_addr      = 0ULL,                                // 64-bit unsigned integer zero value
+    .capacity       = MAX_MAP_TABLE_ENTRY_COUNT,           // Total number of element 
+    .block_size     = 4096                                 // 4096 bytes per element block
+};
 
  /*
   * Set of operational functions for the backend engine in high-speed network devices.
@@ -606,21 +634,23 @@ int engine_init_shared_mem_pool_lock(BackendEngine *eng){
 
 int engine_init_shared_mem_queue(BackendEngine *eng){
     struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
-    SharedMemoryPoolQueueConfig     rx_queue_conf, tx_queue_conf;
+    SharedMemoryPoolQueueConfig     *rx_queue_conf, *tx_queue_conf;
 
     if(NULL == eng){
         error_print("engine_init_shared_mem_queue() failed: the engine instance is NULL (uninitialized or invalid)!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    rx_queue = shared_mem_pool_queue_create(eng->mem_pool);
+    rx_queue_conf   = &high_speed_net_rx_queue_config;
+    rx_queue        = shared_mem_pool_queue_create_backend(rx_queue_conf);
 
     if(NULL == rx_queue){
         error_print("engine_init_shared_mem_queue() failed: out of memory for the shared memory RX queue allocation!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    tx_queue = shared_mem_pool_queue_create(eng->mem_pool);
+    tx_queue_conf   = &high_speed_net_tx_queue_config;
+    tx_queue = shared_mem_pool_queue_create_backend(tx_queue_conf);
 
     if(NULL == tx_queue){
         error_print("engine_init_shared_mem_queue() failed: out of memory for the shared memory TX queue allocation!");
@@ -628,10 +658,8 @@ int engine_init_shared_mem_queue(BackendEngine *eng){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    memset(&rx_queue_conf, 0, sizeof(SharedMemoryPoolQueueConfig));
-    memset(&tx_queue_conf, 0, sizeof(SharedMemoryPoolQueueConfig));
-
-    rx_queue_conf.pool = eng->mem_pool;
+    rx_queue_conf->pool = eng->mem_pool;
+    tx_queue_conf->pool = eng->mem_pool;
     
 
 

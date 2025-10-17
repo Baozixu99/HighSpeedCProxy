@@ -2,11 +2,21 @@
 #define SHARED_MEM_IO_H
 
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 #define ERROR_SHARED_MEM_ADDR           UINT64_MAX
 
+#define MAX_MAP_TABLE_ENTRY_COUNT         256
 
+#define HSNET_RX_PHY_ADDR_BASE          0xA000
+#define HSNET_MEM_BLOCK_SIZE            4096
+#define HSNET_RX_MEM_BLOCK_COUNT        MAX_MAP_TABLE_ENTRY_COUNT
+
+#define HSNET_TX_PHY_ADDR_BASE          HSNET_RX_PHY_ADDR_BASE + HSNET_MEM_BLOCK_SIZE * MAX_MAP_TABLE_ENTRY_COUNT
 
 struct SharedMemoryPoolLock{
     int value; // Just for placehoder. We will redefine this struct after receiving the partner's document.
@@ -31,7 +41,7 @@ typedef enum {
     SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL  // Physical addresses are contiguous, logical addresses are discrete
 } ShareMemMapMode;
 
-#define MAX_MAP_TABLE_ENTRY_COUNT         256
+
 
 /**
  * When the map mode is SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL, the shared memory queue maintains a mapping table.
@@ -40,8 +50,8 @@ typedef enum {
  * Mapping table entry: Describes a single mapping relationship between a virtual address and a physical address.
  */
 typedef struct {
-    uint64_t virt_addr;  /* Virtual address */
-    uint64_t phy_addr;   /* Physical address */
+    uint64_t    virt_addr;  /* Virtual address */
+    uint64_t    phy_addr;   /* Physical address */
 } MapTableEntry;
 
 
@@ -158,6 +168,20 @@ typedef struct SharedMemoryPoolQueueConfig_{
     size_t                  capacity;     // Total memory size (bytes) allocated to the queue
     size_t                  block_size;   // Size (bytes) of each element's memory block
 } SharedMemoryPoolQueueConfig;
+
+
+/**
+ * Macro: Check if map_mode of SharedMemoryPoolQueueConfig is a valid enumerated value
+ * Function: Verifies whether the map_mode of the SharedMemoryPoolQueueConfig is correctly assigned to one of the valid values
+ * defined in the ShareMemMapMode enumeration, while ensuring the input config pointer is non-null
+ * (to avoid null pointer dereference).
+ * @param conf Pointer to the SharedMemoryPoolQueueConfig structure whose map_mode member needs to be checked
+ * @return Returns 1 (true) if conf is non-null and map_mode is a valid enumerated value; otherwise returns 0 (false)
+ */
+#define IS_VALID_SHM_CONF_MAP_MODE(conf) \
+    ((conf) != NULL && ((conf)->map_mode == SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH \
+                     || (conf)->map_mode == SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL))
+
 
 
 /**
@@ -468,7 +492,7 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool);
 
 
 
-struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool);
+struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedMemoryPoolQueueConfig *config);
 
 int shared_mem_pool_queue_initialize(struct SharedMemoryPoolQueue *queue, const SharedMemoryPoolQueueConfig *config);
 

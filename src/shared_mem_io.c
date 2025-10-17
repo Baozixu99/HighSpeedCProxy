@@ -2,13 +2,7 @@
 #include "backend_proto.h"
 
 
-SharedMemoryPoolQueueConfig high_speed_net_queue_config =     {.pool = NULL,
-    .map_mode       = SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH,  // Assumes virtual address mapping mode
-    .phy_addr       = 0ULL,                                // 64-bit unsigned integer zero value
-    .virt_addr      = 0ULL,                                // 64-bit unsigned integer zero value
-    .capacity       = 256,                                 // Total number of element 
-    .block_size     = 4096                                 // 4096 bytes per element block
-};
+
 
 int init_shared_mem_pool(struct SharedMemoryPool *mem_pool){
     return BACKEND_PROXY_PROCESS_OK;
@@ -56,24 +50,71 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool){
 
 
 /**
- * Create and initialize a shared memory pool queue.
+ * Create and initialize a shared memory pool queue in backend side.
  * 
- * @param pool Pointer to the underlying SharedMemoryPool to allocate deque nodes from.
- * @return Pointer to the newly created SharedMemoryPoolQueue on success; NULL on failure 
- *         (e.g., invalid pool/lock, insufficient memory, invalid parameters).
+ * @param config Pointer to the SharedMemoryPoolQueueConfig structure containing configuration
+ * parameters (e.g., underlying shared memory pool, lock settings) for queue creation.
+ * @return Pointer to the newly created SharedMemoryPoolQueue on success; NULL on failure
+ * (e.g., invalid config, insufficient memory for queue instance)
  */
-struct SharedMemoryPoolQueue *shared_mem_pool_queue_create(struct SharedMemoryPool* pool){
+struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedMemoryPoolQueueConfig *config){
     struct SharedMemoryPoolQueue *queue;
+    int fd;
+    void *virt_addr;
+
+    if(!IS_VALID_SHM_CONF_MAP_MODE(config)){
+        error_print("shared_mem_pool_queue_create_backend failed: invalid config (NULL pointer), or invalid map mode");
+        return NULL;
+    }
 
     queue = malloc(sizeof(struct SharedMemoryPoolQueue));
 
     if(NULL == queue){
-        error_print("SharedMemoryPoolDequeCreate failed: failed to allocate memory for SharedMemoryPoolDeque instance");
+        error_print("shared_mem_pool_queue_create_backend failed: failed to allocate memory for SharedMemoryPoolDeque instance");
         return NULL;
     }
 
-    queue->pool         = pool;
+//    queue->pool         = pool;
 //    queue->length       = 0;
+
+    queue->map_mode1    = config->map_mode;
+    queue->pool         = config->pool;
+    queue->block_size   = config->block_size;
+    queue->capacity     = config->capacity;
+    queue->virt_addr1   = config->virt_addr;
+    queue->phy_addr     = config->phy_addr;
+
+    fd = open("/dev/mem", O_RDWR | O_SYNC);
+
+    if(fd < 0){
+        error_print("shared_mem_pool_queue_create_backend failed: failed to open /dev/mem");
+        free(queue);
+        return NULL;
+    }
+
+    // Calculate page-aligned physical address (mmap requires the offset to be a multiple of the page size)
+    off_t phys_page_off = queue->phy_addr & ~(sysconf(_SC_PAGESIZE) - 1);
+    size_t page_offset  = queue->phy_addr - phys_page_off;
+
+    utils_print("phys_page_off = %d, page_offset = %d\n", phys_page_off, page_offset);
+
+    // Map physical memory to user space
+    virt_addr = mmap(
+        NULL,               // Let the kernel automatically allocate virtual address
+        queue->capacity * queue->block_size + page_offset,  // Mapping size (including intra-page offset)
+//        queue->block_size + page_offset,  // Mapping size (including intra-page offset)
+        PROT_READ | PROT_WRITE,  // Read and write permissions
+        MAP_SHARED,         // Shared mapping
+        fd,                 // File descriptor for /dev/mem
+        phys_page_off       // Page-aligned physical address
+    );
+
+    if (virt_addr == MAP_FAILED) {
+        error_print("shared_mem_pool_queue_create_backend failed: mmap failed");
+        close(fd);
+        free(queue);
+        return NULL;
+    }
 
     return queue;
 }
