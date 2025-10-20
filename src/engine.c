@@ -650,7 +650,7 @@ int engine_init_shared_mem_queue(BackendEngine *eng){
     }
 
     tx_queue_conf   = &high_speed_net_tx_queue_config;
-    tx_queue = shared_mem_pool_queue_create_backend(tx_queue_conf);
+    tx_queue        = shared_mem_pool_queue_create_backend(tx_queue_conf);
 
     if(NULL == tx_queue){
         error_print("engine_init_shared_mem_queue() failed: out of memory for the shared memory TX queue allocation!");
@@ -661,6 +661,8 @@ int engine_init_shared_mem_queue(BackendEngine *eng){
     rx_queue_conf->pool = eng->mem_pool;
     tx_queue_conf->pool = eng->mem_pool;
     
+    eng->rx_queue       = rx_queue;
+    eng->tx_queue       = tx_queue;
 
 
     return BACKEND_PROXY_PROCESS_OK;

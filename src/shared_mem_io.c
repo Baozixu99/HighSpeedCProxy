@@ -3,7 +3,6 @@
 
 
 
-
 int init_shared_mem_pool(struct SharedMemoryPool *mem_pool){
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -83,6 +82,8 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
     queue->capacity     = config->capacity;
     queue->virt_addr1   = config->virt_addr;
     queue->phy_addr     = config->phy_addr;
+    queue->header       = 0;
+    queue->tail         = 0;
 
     fd = open("/dev/mem", O_RDWR | O_SYNC);
 
@@ -99,15 +100,20 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
     utils_print("phys_page_off = %d, page_offset = %d\n", phys_page_off, page_offset);
 
     // Map physical memory to user space
+#if 0
     virt_addr = mmap(
         NULL,               // Let the kernel automatically allocate virtual address
         queue->capacity * queue->block_size + page_offset,  // Mapping size (including intra-page offset)
 //        queue->block_size + page_offset,  // Mapping size (including intra-page offset)
-        PROT_READ | PROT_WRITE,  // Read and write permissions
-        MAP_SHARED,         // Shared mapping
+//        PROT_READ | PROT_WRITE,  // Read and write permissions
+        PROT_READ,  // Read and write permissions
+//        MAP_SHARED,         // Shared mapping
+        MAP_SHARED  ,         // Shared mapping
         fd,                 // File descriptor for /dev/mem
         phys_page_off       // Page-aligned physical address
     );
+
+    utils_print("errno = %d, reasion is %s\n", errno, strerror(errno));
 
     if (virt_addr == MAP_FAILED) {
         error_print("shared_mem_pool_queue_create_backend failed: mmap failed");
@@ -115,6 +121,18 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
         free(queue);
         return NULL;
     }
+#endif
+
+    virt_addr = malloc(config->block_size * (config->capacity + 1));
+
+    if(NULL == virt_addr){
+        error_print("shared_mem_pool_queue_create_backend failed: failed to allocate memory for the queue!");
+        close(fd);
+        free(queue);
+        return NULL;
+    }
+
+    queue->virt_addr1 = virt_addr;
 
     return queue;
 }
