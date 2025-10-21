@@ -216,6 +216,7 @@ int scenario_msg_inject(BackendEngine *engine,
 
     // ... (call build_proxy_general_message, handle queue injection, etc.)
 
+    utils_print("In %s, before enter build_proxy_general_message\n", __func__);
     ret = build_proxy_general_message(engine, msg_header, msg_payload, msg_payload_len, result_msg, alloc_mode, engine->rx_queue);
 
     return BACKEND_PROXY_PROCESS_OK;
@@ -275,9 +276,15 @@ int device_msg_inject(BackendEngine *engine){
     int                   ret, desc_len = 100;
     uint8_t               **res_string;
     char                  *desc_string;
+    uint8_t               *res_buf[100] = {NULL};
+    char                  desc_buf[100] = {0};
 
     dev_msg_hdr          = &dev_enable_msg_hdr;
     dev_msg_mask.data    = 0xFF;
+
+
+    res_string           = res_buf;
+    desc_string          = desc_buf;
 
     utils_print("In %s, before enter scenario_msg_inject\n", __func__);
     ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_mask, sizeof(dev_msg_mask), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);

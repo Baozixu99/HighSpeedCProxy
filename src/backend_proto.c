@@ -718,7 +718,9 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
     size_t corr_len;
     uint8_t *dev_msg;
 
+    
     corr_len = DEV_MSG_HEADER_PAYLOAD_LEN(dev_hdr);
+    utils_print("corr_len = %d, payload_len = %d\n", corr_len, payload_len);
 
     if(payload_len != corr_len){
         error_print("build_proxy_dev_message failed: payload length does not match expected value based on message type and action type!");
@@ -739,6 +741,8 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
     header->payload_len     = payload_len;
 
     dev_msg += sizeof(DevMsgHeader);
+
+    utils_print("In %s, before memcpy\n", __func__);
     memcpy(dev_msg, payload, payload_len);
 
     return BACKEND_PROXY_PROCESS_OK;
@@ -973,11 +977,13 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
     proxy_msg_hdr->frontend_sess_id     = header->outer_header.frontend_sess_id;
     proxy_msg_hdr->backend_sess_id      = header->outer_header.backend_sess_id;
     
+    utils_print("version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d\n", proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id);
     msg_buf += sizeof(ProxyMsgHeader);
     switch(outer_msg_type) {
         case PROXY_MSG_TYPE_DEV:
             dev_hdr               = &header->inner_header.dev_hdr;
             proxy_msg_payload_len = sizeof(DevMsgHeader);
+            utils_print("In %s, before enter build_proxy_dev_message\n", __func__);
             ret = build_proxy_dev_message(dev_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_STRGY:
