@@ -955,7 +955,9 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
+        utils_print("before SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, virt addr = %lld\n", ring_buf->header, ring_buf->tail, ring_buf->virt_addr1);
         SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
+        utils_print("after SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, memaddr = %lld\n", ring_buf->header, ring_buf->tail, mem_addr);
 
         if(ERROR_SHARED_MEM_ADDR == mem_addr){
             error_print("build_proxy_general_message failed: shared memory FIFO queue is full, cannot allocate new block!");
@@ -1024,11 +1026,34 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
  * In MEMORY_ALLOC_SHARED mode, the build_proxy_general_message function is responsible for
  * enqueuing the constructed message into the shared memory FIFO queue (ring_buf)
  */
+#if 0
     if(MEMORY_ALLOC_SHARED == alloc_mode){
+        utils_print("before SHMP_QUEUE_ENQUEUE, header = %d, tail = %d\n", ring_buf->header, ring_buf->tail);
         SHMP_QUEUE_ENQUEUE(ring_buf, ret);
+        utils_print("after SHMP_QUEUE_ENQUEUE, header = %d, tail = %d\n", ring_buf->header, ring_buf->tail);
+
+        SHM_POOL_QUEUE_HEAD_ROLLBACK(ring_buf);
+        utils_print("after SHM_POOL_QUEUE_HEAD_ROLLBACK, header = %d, tail = %d\n", ring_buf->header, ring_buf->tail);
         return ret;
     }
+#endif
 
+
+#if 0
+    int debug_cnt;
+    utils_print("shared queue capacity = %d, header = %d, tail = %d, block_size = %d\n", ring_buf->capacity, ring_buf->header, ring_buf->tail, ring_buf->block_size);
+
+    debug_cnt = ring_buf->header;
+
+    utils_print("Debug shared memory I/O\n");
+    utils_print("virt addr = %lld\n", ring_buf->virt_addr1);
+    while(debug_cnt < ring_buf->capacity + 10){
+        uint64_t  debug_mem_addr;
+        SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &debug_mem_addr);
+        utils_print("shared queue header = %d, tail = %d, addr = %lld, diff = %d\n", ring_buf->header, ring_buf->tail, debug_mem_addr, debug_mem_addr - ring_buf->virt_addr1);
+        debug_cnt++;
+    }
+#endif
     return BACKEND_PROXY_PROCESS_OK;
 }
 

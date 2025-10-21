@@ -85,6 +85,7 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
     queue->header       = 0;
     queue->tail         = 0;
 
+#if 0
     fd = open("/dev/mem", O_RDWR | O_SYNC);
 
     if(fd < 0){
@@ -92,7 +93,7 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
         free(queue);
         return NULL;
     }
-
+#endif
     // Calculate page-aligned physical address (mmap requires the offset to be a multiple of the page size)
     off_t phys_page_off = queue->phy_addr & ~(sysconf(_SC_PAGESIZE) - 1);
     size_t page_offset  = queue->phy_addr - phys_page_off;
@@ -133,6 +134,8 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
     }
 
     queue->virt_addr1 = virt_addr;
+
+    utils_print("queue->virt_addr1 = %lld\n", queue->virt_addr1);
 
     return queue;
 }

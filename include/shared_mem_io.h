@@ -352,7 +352,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
     if ((queue != NULL) && (addr_ptr != NULL)) { \
         uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->capacity; \
         if (_next_header != queue->tail) { \
-            *addr_ptr = (uintptr_t)(queue->virt_addr1 + queue->header * queue->block_size); \
+            *addr_ptr = (uintptr_t)(queue->virt_addr1 + (queue->header + 1)* queue->block_size); \
             queue->header = _next_header; \
             _status = BACKEND_PROXY_PROCESS_OK; \
         } else { \
@@ -432,7 +432,7 @@ typedef struct SharedMemoryPoolQueueConfig_{
             uint16_t _next_header = (queue->header + 1) % (uint16_t)queue->capacity; \
             if (_next_header != queue->tail) { \
                 if(SHARE_MEM_MAP_MODE_CONTIGUOUS_BOTH == queue->map_mode1) {\
-                    *addr_ptr = (uintptr_t)(queue->virt_addr1 + queue->header * queue->block_size); \
+                    *addr_ptr = (uintptr_t)(queue->virt_addr1 + (queue->header + 1) * queue->block_size); \
                     queue->header = _next_header; \
                 } else if(SHARE_MEM_MAP_MODE_CONTIGUOUS_PHYS_DISCRETE_LOGICAL == queue->map_mode1){\
                     SHM_POOL_QUEUE_LOOKUP_VIRTADDR(queue, 1, queue->header, addr_ptr);\
