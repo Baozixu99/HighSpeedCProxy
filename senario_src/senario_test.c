@@ -254,6 +254,8 @@ int scenario_msg_inject(BackendEngine *engine,
  */
 int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
     device_msg_inject(engine);
+    strategy_msg_inject(engine);
+    session_msg_inject(engine);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -307,11 +309,17 @@ int strategy_msg_inject(BackendEngine *engine){
     GeneralProxyMsgHeader  *strgy_msg_hdr;
     StrgyCMDEnableMessage  strgy;
     int                    ret, desc_len = 100;
-    uint8_t                **res_string;
-    char                   *desc_string;
+    uint8_t               **res_string;
+    char                  *desc_string;
+    uint8_t               *res_buf[100] = {NULL};
+    char                  desc_buf[100] = {0};
+
 
     strgy_msg_hdr          = &strgy_set_msg_hdr;
     strgy.strgy_para       = 0;
+
+    res_string           = res_buf;
+    desc_string          = desc_buf;
 
     ret = scenario_msg_inject(engine, strgy_msg_hdr, &strgy, sizeof(strgy), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
@@ -335,6 +343,8 @@ int session_msg_inject(BackendEngine *engine){
     int ret, desc_len = 100;
     uint8_t **res_string;
     char *desc_string;
+    uint8_t               *res_buf[100] = {NULL};
+    char                  desc_buf[100] = {0};
     char *ip_port_string = "192.168.100.100:80";
 
     sess_msg_hdr                            = &sess_create_msg_hdr;
@@ -342,6 +352,9 @@ int session_msg_inject(BackendEngine *engine){
     sess_ipv4_paras.transport_layer_proto   = SESS_UDP_PROTO;
     sess_ipv4_paras.device_selection        = 0xFF;
     IPV4_PORT_STR_TO_TUPLE(ip_port_string, sess_ipv4_paras.dest_endpoint);
+
+    res_string           = res_buf;
+    desc_string          = desc_buf;
 
     ret = scenario_msg_inject(engine, sess_msg_hdr, &sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
