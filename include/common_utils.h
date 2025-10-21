@@ -14,7 +14,7 @@ int debug_print(const char *format, ...);
 #if UTILS_ENABLE_DEBUG
 #define utils_print(...) printf(__VA_ARGS__)
 #else
-#define utils_print(...) do {} while(0)  // 空操作
+#define utils_print(...) do {} while(0)
 #endif
 
 #endif

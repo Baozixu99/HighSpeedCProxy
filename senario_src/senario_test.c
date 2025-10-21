@@ -222,9 +222,6 @@ int scenario_msg_inject(BackendEngine *engine,
 }
 
 
-
-
-
 /**
  * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly constructs multi-type proxy messages and injects them into the shared memory RX queue
  * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
@@ -245,7 +242,7 @@ int scenario_msg_inject(BackendEngine *engine,
  *              
  * 
  * @note 1. Precondition: The engine must be initialized before calling this function (refer to the normal scenario process in "Test Process - Engine Initialization Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
- *       2. Message coverage: The current version covers 4 core message types in "Section 3. Protocol Message Processing Module" of the document:
+ *       2. Message coverage: The current version covers 4 core message types. Protocol Message Processing Module" of the document:
  *          - Device messages: Preset with "device status query" commands;
  *          - Strategy messages: Preset with "query strategy configuration" commands (corresponding to the "strategy configuration command execution" scenario;
  *          - Session messages: Preset with "create session" (valid device ID) and "close session" (valid session ID) commands (corresponding to the "session creation" scenario;
@@ -254,7 +251,11 @@ int scenario_msg_inject(BackendEngine *engine,
  *          and the log format complies with the log specification for "configuration file loading failure";
  *       4. Subsequent triggering: After message injection is completed, the engine_run function (entry of "Main Loop Test Process" in the document) must be called to trigger the engine to read and process messages from the RX queue, thus completing the full test link.
  */
-int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine);
+int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
+    device_msg_inject(engine);
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
 
 
 
@@ -278,6 +279,7 @@ int device_msg_inject(BackendEngine *engine){
     dev_msg_hdr          = &dev_enable_msg_hdr;
     dev_msg_mask.data    = 0xFF;
 
+    utils_print("In %s, before enter scenario_msg_inject\n", __func__);
     ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_mask, sizeof(dev_msg_mask), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
     return ret;

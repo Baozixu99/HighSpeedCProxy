@@ -11,6 +11,8 @@
 #include "poller.h"
 #include "iniparser.h"
 
+#include "senario_test.h"
+
 extern void print_pool(struct BackendSessionPool* s_pool);
 extern void high_speed_delete_all_sess(struct BackendSessionPool* s_pool);
 
@@ -28,6 +30,9 @@ void run()
 
 int main(int argc, char** argv)
 {
+    BackendEngine *eng; 
+    
+
     high_speed_pool = (struct BackendSessionPool*)malloc(sizeof(struct BackendSessionPool));
     high_speed_init_pool(high_speed_pool);
 
@@ -65,6 +70,10 @@ int main(int argc, char** argv)
     printf("hello!\n");
 
     engine_init();
+
+    eng = get_global_backend_engine();
+
+    test_proxy_scenario_multi_type_msg_build(eng);    
     // run();
     return 0;
 }
