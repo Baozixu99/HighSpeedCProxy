@@ -21,6 +21,9 @@ int backend_proxy_msg_process(uint8_t *msg){
     backend_sess_id     = proxy_msg_hdr->backend_sess_id;
     msg_type            = proxy_msg_hdr->proxy_msg_type;
     msg_len             = proxy_msg_hdr->payload_len;
+
+    utils_print("In %s, version = %d, frontend sess id = %d, backend sess id = %d, msg_type = %d, msg_len = %d\n", 
+                __func__, proxy_proto_ver, frontend_sess_id, backend_sess_id, msg_type, msg_len);
 /*
  * Check the validity of the message type.
  */
@@ -154,6 +157,8 @@ int backend_proxy_dev_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uint1
  */
     corr_len = DEV_MSG_PAYLOAD_LEN(msg_type, action_type);
 
+    utils_print("In %s, corr_len = %d, payload_len = %d\n", __func__, corr_len, payload_len);
+
     if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
             error_print("backend_proxy_dev_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
             return BACKEND_PROXY_PROCESS_ERROR;
@@ -181,6 +186,8 @@ int backend_proxy_dev_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uint1
 
 
 int backend_proxy_dev_msg_process_enable_ver1(uint16_t payload_len,  uint8_t *msg_payload){
+    utils_print("In %s\n", __func__);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 int backend_proxy_dev_msg_process_disable_ver1(uint16_t payload_len, uint8_t *msg_payload){
@@ -228,6 +235,7 @@ int backend_proxy_strgy_msg_process(uint8_t *msg){
     payload_len = strgymsg_hdr->payload_len;
     msg_data = msg + sizeof(StrgyMsgHeader);
 
+
 /*    
  * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
  */
@@ -259,9 +267,11 @@ int backend_proxy_strgy_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uin
  */
     corr_len = STRGY_MSG_PAYLOAD_LEN(msg_type, action_type);
 
+    utils_print("In %s, corr_len = %d, payload_len = %d\n", __func__, corr_len, payload_len);
+
     if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
-            error_print("backend_proxy_strgy_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
-            return BACKEND_PROXY_PROCESS_ERROR;
+        error_print("backend_proxy_strgy_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
 
@@ -284,11 +294,13 @@ int backend_proxy_strgy_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uin
 
 
 int backend_proxy_strgy_msg_process_set_ver1(uint16_t payload_len, uint8_t *msg_payload){
+    utils_print("In %s\n", __func__);
     return BACKEND_PROXY_PROCESS_OK;
 }
 
 
 int backend_proxy_strgy_msg_process_query_ver1(uint16_t payload_len, uint8_t *msg_payload){
+    utils_print("In %s\n", __func__);
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -332,6 +344,8 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
 
     sess_msg_hdr = (SessMsgHeader *)msg;
 
+    utils_print("In %s\n", __func__);
+
     if(NULL == sess_msg_hdr){
         error_print("backend_proxy_sess_msg_process() returns an error because the msg pointer is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -343,6 +357,8 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     ip_version = sess_msg_hdr->ip_version;
     payload_len = sess_msg_hdr->payload_len;
     msg_data = msg + sizeof(SessMsgHeader);
+
+    utils_print("version = %d, msg_type = %d, action type = %d, ip version = %d, payload len = %d\n", version, msg_type, action_type, ip_version, payload_len);
  #if 0
          if (frontend_sess_id != FRONTEND_HANDOVER_SESSION_ID || backend_sess_id != BACKEND_HANDOVER_SESSION_ID){
             error_print("The front end id in handover request message should be FRONTEND_HANDOVER_SESSION_ID， and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID!");
@@ -381,7 +397,12 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
 /* 
  * Check whether the payload length matches the message type and signaling type.
  */
+
+    utils_print("In %s\n", __func__);
+
     corr_len = SESS_MSG_PAYLOAD_LEN(msg_type, action_type, ip_version);
+
+    utils_print("corr_len = %d, payload_len = %d\n", corr_len, payload_len);
 
     if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
             error_print("backend_proxy_sess_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
@@ -996,6 +1017,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
         case PROXY_MSG_TYPE_SESS:
             sess_hdr              = &header->inner_header.sess_hdr;
             proxy_msg_payload_len = sizeof(SessMsgHeader);
+            utils_print("In %s, ip version = %d\n",  __func__, sess_hdr->ip_version);
             ret = build_proxy_sess_message(sess_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_DATA:

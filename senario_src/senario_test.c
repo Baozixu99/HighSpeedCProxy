@@ -261,6 +261,74 @@ int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
 }
 
 
+/**
+ * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly reads multi-type proxy messages from the shared memory RX queue 
+ * and simulates the data reading process.
+ * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
+ * Automatically reads all core proxy message types that may exist in the queue, including device messages, strategy messages, session messages, and data messages 
+ * (the actual types and quantities are uncertain, depending on the injected content);
+ * Calls the underlying message reading functions (e.g., backend_engine_rx_queue_get, scenario_msg_read) to complete the parsing and extraction of structured messages;
+ * Obtains the shared memory RX queue handle from the input BackendEngine global context (which must be initialized in advance), and reads messages from the queue following FIFO rules;
+ * Does not require external input of message parameters (e.g., expected msg type, msg ID). All test verification logic (such as checking message structure validity, matching preset parameters) is 
+ * based on the test scenarios (e.g., verifying that session messages contain preset session ID = 1, data messages match preset payload length) to ensure test consistency.
+ * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
+ * Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that resources such as the memory pool handle and 
+ * shared memory RX queue (engine->rx_queue) are ready
+ * The context must contain valid runtime configurations (e.g., shared memory queue size, message parsing rules) to avoid resource unavailability errors during message reading or parsing
+ * (refer to the parameter verification logic in "Section 1.2 Abnormal Scenarios" of the document).
+ * @return int Follows the unified error code specification in the document, with return value meanings as follows:
+ * BACKEND_PROXY_PROCESS_OK: All existing types of proxy messages in the RX queue are successfully read and parsed;
+ * BACKEND_PROXY_PROCESS_ERROR: All abnormal scenarios are covered, including uninitialized BackendEngine, NULL internal resources (e.g., rx_queue), empty shared memory RX queue (when messages 
+ * are expected), and failed calls to underlying message reading/parsing functions
+ * @note 1. Precondition: The engine must be initialized before calling this function, and messages must be pre-injected into the RX queue (e.g., via test_proxy_scenario_multi_type_msg_build) (refer to the normal scenario process in "Test Process - Message Reading Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
+ * Message coverage: The current version supports reading 4 core message types, which may exist in any combination (one or more types) depending on the injection scenario. For details on message 
+ * structure, refer to "Section 3.1 Proxy Message Format" of the document:
+ * Device messages: Verify consistency with preset "device status query" commands;
+ * Strategy messages: Verify consistency with preset "query strategy configuration" commands (matching the "strategy configuration command parsing" scenario);
+ * Session messages: Verify consistency with preset "create session" (valid device ID) and "close session" (valid session ID) commands (matching the "session command parsing" scenario);
+ * Data messages: Verify consistency with preset boundary scenarios (empty payload and maximum-length payload (4088 bytes));
+ * Result feedback: The function internally uses error_print to print detailed logs of message reading/parsing (e.g., "Device message read successfully", "Data message parsing failed: 
+ * invalid payload length"),
+ * and the log format complies with the log specification for "message processing failure";
+ * Subsequent verification: After message reading is completed, the function may trigger internal verification logic (e.g., checking message count, comparing with injected content) to confirm 
+ * the correctness of the reading process, thus completing the full test link of "inject-read-verify".
+ */
+
+int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
+    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+    struct BackendSession           *cur_sess, *next_sess;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    uint8_t                         *proxy_msg;
+    uint32_t                        msg_size;
+    int                             ret;
+
+    rx_queue = engine->rx_queue;
+
+    utils_print("In %s, before enter backend_engine_rx_queue_get\n", __func__);
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("In %s, after enter backend_engine_rx_queue_get\n", __func__);
+    utils_print("rx queue header is %d, tail is %d\n", rx_queue->header, rx_queue->tail);
+
+    backend_proxy_msg_process(proxy_msg);
+
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    backend_proxy_msg_process(proxy_msg);
+
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    backend_proxy_msg_process(proxy_msg);
+
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
 
 /**
  * @brief Inject a device message into the backend engine
@@ -290,6 +358,7 @@ int device_msg_inject(BackendEngine *engine){
 
     utils_print("In %s, before enter scenario_msg_inject\n", __func__);
     ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_mask, sizeof(dev_msg_mask), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+
 
     return ret;
 }

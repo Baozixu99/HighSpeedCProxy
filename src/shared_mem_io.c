@@ -323,7 +323,7 @@ int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
     }
 
     base_addr = (uint8_t *)queue->virt_addr1;
-    *buffer   = base_addr + queue->tail * queue->block_size;
+    *buffer   = base_addr + (queue->tail + 1) * queue->block_size;
 
     SHMP_QUEUE_DEQUEUE(queue, ret);
 

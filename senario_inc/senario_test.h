@@ -113,4 +113,6 @@ int session_msg_inject(BackendEngine *engine);
 int data_msg_inject(BackendEngine *engine);
 
 
+int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine);
+
 #endif

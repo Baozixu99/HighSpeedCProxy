@@ -442,6 +442,7 @@ typedef enum {
     /* Check session message type first */ \
     (sess_msg_type == SESS_MSG_CLOSE) ? \
         ( \
+            utils_print("type is SESS_MSG_CLOSE\n"),\
             /* Determine length for CLOSE message based on action type */ \
             (action_type == ACTION_TYPE_COMMAND)  ? 0 :  /* CLOSE command → 0 bytes */ \
             (action_type == ACTION_TYPE_RESPONSE) ? 2 :  /* CLOSE response → 2 bytes (status + error) */ \
@@ -449,6 +450,7 @@ typedef enum {
         ) : \
     (sess_msg_type == SESS_MSG_CREATE) ? \
         ( \
+            utils_print("type is SESS_MSG_CREATE, action type is %d, ip_version is %d\n",action_type,  ip_version),\
             /* Determine length for CREATE message based on action type */ \
             (action_type == ACTION_TYPE_RESPONSE) ? 2 :  /* CREATE response → 2 bytes (status + error) */ \
             (action_type == ACTION_TYPE_COMMAND)  ? \

@@ -1061,7 +1061,7 @@ eng_run_step4:
  * be both detached from the B2F active queue and removed from the session pool.
  */
             if(BACKEND_PROXY_PROCESS_ERROR == ret){
-                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_f2b);
+                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
                 sess_pool_ops->delete_sess(sess_pool, cur_sess);
             }
 /*

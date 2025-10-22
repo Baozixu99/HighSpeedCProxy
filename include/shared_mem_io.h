@@ -256,13 +256,6 @@ typedef struct SharedMemoryPoolQueueConfig_{
         if ((queue)->tail >= (queue)->capacity) { \
             (queue)->tail -= (queue)->capacity; \
         } \
-        \
-        /* Check for out-of-bounds error */ \
-        if ((queue)->tail >= (queue)->capacity) { \
-            /* Roll back tail to pre-operation state */ \
-            (queue)->tail = original_tail; \
-            (result) = BACKEND_PROXY_PROCESS_ERROR; \
-        } \
     } \
 } while(0)
 

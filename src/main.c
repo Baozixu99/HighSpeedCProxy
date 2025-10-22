@@ -73,7 +73,8 @@ int main(int argc, char** argv)
 
     eng = get_global_backend_engine();
 
-    test_proxy_scenario_multi_type_msg_build(eng);    
+    test_proxy_scenario_multi_type_msg_build(eng);
+    test_proxy_scenario_msg_read_from_rx_queue(eng);
     // run();
     return 0;
 }
