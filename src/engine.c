@@ -160,6 +160,11 @@ BackendEngine *get_global_backend_engine(){
 }
 
 
+struct BackendEngOps *get_hs_backend_engine_ops(){
+    return &hs_backend_eng_ops;
+}
+
+
 int engine_init_eng_ops(BackendEngine *eng){
     if(NULL == eng){
         error_print("engine_init_eng_ops() returns an error because the pointer is NULL!\n");
@@ -288,7 +293,7 @@ int engine_init_selector(BackendEngine *eng){
     HSDevSelector *sel;
 
     if(NULL == eng){
-        error_print("engine_init_eng_ops() returns an error because the pointer is NULL!\n");
+        error_print("engine_init_selector failed: the engine pointer is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -683,6 +688,13 @@ void engine_init()
     memset(p_g_bk_eng, 0, sizeof(BackendEngine));
 
     ret = engine_init_hs_net_dev(p_g_bk_eng);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("engine_init_hs_net_dev() failed!");
+        return;
+    }
+
+    ret = engine_init_eng_ops(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_hs_net_dev() failed!");

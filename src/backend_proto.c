@@ -344,7 +344,6 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
 
     sess_msg_hdr = (SessMsgHeader *)msg;
 
-    utils_print("In %s\n", __func__);
 
     if(NULL == sess_msg_hdr){
         error_print("backend_proxy_sess_msg_process() returns an error because the msg pointer is NULL!\n");
@@ -358,7 +357,9 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     payload_len = sess_msg_hdr->payload_len;
     msg_data = msg + sizeof(SessMsgHeader);
 
-    utils_print("version = %d, msg_type = %d, action type = %d, ip version = %d, payload len = %d\n", version, msg_type, action_type, ip_version, payload_len);
+    utils_print("In %s\n", __func__);
+    utils_print("In %s, version = %d, msg_type = %d, action type = %d, ip version = %d, payload len = %d, address = %p\n", 
+                 __func__, version, msg_type, action_type, ip_version, payload_len, &sess_msg_hdr);
  #if 0
          if (frontend_sess_id != FRONTEND_HANDOVER_SESSION_ID || backend_sess_id != BACKEND_HANDOVER_SESSION_ID){
             error_print("The front end id in handover request message should be FRONTEND_HANDOVER_SESSION_ID， and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID!");
@@ -381,7 +382,7 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
  * Currently, the protocol stack only processes Version 1 device messages.
  */
     if(PROXY_PROTO_SESS_VERSION_1 == version){
-        ret = backend_proxy_sess_msg_process_ver1(frontend_sess_id, backend_sess_id, msg_type, ip_version, action_type, payload_len, msg_data);
+        ret = backend_proxy_sess_msg_process_ver1(frontend_sess_id, backend_sess_id, msg_type, action_type, ip_version, payload_len, msg_data);
     } 
 
     return BACKEND_PROXY_PROCESS_OK;
@@ -497,7 +498,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 
     }else if(SESS_IPV6_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv6)){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the high-speed pool is not initialized!");
+            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: payload length does not match the message type!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         para_ipv6                   = (SessParaIPv6 *)msg_payload;
@@ -519,6 +520,8 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
  * If the session creation function does not exist, print an error message (indicating create_sess does not point to a valid create-session function) .
  * The create_sess pointer points to the function that actually creates a socket, a session object and binds them together.
  */
+
+        utils_print("In %s, the address of the engine is %p, %p\n", __func__, pool->engine, get_global_backend_engine());
 
         if(!pool->ops->create_sess){
             error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the create_sess does not point to a valid create-session function!\n");
@@ -863,6 +866,8 @@ int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, si
     header->ip_version = sess_hdr->ip_version;
     header->payload_len = sess_hdr->payload_len;
 
+    utils_print("In %s, version = %d, msg_type = %d, action_type = %d, ip_version = %d, payload_len = %d, address = %p\n", 
+                __func__, header->version, header->msg_type, header->action_type, header->ip_version, header->payload_len, &header);
     
     sess_msg += sizeof(SessMsgHeader);
     memcpy(sess_msg, payload, payload_len);

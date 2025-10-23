@@ -220,4 +220,9 @@ int backend_engine_rx_queue_get(struct SharedMemoryPoolQueue *queue, void **buf_
 int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void **data_ptr, 
                                 size_t data_len, size_t *sent_len);
 
+
+
+struct BackendEngOps *get_hs_backend_engine_ops();
+
+
 #endif

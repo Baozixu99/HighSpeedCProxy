@@ -151,6 +151,15 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     SessOpRespData resp_dat;
 
     engine = s_pool->engine;
+
+    utils_print("In %s\n", __func__);
+    utils_print("The address of engine is %p\n", engine);
+    utils_print("The address of engine ops is %p\n", engine->ops);
+#if 0
+    utils_print("In %s, the address of the engine is %p, ops is %p， hs_backend_eng_ops address is %p, and chooes_dev is %p\n", 
+                __func__, engine, engine->ops, get_hs_backend_engine_ops(), engine->ops->choose_dev);
+#endif
+
     if(NULL == engine || NULL == engine->ops || NULL == engine->ops->choose_dev){
         error_print("high_speed_create_sess fails: the session pool does not belong to any engine, or the engine is not initialized successfully!");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -191,6 +200,8 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * If the device ID equals 0xFF, it means the backend engine should take responsibility for choosing the most appropriate high-speed network device on which the 
  * new session is established.
  */
+
+    utils_print("The dev_id is %d\n", dev_id);
     if(DEV_ID_AUTO_HANDOVER == dev_id){
         if(BACKEND_PROXY_PROCESS_OK != engine->ops->choose_dev(engine, &dev_id)){
             error_print("high_speed_create_sess failed: the network device selection procedure failed!");
