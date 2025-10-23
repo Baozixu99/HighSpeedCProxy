@@ -214,7 +214,12 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 /*
  * Get the namespace ID to which the selected high-speed network device is set.
  */
-    ns_id = GET_NS_ID(&engine->dev_set, dev_id);
+    struct HighSpeedNetDevice *hs_dev;
+    hs_dev = &engine->dev_set[dev_id];
+
+    utils_print("The %dth device in dev_set, dev_id = %d, dev_name = %s, dev_status = %d, ns_id = %d\n", dev_id, hs_dev->dev_id, hs_dev->name, hs_dev->dev_status, hs_dev->ns_id);
+
+    ns_id = GET_NS_ID(engine->dev_set, dev_id);
     if(ERROR_NAMESPACE_ID == ns_id){
         error_print("high_speed_create_sess failed: failed to obtain the namespace ID that the selected high-speed network device belongs to!");
         resp_dat.status = SESS_OP_STATUS_FAIL;
