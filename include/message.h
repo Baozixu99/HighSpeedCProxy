@@ -542,8 +542,9 @@ struct SessMsgPara{
  *          Uses packed alignment to ensure contiguous memory layout.
  */
 typedef struct {
-    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., SESS_TCP_PROTO for TCP, SESS_UDP_PROTO for UDP) */
+//    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., SESS_TCP_PROTO for TCP, SESS_UDP_PROTO for UDP) */
     uint16_t            device_selection;       /**< Device selection identifier (2 bytes) */
+    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., SESS_TCP_PROTO for TCP, SESS_UDP_PROTO for UDP) */
     IPv4PortTuple       dest_endpoint;          /**< Destination endpoint containing IPv4 address and port */
 } __attribute__((packed)) SessIPv4Params;
 
@@ -556,8 +557,9 @@ typedef struct {
  *          Uses packed alignment to ensure contiguous memory layout.
  */
 typedef struct {
-    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
+//    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
     uint16_t            device_selection;       /**< Device selection identifier (2 bytes) */
+    uint16_t            transport_layer_proto;  /**< Transport layer protocol (2 bytes, e.g., 6 for TCP, 17 for UDP) */
     IPv6PortTuple       dest_endpoint;          /**< Destination endpoint containing IPv6 address and port */
 } __attribute__((packed)) SessIPv6Params;
 

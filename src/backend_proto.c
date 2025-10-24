@@ -381,6 +381,12 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
  *
  * Currently, the protocol stack only processes Version 1 device messages.
  */
+    
+    SessParaIPv4 *debug_hdr = (SessParaIPv4 *)msg_data;
+    SessIPv4Params *debug_hdr2 = (SessIPv4Params *)msg_data;
+    utils_print("In %s, type is SessParaIPv4, trans_proto = %d, port = %d\n", __func__, debug_hdr->trans_proto, debug_hdr->port);
+    utils_print("In %s, type is SessIPv4Params, transport_layer_proto = %d, device_selection = %d\n", __func__, debug_hdr2->transport_layer_proto, debug_hdr2->device_selection);
+
     if(PROXY_PROTO_SESS_VERSION_1 == version){
         ret = backend_proxy_sess_msg_process_ver1(frontend_sess_id, backend_sess_id, msg_type, action_type, ip_version, payload_len, msg_data);
     } 
@@ -473,7 +479,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
     pool = get_backend_high_speed_pool();
 
     if(NULL == pool){
-        error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the high speed pool is not initialized!\n");
+        error_print("__backend_proxy_sess_msg_process_create_ver1 faield: the high speed pool is not initialized!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -481,13 +487,15 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 
     if(SESS_IPV4_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv4)){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 returns an error because the payload length does not match the IPv4 handover message!");
+            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the payload length does not match the IPv4 handover message!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
         para_ipv4                   = (SessParaIPv4 *)msg_payload;
         sess_para.dev_id            = para_ipv4->dev_id;
+        utils_print("Before set trans_proto,  sess_para.trans_proto = %d, para_ipv4->trans_proto = %d\n", sess_para.trans_proto, para_ipv4->trans_proto);
         sess_para.trans_proto       = para_ipv4->trans_proto;
+        utils_print("After set trans_proto,  sess_para.trans_proto = %d, para_ipv4->trans_proto = %d\n", sess_para.trans_proto, para_ipv4->trans_proto);
         sess_para.ip_version        = SESS_IPV4_PROTO;
 
         ipv4_port_tuple             = &sess_para.ip_port_tuple.ipv4_port_tuple;
@@ -495,7 +503,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
         memcpy(&ipv4_port_tuple->ipv4_addr, &ipv4_addr, sizeof(struct IPv4Address));
         ipv4_port_tuple->port       = para_ipv4->port;
         
-
+        utils_print("In sess_para, the dev_id = %d, trans_proto = %d,ip_version = %d\n", sess_para.dev_id, sess_para.trans_proto, sess_para.ip_version);
     }else if(SESS_IPV6_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv6)){
             error_print("__backend_proxy_sess_msg_process_create_ver1 failed: payload length does not match the message type!");

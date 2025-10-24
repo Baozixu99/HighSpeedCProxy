@@ -66,9 +66,11 @@ int create_socket_netns(int ns_id, struct SessMsgPara *para, int *fd){
 /*
  * Unsupported IP version.
  */
-        error_print("create_socket_netns returns an error because the IP version is not supported!");
+        error_print("create_socket_netns failed: the IP version is not supported!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+
+    utils_print("In %s, trans_proto = %d\n", __func__, para->trans_proto);
 
     if(SESS_TCP_PROTO == para->trans_proto){
         type     = SOCK_STREAM;
@@ -85,14 +87,14 @@ int create_socket_netns(int ns_id, struct SessMsgPara *para, int *fd){
 /*
  * Unsupported transparent protocol.
  */
-        error_print("create_socket_netns returns an error because the transport protocol is not supported!");
+        error_print("create_socket_netns failed: the transport protocol is not supported!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     new_fd = __create_socket_netns(ns_id, domain, type, protocol);
 
     if(ERROR_SOCKET_FD == new_fd){
-        error_print("create_socket_netnss returns an error because the socket creation procedure is not completed successfully!");
+        error_print("create_socket_netns failed: the socket creation procedure is not completed successfully!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 

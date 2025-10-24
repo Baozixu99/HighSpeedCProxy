@@ -96,7 +96,7 @@ GeneralProxyMsgHeader sess_create_msg_hdr = {
         .version            = PROXY_PROTO_SESS_VERSION_1,                       // Protocol version, fixed to 1
         .msg_type           = SESS_MSG_CREATE,                                  // Message type: Create (0)
         .action_type        = ACTION_TYPE_COMMAND,                              // Signaling type: Command (0)
-        .ip_version         = SESS_IPV4_PROTO,                                  // IP version: IPv4 (4), can be changed to 6 if needed
+        .ip_version         = SESS_IPV4_PROTO,                                  // IP version: IPv4 (4), can be changed to IPv4 (6) if needed
         .payload_len        = sizeof(SessIPv4Params)                            // Payload length, set according to actual payload
     }
 };
