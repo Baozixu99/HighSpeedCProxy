@@ -143,18 +143,21 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  *
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
  */
-    BackendEngine           *engine;
-    struct BackendSession   *new_sess = NULL;
+    BackendEngine                   *engine;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    struct BackendSession           *new_sess = NULL;
     NetChannel              *net_channel;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
     int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id, ret;
     SessOpRespData resp_dat;
 
-    engine = s_pool->engine;
+    engine          = s_pool->engine;
+    sess_pool_ops   = s_pool->ops;
 
     utils_print("In %s\n", __func__);
     utils_print("The address of engine is %p\n", engine);
     utils_print("The address of engine ops is %p\n", engine->ops);
+    utils_print("The address of session pool ops is %p\n", sess_pool_ops);
 #if 0
     utils_print("In %s, the address of the engine is %p, ops is %p， hs_backend_eng_ops address is %p, and chooes_dev is %p\n", 
                 __func__, engine, engine->ops, get_hs_backend_engine_ops(), engine->ops->choose_dev);
@@ -162,6 +165,12 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 
     if(NULL == engine || NULL == engine->ops || NULL == engine->ops->choose_dev){
         error_print("high_speed_create_sess fails: the session pool does not belong to any engine, or the engine is not initialized successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    if(NULL == sess_pool_ops || NULL == sess_pool_ops->insert_sess){
+        error_print("high_speed_create_sess fails: the session pool operation function set is not initialized correctly!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 /*
@@ -314,6 +323,16 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 
     if(ret != BACKEND_PROXY_PROCESS_OK){
         error_print("high_speed_create_sess failed: failed to register the socket of the newly create session with the epoll instance!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
+
+
+    ret = sess_pool_ops->insert_sess(s_pool, new_sess);
+
+    if(ret != BACKEND_PROXY_PROCESS_OK){
+        error_print("high_speed_create_sess failed: failed to insert the session instance into the session pool!");
         resp_dat.status = SESS_OP_STATUS_FAIL;
         resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
         goto create_sess_error;
