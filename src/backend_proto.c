@@ -384,8 +384,9 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     
     SessParaIPv4 *debug_hdr = (SessParaIPv4 *)msg_data;
     SessIPv4Params *debug_hdr2 = (SessIPv4Params *)msg_data;
-    utils_print("In %s, type is SessParaIPv4, trans_proto = %d, port = %d\n", __func__, debug_hdr->trans_proto, debug_hdr->port);
-    utils_print("In %s, type is SessIPv4Params, transport_layer_proto = %d, device_selection = %d\n", __func__, debug_hdr2->transport_layer_proto, debug_hdr2->device_selection);
+    utils_print("In %s, type is SessParaIPv4, dev_id = %d, trans_proto = %d, port = %d\n", __func__, debug_hdr->dev_id, debug_hdr->trans_proto, debug_hdr->port);
+    utils_print("In %s, type is SessIPv4Params, devive_selection = %d, transport_layer_proto = %d\n", 
+                __func__, debug_hdr2->device_selection, debug_hdr2->transport_layer_proto);
 
     if(PROXY_PROTO_SESS_VERSION_1 == version){
         ret = backend_proxy_sess_msg_process_ver1(frontend_sess_id, backend_sess_id, msg_type, action_type, ip_version, payload_len, msg_data);
