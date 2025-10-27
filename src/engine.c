@@ -318,6 +318,20 @@ int engine_init_selector(BackendEngine *eng){
 }
 
 
+int open_named_netns(const char* name) {
+    char path[256];
+    snprintf(path, sizeof(path), "/var/run/netns/%s", name);
+    utils_print("open_named_netns() tries to open the netns %s\n", path);
+    int ns_id =  open(path, O_RDONLY);
+    if (ns_id < 0){
+        printf("open_named_netns() returns an error because the netns %s is not found!\n", name);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return ns_id;
+}
+
+
 /**
  * @brief Initialize the high-speed network device of the backend engine
  * 
@@ -361,6 +375,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     int dev_num, dev_name_len, cnt = 0;
     const char *dev_name, *ip_addr;
     int ip_type, dev_id, dev_type, dev_status, ns_id;
+    char *ns_name;
     struct in_addr in4_addr;
     struct in6_addr in6_addr;
     union IPAddress *ip_data;
@@ -505,20 +520,36 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 /*
  * Check if the content of the ns_id item is valid.
  * If valid, convert it to an integer.
- */
+ */     
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        snprintf(dev_pro_item, dev_name_len + strlen("ns_id") + 2, "%s:ns_id", dev_name);
-        ns_id = iniparser_getint(ini, dev_pro_item, -1);
-        if(-1 == ns_id){
-            error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+        snprintf(dev_pro_item, dev_name_len + strlen("ns_name") + 2, "%s:ns_name", dev_name);
+        ns_name = iniparser_getstring(ini, dev_pro_item, -1);
+        if(NULL == ns_name){
+            error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the ns_name is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
 
+        utils_print("ns_name = %s\n", ns_name);
+
+        hs_dev->ns_name = ns_name;
+        
+        // memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        // snprintf(dev_pro_item, dev_name_len + strlen("ns_id") + 2, "%s:ns_id", dev_name);
+        // ns_id = iniparser_getint(ini, dev_pro_item, -1);
+        // if(-1 == ns_id){
+        //     error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+        //     or not configured in the INI file.\n");
+        //     goto hs_net_error;
+        // }
+        hs_dev->ns_id = open_named_netns(hs_dev->ns_name);
         utils_print("ns_id = %d\n", ns_id);
-
-        hs_dev->ns_id = ns_id;
-
+        if(ERROR_NAMESPACE_ID == ns_id){
+            error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the ns_id is either incorrectly configured \
+            or not configured in the INI file.\n");
+            goto hs_net_error;
+        }
+        
         TAILQ_INIT(&hs_dev->conn_q);
 
     }//  for(; cnt < dev_num; cnt++)

@@ -84,6 +84,7 @@ struct HighSpeedNetDevice {
 // Device identification information
     int dev_id;
     int dev_type;
+    char *ns_name;
     int ns_id;
     int dev_status;
 // Device attribute information

@@ -6,7 +6,7 @@
 set -e  # 任何命令失败时立即退出脚本
 
 # 默认配置
-DEFAULT_NETNS="mynet"
+DEFAULT_NETNS="ns1"
 DEFAULT_INTERFACE="ens33"
 DEFAULT_IP_CIDR="192.168.1.100/24"
 DEFAULT_GATEWAY="192.168.1.1"
