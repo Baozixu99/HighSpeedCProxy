@@ -323,6 +323,7 @@ int open_named_netns(const char* name) {
     snprintf(path, sizeof(path), "/var/run/netns/%s", name);
     utils_print("open_named_netns() tries to open the netns %s\n", path);
     int ns_id =  open(path, O_RDONLY);
+    utils_print("open_named_netns() returns %d\n", ns_id);
     if (ns_id < 0){
         printf("open_named_netns() returns an error because the netns %s is not found!\n", name);
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -543,7 +544,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         //     goto hs_net_error;
         // }
         hs_dev->ns_id = open_named_netns(hs_dev->ns_name);
-        utils_print("ns_id = %d\n", ns_id);
+        utils_print("ns_id = %d\n", hs_dev->ns_id);
         if(ERROR_NAMESPACE_ID == ns_id){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the ns_id is either incorrectly configured \
             or not configured in the INI file.\n");
