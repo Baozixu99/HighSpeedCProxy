@@ -88,7 +88,7 @@ GeneralProxyMsgHeader sess_create_msg_hdr = {
     .outer_header = {
         .version            = PROXY_PROTO_VERSION_1,                            // Protocol version, fixed to 1 as specified
         .proxy_msg_type     = PROXY_MSG_TYPE_SESS,                              // Proxy message type: Session message (2)
-        .frontend_sess_id   = FRONTEND_ADMIN_SESSION_ID,                        // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
+        .frontend_sess_id   = 1,                                                // Frontend admin session ID, used to match frontend-backend sessions in frontend proxy
         .backend_sess_id    = BACKEND_HANDOVER_SESSION_ID,                      // Backend admin session ID, set to BACKEND_HANDOVER_SESSION_ID to trigger the handover procedure 
         .payload_len        = sizeof(SessMsgHeader) + sizeof(SessIPv4Params)    // Payload length, set according to actual payload
     },
@@ -99,6 +99,18 @@ GeneralProxyMsgHeader sess_create_msg_hdr = {
         .ip_version         = SESS_IPV4_PROTO,                                  // IP version: IPv4 (4), can be changed to IPv4 (6) if needed
         .payload_len        = sizeof(SessIPv4Params)                            // Payload length, set according to actual payload
     }
+};
+
+
+// Session create message header
+GeneralProxyMsgHeader data_msg_hdr = {
+    .outer_header = {
+        .version            = PROXY_PROTO_VERSION_1,                            // Protocol version, fixed to 1 as specified
+        .proxy_msg_type     = PROXY_MSG_TYPE_DATA,                              // Proxy message type: Session message (3)
+        .frontend_sess_id   = 1,                                                // Frontend session ID, used to match frontend-backend sessions in frontend proxy
+        .backend_sess_id    = 1,                                                // Backend  session ID, used to match backend-backend sessions in frontend proxy 
+        .payload_len        = 0                                                 // Payload length, set according to actual payload
+    },
 };
 
 /**
@@ -442,5 +454,25 @@ int session_msg_inject(BackendEngine *engine){
  *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject or process the message
  */
 int data_msg_inject(BackendEngine *engine){
+    GeneralProxyMsgHeader *data_msg_hdr;
+    uint8_t **res_string;
+    char *desc_string;
+    uint8_t               *res_buf[100] = {NULL};
+    char                  desc_buf[100] = {0};
+    char data_buf[100];
+    int ret,  desc_len = 100;
+
+
+
+    memset(data_buf, 0, sizeof(data_buf));
+    snprintf(data_buf, strlen("test msg"), "test msg");
+
+    data_msg_hdr         = &data_msg_hdr;
+    res_string           = res_buf;
+    desc_string          = desc_buf;
+
+    ret = scenario_msg_inject(engine, data_msg_hdr, data_buf, strlen(data_buf), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+
+
     return BACKEND_PROXY_PROCESS_OK;
 }
