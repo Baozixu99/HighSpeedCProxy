@@ -25,7 +25,7 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol)
     int newfd;
     // save origin netns
     orig_netns = open("/proc/self/ns/net", O_RDONLY);
-    if(orig_netns != 0)
+    if(orig_netns == -1)
     {
         error_print("Open self netns failed!\n");
         return ERROR_SOCKET_FD;
@@ -35,15 +35,24 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol)
     if(setns(ns_id, CLONE_NEWNET) == -1)
     {
         error_print("Set dest netns failed!\n");
+        close(orig_netns);
         return ERROR_SOCKET_FD;
     }
 
     newfd = socket(domain, type, protocol);
-
+    if(newfd == -1) {
+        // Need to switch back to original namespace even on socket() failure
+        setns(orig_netns, CLONE_NEWNET);
+        close(orig_netns);
+        return ERROR_SOCKET_FD;
+    }
+    
     //back to origin netns
     if(setns(orig_netns, CLONE_NEWNET) == -1)
     {
         error_print("Back to origin netns failed!\n");
+        close(orig_netns);
+        close(newfd);
         return ERROR_SOCKET_FD;
     }
     close(orig_netns);

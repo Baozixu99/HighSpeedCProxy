@@ -53,5 +53,5 @@ echo "网卡 [$INTERFACE] 配置:"
 ip netns exec "$NETNS_NAME" ip addr show dev "$INTERFACE" 
 
 echo "使用说明:"
-echo "操作命令: ip netns exec $NETNS_NAME [command]
+echo "操作命令: ip netns exec $NETNS_NAME [command]"
 echo "网络命名空间 [$NETNS_NAME] 已成功设置"
