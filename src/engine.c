@@ -107,7 +107,7 @@ int choose_hs_net_dev(BackendEngine *eng, uint16_t *dev_id){
     struct HighSpeedNetDeviceSet *set;
     HSDevSelector *sel;
     int selector_id, ret;
-    uint16_t target_id;
+    // uint16_t target_id;
 
     if(NULL == eng || NULL == dev_id){
         error_print("choose_hs_net_dev() returns an error because the engine or dev_id pointer is NULL!\n");
@@ -125,9 +125,9 @@ int choose_hs_net_dev(BackendEngine *eng, uint16_t *dev_id){
  * Call the selector function to choose the most appropriate device, and return its dev ID.
  * If the selector function returns unsuccessfully (i.e., its return value does not indicate success) or the target device ID is out of bounds, return an error.
  */
-    ret = sel->choose_dev(eng, &target_id);
+    ret = sel->choose_dev(eng, dev_id);
 
-    if(BACKEND_PROXY_PROCESS_OK != ret || target_id >= eng->dev_num){
+    if(BACKEND_PROXY_PROCESS_OK != ret || *dev_id >= eng->dev_num){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -695,11 +695,13 @@ void engine_init()
     }
 
     ret = engine_init_eng_ops(p_g_bk_eng);
-
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init_hs_net_dev() failed!");
         return;
     }
+
+
+    ret = engine_init_selector(p_g_bk_eng);
 
     ret = engine_init_sess_pool(p_g_bk_eng);
 

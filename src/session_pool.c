@@ -201,7 +201,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * new session is established.
  */
 
-    utils_print("The dev_id is %d\n", dev_id);
+    utils_print("The dev_id is %d, %s\n", dev_id, __func__);
     if(DEV_ID_AUTO_HANDOVER == dev_id){
         if(BACKEND_PROXY_PROCESS_OK != engine->ops->choose_dev(engine, &dev_id)){
             error_print("high_speed_create_sess failed: the network device selection procedure failed!");
@@ -216,9 +216,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  */
     struct HighSpeedNetDevice *hs_dev;
     hs_dev = &engine->dev_set[dev_id];
-
     utils_print("The %dth device in dev_set, dev_id = %d, dev_name = %s, dev_status = %d, ns_id = %d\n", dev_id, hs_dev->dev_id, hs_dev->name, hs_dev->dev_status, hs_dev->ns_id);
-
     ns_id = GET_NS_ID(engine->dev_set, dev_id);
     if(ERROR_NAMESPACE_ID == ns_id){
         error_print("high_speed_create_sess failed: failed to obtain the namespace ID that the selected high-speed network device belongs to!");
