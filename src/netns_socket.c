@@ -148,5 +148,7 @@ int connect_socket_netns(int fd, struct SessMsgPara *sess_para){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    set_nonblocking(fd);
+
     return BACKEND_PROXY_PROCESS_OK;
 }

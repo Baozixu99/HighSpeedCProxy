@@ -534,24 +534,28 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         utils_print("ns_name = %s\n", ns_name);
 
         hs_dev->ns_name = ns_name;
-        
-        // memset(dev_pro_item, 0, sizeof(dev_pro_item));
-        // snprintf(dev_pro_item, dev_name_len + strlen("ns_id") + 2, "%s:ns_id", dev_name);
-        // ns_id = iniparser_getint(ini, dev_pro_item, -1);
-        // if(-1 == ns_id){
-        //     error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the dev ID is either incorrectly configured \
-        //     or not configured in the INI file.\n");
-        //     goto hs_net_error;
-        // }
-        hs_dev->ns_id = open_named_netns(hs_dev->ns_name);
+
+#if 0        
+        memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        snprintf(dev_pro_item, dev_name_len + strlen("ns_id") + 2, "%s:ns_id", dev_name);
+        ns_id = iniparser_getint(ini, dev_pro_item, -1);
+        if(-1 == ns_id){
+            error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the dev ID is either incorrectly configured \
+                         or not configured in the INI file.\n");
+            goto hs_net_error;
+        }
+#endif 
+        ns_id = open_named_netns(hs_dev->ns_name);
         utils_print("ns_id = %d\n", hs_dev->ns_id);
         if(ERROR_NAMESPACE_ID == ns_id){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the ns_id is either incorrectly configured \
             or not configured in the INI file.\n");
             goto hs_net_error;
         }
-        
+
+        hs_dev->ns_id = ns_id;        
         TAILQ_INIT(&hs_dev->conn_q);
+
 
     }//  for(; cnt < dev_num; cnt++)
 
@@ -725,6 +729,8 @@ void engine_init()
         error_print("engine_init_hs_net_dev() failed!");
         return;
     }
+
+    utils_print("ret of engine_init_hs_net_dev is %d\n", ret);
 
     ret = engine_init_eng_ops(p_g_bk_eng);
     if(BACKEND_PROXY_PROCESS_OK != ret){

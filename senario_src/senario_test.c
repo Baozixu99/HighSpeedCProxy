@@ -318,6 +318,11 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
 
     rx_queue = engine->rx_queue;
 
+    if(NULL == rx_queue){
+        error_print("test_proxy_scenario_msg_read_from_rx_queue failed: the rx_queue of the engine is not initialized!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     utils_print("In %s, before enter backend_engine_rx_queue_get\n", __func__);
     ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("In %s, after enter backend_engine_rx_queue_get\n", __func__);
@@ -426,7 +431,7 @@ int session_msg_inject(BackendEngine *engine){
     char *desc_string;
     uint8_t               *res_buf[100] = {NULL};
     char                  desc_buf[100] = {0};
-    char *ip_port_string = "192.168.100.100:80";
+    char *ip_port_string = "127.0.0.1:8888";
 
     sess_msg_hdr                            = &sess_create_msg_hdr;
 
