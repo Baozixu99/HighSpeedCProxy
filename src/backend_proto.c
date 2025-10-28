@@ -904,11 +904,17 @@ int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, si
 */
 int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     uint8_t *data_msg;
+    utils_print("In %s, payload_len = %d, proxy_msg_hdr->payload_len = %d\n", __func__, payload_len, proxy_msg_hdr->payload_len);
+    utils_print("frontend_sess_id = %d, frontend_sess_id =%d\n", proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id);
 
+#if 0
     if(payload_len != proxy_msg_hdr->payload_len){
         error_print("build_proxy_data_message failed: payload length does not match expected value based on message type, action type and IP version!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+#endif
+
+    utils_print("Address of proxy data header = %p, content  =%p, size of ProxyMsgHeader = %d\n", proxy_msg_hdr, *result_msg, sizeof(ProxyMsgHeader));
 
     data_msg = *result_msg;
     memcpy(data_msg, payload, payload_len);
@@ -1014,7 +1020,8 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
     proxy_msg_hdr->frontend_sess_id     = header->outer_header.frontend_sess_id;
     proxy_msg_hdr->backend_sess_id      = header->outer_header.backend_sess_id;
     
-    utils_print("version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d\n", proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id);
+    utils_print("In %s, version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d, payload_len = %d\n", __func__,
+                proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id, proxy_msg_hdr->payload_len);
     msg_buf += sizeof(ProxyMsgHeader);
     switch(outer_msg_type) {
         case PROXY_MSG_TYPE_DEV:
@@ -1037,6 +1044,8 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
         case PROXY_MSG_TYPE_DATA:
             proxy_msg_payload_len = 0;
             ret = build_proxy_data_message(proxy_msg_hdr, payload, payload_len, &msg_buf);
+            utils_print("In %s, after build_proxy_data_message, the return value is %d\n", __func__, ret);
+            break;
         default:
 /*
  * Message type is not supported!.

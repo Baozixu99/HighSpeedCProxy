@@ -103,7 +103,7 @@ GeneralProxyMsgHeader sess_create_msg_hdr = {
 
 
 // data message header
-GeneralProxyMsgHeader data_msg_hdr = {
+GeneralProxyMsgHeader proxy_data_msg_hdr = {
     .outer_header = {
         .version            = PROXY_PROTO_VERSION_1,                            // Protocol version, fixed to 1 as specified
         .proxy_msg_type     = PROXY_MSG_TYPE_DATA,                              // Proxy message type: Session message (3)
@@ -228,7 +228,7 @@ int scenario_msg_inject(BackendEngine *engine,
 
     // ... (call build_proxy_general_message, handle queue injection, etc.)
 
-    utils_print("In %s, before enter build_proxy_general_message\n", __func__);
+    utils_print("In %s, before enter build_proxy_general_message, build message type = %d\n", __func__, msg_header->outer_header.proxy_msg_type);
     ret = build_proxy_general_message(engine, msg_header, msg_payload, msg_payload_len, result_msg, alloc_mode, engine->rx_queue);
 
     return BACKEND_PROXY_PROCESS_OK;
@@ -314,6 +314,7 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
     struct BackendSessionPool       *sess_pool;
     struct BackendSessionPoolOps    *sess_pool_ops;
     uint8_t                         *proxy_msg;
+    ProxyMsgHeader                  *proxy_msg_hdr;
     uint32_t                        msg_size;
     int                             ret;
 
@@ -343,6 +344,10 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
 
     ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    proxy_msg_hdr = (ProxyMsgHeader *)proxy_msg;
+    utils_print("in data message, version = %d, message type = %d\n", proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type);
+    backend_proxy_msg_process(proxy_msg);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -443,6 +448,8 @@ int session_msg_inject(BackendEngine *engine){
     res_string           = res_buf;
     desc_string          = desc_buf;
 
+    utils_print("In %s, version = %d, type = %d\n", __func__, sess_msg_hdr->outer_header.version, sess_msg_hdr->outer_header.proxy_msg_type);
+
     ret = scenario_msg_inject(engine, sess_msg_hdr, &sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
     return ret;
@@ -473,9 +480,13 @@ int data_msg_inject(BackendEngine *engine){
     memset(data_buf, 0, sizeof(data_buf));
     snprintf(data_buf, strlen("test msg"), "test msg");
 
-    data_msg_hdr         = &data_msg_hdr;
+    data_msg_hdr         = &proxy_data_msg_hdr;
     res_string           = res_buf;
     desc_string          = desc_buf;
+
+    data_msg_hdr->outer_header.payload_len = strlen("test msg");
+
+    utils_print("In %s, version = %d, type = %d\n", __func__, data_msg_hdr->outer_header.version, data_msg_hdr->outer_header.proxy_msg_type);
 
     ret = scenario_msg_inject(engine, data_msg_hdr, data_buf, strlen(data_buf), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
