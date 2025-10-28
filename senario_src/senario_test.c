@@ -102,7 +102,7 @@ GeneralProxyMsgHeader sess_create_msg_hdr = {
 };
 
 
-// Session create message header
+// data message header
 GeneralProxyMsgHeader data_msg_hdr = {
     .outer_header = {
         .version            = PROXY_PROTO_VERSION_1,                            // Protocol version, fixed to 1 as specified
@@ -268,6 +268,7 @@ int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
     device_msg_inject(engine);
     strategy_msg_inject(engine);
     session_msg_inject(engine);
+    data_msg_inject(engine);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
