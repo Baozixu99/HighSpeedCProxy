@@ -490,6 +490,30 @@ int data_msg_inject(BackendEngine *engine){
 
     ret = scenario_msg_inject(engine, data_msg_hdr, data_buf, strlen(data_buf), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Process the active Frontend-to-Backend session queue in the test proxy scenario
+ * @details This function is designed to be executed after test_proxy_scenario_msg_read_from_rx_queue.
+ * It accesses all active Frontend-to-Backend (f2b) sessions managed by the backend engine,
+ * retrieves information from each session in sequence, and sends the information through
+ * the socket maintained by the corresponding session object.
+ *
+ * @param[in] engine Pointer to a BackendEngine structure that manages the active f2b sessions and related resources
+ * @return int Returns 0 on successful processing of all active sessions; non-zero error code if any error occurs during processing
+ */
+int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
+    BackendEngine                   *eng;
+    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+    struct BackendSession           *cur_sess, *next_sess;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    uint8_t                         *proxy_msg;
+    uint32_t                        msg_size;
+    int                             ret;
 
     return BACKEND_PROXY_PROCESS_OK;
 }

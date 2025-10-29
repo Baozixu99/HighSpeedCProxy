@@ -664,6 +664,7 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
     struct SessMsgSeg               *msg_seg;
     int ret;
 
+    utils_print("In %s\n", __func__);
 
     eng = get_global_backend_engine();
 
@@ -688,6 +689,8 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
         return BACKEND_PROXY_PROCESS_ERROR;   
     }
 
+    utils_print("frontend id = %d, backend id = %d\n", sess->frontend_sess_id, sess->backend_sess_id);
+
     msg_seg = sess_msg_seg_alloc(data_len, SESS_MSG_SEG_SHARED_MEM, msg, mem_pool);
 
     if(NULL == msg_seg){
@@ -698,12 +701,20 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
 /*
  * Insert the message segment into the front-to-end message queue.
  */
+
+    utils_print("Before SESS_MSG_SEG_INSERT_QUEUE, TAILQ_EMPTY returns %d\n", TAILQ_EMPTY(&sess->msg_f2b));
     SESS_MSG_SEG_INSERT_QUEUE(sess, msg_seg, f2b);
+    utils_print("After SESS_MSG_SEG_INSERT_QUEUE, TAILQ_EMPTY returns %d\n", TAILQ_EMPTY(&sess->msg_f2b));
+
 /*
  * Insert the session into the front-end to back-end active session queue. The backend proxy protocol will process all sessions in the active session queue,
  * detach them one by one, and process all message segments in the selected session.
  */
+//    s_pool->queue_f2b;
+
+    utils_print("Before BACKEND_SESS_LINK_TO_QUEUE, state_f2b is %d, TAILQ_EMPTY returns %d\n", sess->state_f2b, TAILQ_EMPTY(&s_pool->queue_f2b));
     BACKEND_SESS_LINK_TO_QUEUE(sess, f2b);
+    utils_print("After BACKEND_SESS_LINK_TO_QUEUE, state_f2b is %d, TAILQ_EMPTY returns %d\n", sess->state_f2b, TAILQ_EMPTY(&s_pool->queue_f2b));
 
     return BACKEND_PROXY_PROCESS_OK;
 }

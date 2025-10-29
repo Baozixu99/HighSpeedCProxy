@@ -1045,7 +1045,7 @@ eng_run_step2:
  /*
   * Nothing to do when not all data has been sent and there are no errors.
   */
-        }
+        } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess)
 
 /*
  * Complete data reception from the shared memory region for this operation.
@@ -1124,7 +1124,7 @@ eng_run_step4:
             if(BACKEND_PROXY_PROCESS_AGAIN == ret){
                 break;
             }
-        }
+        } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess)
 
         SHARED_MEM_QUEUE_UNLOCK(tx_queue);
 /*

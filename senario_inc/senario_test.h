@@ -115,4 +115,7 @@ int data_msg_inject(BackendEngine *engine);
 
 int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine);
 
+
+int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine);
+
 #endif

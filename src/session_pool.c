@@ -292,7 +292,9 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     new_sess->state_f2b         &= BACKEND_SESS_LINKED_TO_QUEUE;
     new_sess->state_b2f         &= BACKEND_SESS_LINKED_TO_QUEUE;
     TAILQ_INIT(&new_sess->msg_f2b);
+    utils_print("In %s, TAILQ_EMPTY(&new_sess->msg_f2b) returns %d\n", __func__, TAILQ_EMPTY(&new_sess->msg_f2b));
     TAILQ_INIT(&new_sess->msg_b2f);
+    utils_print("In %s, TAILQ_EMPTY(&new_sess->msg_b2f) returns %d\n", __func__, TAILQ_EMPTY(&new_sess->msg_b2f));
 
 /*
  * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
