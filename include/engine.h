@@ -9,6 +9,7 @@
 #include "backend_proto.h"
 #include "shared_mem_io.h"
 #include "poller.h"
+#include "common_utils.h"
 
 
 #define HS_NET_DEV_CFG "hs_net_dev.ini"
@@ -142,6 +143,7 @@ int engine_choose_hs_net(BackendEngine *eng, int *selected_dev_id);
         (result_var) = NULL; \
  \
         /* Check if BackendEngine pointer is NULL */ \
+        utils_print("In BACKEND_ENGINE_GET_F2B_QUEUE, address of engine is %p \n", engine); \
         if (!(engine)) { \
             error_print("[BACKEND_ENGINE_GET_F2B_QUEUE] Error: BackendEngine pointer is NULL when getting f2b queue"); \
         } \

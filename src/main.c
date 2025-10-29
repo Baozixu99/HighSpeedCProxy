@@ -33,6 +33,7 @@ int main(int argc, char** argv)
 
     test_proxy_scenario_multi_type_msg_build(eng);
     test_proxy_scenario_msg_read_from_rx_queue(eng);
+    test_proxy_scenario_process_active_f2b_sess_queue(eng);
     // run();
     return 0;
 }

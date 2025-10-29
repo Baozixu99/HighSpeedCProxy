@@ -502,10 +502,10 @@ int data_msg_inject(BackendEngine *engine){
  * the socket maintained by the corresponding session object.
  *
  * @param[in] engine Pointer to a BackendEngine structure that manages the active f2b sessions and related resources
- * @return int Returns 0 on successful processing of all active sessions; non-zero error code if any error occurs during processing
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful processing of all active sessions; 
+ *                     BACKEND_PROXY_PROCESS_ERROR if any error occurs during processing
  */
 int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
-    BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
     struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
     struct BackendSession           *cur_sess, *next_sess;
@@ -514,6 +514,50 @@ int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
     uint8_t                         *proxy_msg;
     uint32_t                        msg_size;
     int                             ret;
+
+    utils_print("In %s, the address of the engine is %p\n", __func__, engine);
+
+    BACKEND_ENGINE_GET_F2B_QUEUE(engine, active_queue_f2b);
+
+#if 0
+    sess_pool = engine->sess_pool;
+    utils_print("The address of the session pool is %p\n", sess_pool);
+    active_queue_f2b = &engine->sess_pool->queue_f2b;
+    utils_print("The address of the active_queue_f2b is %p\n", active_queue_f2b);
+#endif
+
+#if 0
+    utils_print("In %s\n", __func__);
+    TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
+        utils_print("current sess frontend_sess_id = %d, backend_sess_id = %d\n", cur_sess->frontend_sess_id, cur_sess->backend_sess_id);
+    }// TAILQ_FOREACH_SAFE
+#endif
+
+#if 0
+    for ( (cur_sess) = (active_queue_f2b)->tqh_first, (next_sess) = (cur_sess)->entries_f2b.tqe_next; (cur_sess) != NULL; 
+          (cur_sess) = (next_sess), (next_sess) = (cur_sess)->entries_f2b.tqe_next
+    ) {
+        utils_print("The address of the cur_sess = %p, next_sess = %p\n", cur_sess, next_sess);
+        utils_print("current sess frontend_sess_id = %d, backend_sess_id = %d\n", cur_sess->frontend_sess_id, cur_sess->backend_sess_id);
+    }
+#endif
+
+
+    for (
+    /* Initialization: Get first node and pre-save its next node */
+        (cur_sess) = (active_queue_f2b)->tqh_first,
+        (next_sess) = (cur_sess != NULL) ? (cur_sess)->entries_f2b.tqe_next : NULL;
+
+    /* Loop condition: Current node is valid */
+        (cur_sess) != NULL;
+
+    /* Iteration: First get next node using CURRENT cur_sess, then update cur_sess */
+        (next_sess) = (cur_sess != NULL) ? (cur_sess)->entries_f2b.tqe_next : NULL,
+        (cur_sess) = (next_sess)
+    ) {
+        utils_print("The address of the cur_sess = %p, next_sess = %p\n", cur_sess, next_sess);
+        utils_print("current sess frontend_sess_id = %d, backend_sess_id = %d\n", cur_sess->frontend_sess_id, cur_sess->backend_sess_id);
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 }
