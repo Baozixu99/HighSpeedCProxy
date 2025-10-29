@@ -359,11 +359,20 @@ struct name { \
 
 // Manually define TAILQ_FOREACH_SAFE macro (only use if the system header doesn't support it)
 #ifndef TAILQ_FOREACH_SAFE
+
+#if 0
 #define TAILQ_FOREACH_SAFE(var, head, field, next_var) \
     for ((var) = TAILQ_FIRST((head)), \
          (next_var) = TAILQ_NEXT((var), field); \
          (var) != TAILQ_END((head)); \
          (var) = (next_var), (next_var) = TAILQ_NEXT((var), field))
+#endif
+
+#define TAILQ_FOREACH_SAFE(var, head, field, next_var) \
+    for (var = TAILQ_FIRST(head); \
+         var != TAILQ_END(head) && (next_var = TAILQ_NEXT(var, field), 1); \
+         var = next_var)
+
 #endif
 
 
