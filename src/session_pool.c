@@ -512,17 +512,23 @@ int high_speed_data_process_f2b(struct BackendSession *sess)
     fd = sess->sock_fd;
     buf_len = sizeof(buf_size);
 
+    utils_print("In %s\n", __func__);
     if (getsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buf_size, &buf_len) == -1) {
         error_print("high_speed_data_process failed: failed to get the size of the send buffer size!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    utils_print("socket buffer size = %d\n", buf_size);
+
     TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_f2b, entry, next_seg) {
 
         /* 1. Send the data from current segment */
-        if (cur_seg->data && cur_seg->len > sizeof(ProxyMsgHeader)) {
+        utils_print("cur_seg->len = %d, msg = %s\n", cur_seg->len, cur_seg->data);
+        if (cur_seg->data && cur_seg->len > 0) {
             if(buf_size > cur_seg->len){
-                ret = send(fd, cur_seg->data + sizeof(ProxyMsgHeader), cur_seg->len - sizeof(ProxyMsgHeader), 0);
+                utils_print("seg size = %d\n", cur_seg->len);
+                ret = send(fd, cur_seg->data, cur_seg->len, 0);
+                utils_print("After send, ret = %d\n", ret);
 
                 if(-1 == ret){
                     error_print("high_speed_data_process: Failed to send data via session socket");

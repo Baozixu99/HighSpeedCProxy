@@ -228,129 +228,12 @@ int scenario_msg_inject(BackendEngine *engine,
 
     // ... (call build_proxy_general_message, handle queue injection, etc.)
 
-    utils_print("In %s, before enter build_proxy_general_message, build message type = %d\n", __func__, msg_header->outer_header.proxy_msg_type);
+    utils_print("In %s, before enter build_proxy_general_message, build message type = %d, msg_payload_len = %d\n", __func__, msg_header->outer_header.proxy_msg_type, msg_payload_len);
     ret = build_proxy_general_message(engine, msg_header, msg_payload, msg_payload_len, result_msg, alloc_mode, engine->rx_queue);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
 
-
-/**
- * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly constructs multi-type proxy messages and injects them into the shared memory RX queue
- * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
- *          1. Automatically constructs all core proxy message types, including device messages, strategy messages, session messages, and data messages;
- *          2. Calls the underlying packet-building functions (e.g., scenario_msg_inject build_proxy_general_message, build_proxy_sess_message) to complete the structured packaging of messages;
- *          3. Obtains the shared memory RX queue handle from the input BackendEngine global context (which must be initialized in advance), and injects the constructed messages into the queue following FIFO rules;
- *          4. Does not require external input of message parameters (e.g., msg_header, msg_payload). All test message parameters (such as device ID, session ID, data payload) are preset according to the test scenarios in the document 
- *             (e.g., frontend_sess_id = 1 preset for session messages, "query strategy" command preset for strategy messages) to ensure test consistency.
- * 
- * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
- *                   - Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that resources such as the memory pool handle and shared memory RX queue (engine->rx_queue) are ready 
- *                   - The context must contain valid runtime configurations (e.g., shared memory queue size, session pool capacity) to avoid resource unavailability errors during message construction or injection 
- *                     (refer to the parameter verification logic in "Section 1.2 Abnormal Scenarios" of the document).
- * 
- * @return int Follows the unified error code specification in the document, with return value meanings as follows:
- *             - BACKEND_PROXY_PROCESS_OK: All types of proxy messages are successfully constructed and injected into the RX queue;
- *             - BACKEND_PROXY_PROCESS_ERROR: All abnormal scenarios are covered, including uninitialized BackendEngine, NULL internal resources (e.g., rx_queue), full shared memory RX queue, and failed calls to underlying packet-building functions 
- *              
- * 
- * @note 1. Precondition: The engine must be initialized before calling this function (refer to the normal scenario process in "Test Process - Engine Initialization Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
- *       2. Message coverage: The current version covers 4 core message types. Protocol Message Processing Module" of the document:
- *          - Device messages: Preset with "device status query" commands;
- *          - Strategy messages: Preset with "query strategy configuration" commands (corresponding to the "strategy configuration command execution" scenario;
- *          - Session messages: Preset with "create session" (valid device ID) and "close session" (valid session ID) commands (corresponding to the "session creation" scenario;
- *          - Data messages: Preset with two boundary scenarios: empty payload and maximum-length payload (4088 bytes);
- *       3. Result feedback: The function internally uses error_print to print detailed logs of message construction/injection (e.g., "Device message injected successfully", "RX queue full, data message injection failed"), 
- *          and the log format complies with the log specification for "configuration file loading failure";
- *       4. Subsequent triggering: After message injection is completed, the engine_run function (entry of "Main Loop Test Process" in the document) must be called to trigger the engine to read and process messages from the RX queue, thus completing the full test link.
- */
-int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
-    device_msg_inject(engine);
-    strategy_msg_inject(engine);
-    session_msg_inject(engine);
-    data_msg_inject(engine);
-
-    return BACKEND_PROXY_PROCESS_OK;
-}
-
-
-/**
- * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly reads multi-type proxy messages from the shared memory RX queue 
- * and simulates the data reading process.
- * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
- * Automatically reads all core proxy message types that may exist in the queue, including device messages, strategy messages, session messages, and data messages 
- * (the actual types and quantities are uncertain, depending on the injected content);
- * Calls the underlying message reading functions (e.g., backend_engine_rx_queue_get, scenario_msg_read) to complete the parsing and extraction of structured messages;
- * Obtains the shared memory RX queue handle from the input BackendEngine global context (which must be initialized in advance), and reads messages from the queue following FIFO rules;
- * Does not require external input of message parameters (e.g., expected msg type, msg ID). All test verification logic (such as checking message structure validity, matching preset parameters) is 
- * based on the test scenarios (e.g., verifying that session messages contain preset session ID = 1, data messages match preset payload length) to ensure test consistency.
- * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
- * Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that resources such as the memory pool handle and 
- * shared memory RX queue (engine->rx_queue) are ready
- * The context must contain valid runtime configurations (e.g., shared memory queue size, message parsing rules) to avoid resource unavailability errors during message reading or parsing
- * (refer to the parameter verification logic in "Section 1.2 Abnormal Scenarios" of the document).
- * @return int Follows the unified error code specification in the document, with return value meanings as follows:
- * BACKEND_PROXY_PROCESS_OK: All existing types of proxy messages in the RX queue are successfully read and parsed;
- * BACKEND_PROXY_PROCESS_ERROR: All abnormal scenarios are covered, including uninitialized BackendEngine, NULL internal resources (e.g., rx_queue), empty shared memory RX queue (when messages 
- * are expected), and failed calls to underlying message reading/parsing functions
- * @note 1. Precondition: The engine must be initialized before calling this function, and messages must be pre-injected into the RX queue (e.g., via test_proxy_scenario_multi_type_msg_build) (refer to the normal scenario process in "Test Process - Message Reading Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
- * Message coverage: The current version supports reading 4 core message types, which may exist in any combination (one or more types) depending on the injection scenario. For details on message 
- * structure, refer to "Section 3.1 Proxy Message Format" of the document:
- * Device messages: Verify consistency with preset "device status query" commands;
- * Strategy messages: Verify consistency with preset "query strategy configuration" commands (matching the "strategy configuration command parsing" scenario);
- * Session messages: Verify consistency with preset "create session" (valid device ID) and "close session" (valid session ID) commands (matching the "session command parsing" scenario);
- * Data messages: Verify consistency with preset boundary scenarios (empty payload and maximum-length payload (4088 bytes));
- * Result feedback: The function internally uses error_print to print detailed logs of message reading/parsing (e.g., "Device message read successfully", "Data message parsing failed: 
- * invalid payload length"),
- * and the log format complies with the log specification for "message processing failure";
- * Subsequent verification: After message reading is completed, the function may trigger internal verification logic (e.g., checking message count, comparing with injected content) to confirm 
- * the correctness of the reading process, thus completing the full test link of "inject-read-verify".
- */
-
-int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
-    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
-    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
-    struct BackendSession           *cur_sess, *next_sess;
-    struct BackendSessionPool       *sess_pool;
-    struct BackendSessionPoolOps    *sess_pool_ops;
-    uint8_t                         *proxy_msg;
-    ProxyMsgHeader                  *proxy_msg_hdr;
-    uint32_t                        msg_size;
-    int                             ret;
-
-    rx_queue = engine->rx_queue;
-
-    if(NULL == rx_queue){
-        error_print("test_proxy_scenario_msg_read_from_rx_queue failed: the rx_queue of the engine is not initialized!\n");
-        return BACKEND_PROXY_PROCESS_ERROR;
-    }
-
-    utils_print("In %s, before enter backend_engine_rx_queue_get\n", __func__);
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
-    utils_print("In %s, after enter backend_engine_rx_queue_get\n", __func__);
-    utils_print("rx queue header is %d, tail is %d\n", rx_queue->header, rx_queue->tail);
-
-    backend_proxy_msg_process(proxy_msg);
-
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
-    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
-
-    backend_proxy_msg_process(proxy_msg);
-
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
-    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
-
-    backend_proxy_msg_process(proxy_msg);
-
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
-    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
-
-    proxy_msg_hdr = (ProxyMsgHeader *)proxy_msg;
-    utils_print("in data message, version = %d, message type = %d\n", proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type);
-    backend_proxy_msg_process(proxy_msg);
-
-    return BACKEND_PROXY_PROCESS_OK;
-}
 
 
 /**
@@ -478,7 +361,10 @@ int data_msg_inject(BackendEngine *engine){
 
 
     memset(data_buf, 0, sizeof(data_buf));
-    snprintf(data_buf, strlen("test msg"), "test msg");
+    snprintf(data_buf, sizeof(data_buf), "test msg");
+
+    utils_print("strlen(test msg) = %d\n", strlen("test msg"));
+    utils_print("content of data_buf = %s\n", data_buf);
 
     data_msg_hdr         = &proxy_data_msg_hdr;
     res_string           = res_buf;
@@ -486,9 +372,132 @@ int data_msg_inject(BackendEngine *engine){
 
     data_msg_hdr->outer_header.payload_len = strlen("test msg");
 
+    utils_print("outer_header.payload_len = %d\n", data_msg_hdr->outer_header.payload_len);
+
     utils_print("In %s, version = %d, type = %d\n", __func__, data_msg_hdr->outer_header.version, data_msg_hdr->outer_header.proxy_msg_type);
 
+    DUMP_BUFFER_CONTENT(data_buf, 8, "%c");
+
     ret = scenario_msg_inject(engine, data_msg_hdr, data_buf, strlen(data_buf), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+/**
+ * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly constructs multi-type proxy messages and injects them into the shared memory RX queue
+ * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
+ *          1. Automatically constructs all core proxy message types, including device messages, strategy messages, session messages, and data messages;
+ *          2. Calls the underlying packet-building functions (e.g., scenario_msg_inject build_proxy_general_message, build_proxy_sess_message) to complete the structured packaging of messages;
+ *          3. Obtains the shared memory RX queue handle from the input BackendEngine global context (which must be initialized in advance), and injects the constructed messages into the queue following FIFO rules;
+ *          4. Does not require external input of message parameters (e.g., msg_header, msg_payload). All test message parameters (such as device ID, session ID, data payload) are preset according to the test scenarios in the document 
+ *             (e.g., frontend_sess_id = 1 preset for session messages, "query strategy" command preset for strategy messages) to ensure test consistency.
+ * 
+ * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
+ *                   - Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that resources such as the memory pool handle and shared memory RX queue (engine->rx_queue) are ready 
+ *                   - The context must contain valid runtime configurations (e.g., shared memory queue size, session pool capacity) to avoid resource unavailability errors during message construction or injection 
+ *                     (refer to the parameter verification logic in "Section 1.2 Abnormal Scenarios" of the document).
+ * 
+ * @return int Follows the unified error code specification in the document, with return value meanings as follows:
+ *             - BACKEND_PROXY_PROCESS_OK: All types of proxy messages are successfully constructed and injected into the RX queue;
+ *             - BACKEND_PROXY_PROCESS_ERROR: All abnormal scenarios are covered, including uninitialized BackendEngine, NULL internal resources (e.g., rx_queue), full shared memory RX queue, and failed calls to underlying packet-building functions 
+ *              
+ * 
+ * @note 1. Precondition: The engine must be initialized before calling this function (refer to the normal scenario process in "Test Process - Engine Initialization Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
+ *       2. Message coverage: The current version covers 4 core message types. Protocol Message Processing Module" of the document:
+ *          - Device messages: Preset with "device status query" commands;
+ *          - Strategy messages: Preset with "query strategy configuration" commands (corresponding to the "strategy configuration command execution" scenario;
+ *          - Session messages: Preset with "create session" (valid device ID) and "close session" (valid session ID) commands (corresponding to the "session creation" scenario;
+ *          - Data messages: Preset with two boundary scenarios: empty payload and maximum-length payload (4088 bytes);
+ *       3. Result feedback: The function internally uses error_print to print detailed logs of message construction/injection (e.g., "Device message injected successfully", "RX queue full, data message injection failed"), 
+ *          and the log format complies with the log specification for "configuration file loading failure";
+ *       4. Subsequent triggering: After message injection is completed, the engine_run function (entry of "Main Loop Test Process" in the document) must be called to trigger the engine to read and process messages from the RX queue, thus completing the full test link.
+ */
+int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
+    device_msg_inject(engine);
+    strategy_msg_inject(engine);
+    session_msg_inject(engine);
+    data_msg_inject(engine);
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Upper-layer scenario-based test function for the backend protocol stack, which uniformly reads multi-type proxy messages from the shared memory RX queue 
+ * and simulates the data reading process.
+ * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
+ * Automatically reads all core proxy message types that may exist in the queue, including device messages, strategy messages, session messages, and data messages 
+ * (the actual types and quantities are uncertain, depending on the injected content);
+ * Calls the underlying message reading functions (e.g., backend_engine_rx_queue_get, scenario_msg_read) to complete the parsing and extraction of structured messages;
+ * Obtains the shared memory RX queue handle from the input BackendEngine global context (which must be initialized in advance), and reads messages from the queue following FIFO rules;
+ * Does not require external input of message parameters (e.g., expected msg type, msg ID). All test verification logic (such as checking message structure validity, matching preset parameters) is 
+ * based on the test scenarios (e.g., verifying that session messages contain preset session ID = 1, data messages match preset payload length) to ensure test consistency.
+ * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
+ * Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that resources such as the memory pool handle and 
+ * shared memory RX queue (engine->rx_queue) are ready
+ * The context must contain valid runtime configurations (e.g., shared memory queue size, message parsing rules) to avoid resource unavailability errors during message reading or parsing
+ * (refer to the parameter verification logic in "Section 1.2 Abnormal Scenarios" of the document).
+ * @return int Follows the unified error code specification in the document, with return value meanings as follows:
+ * BACKEND_PROXY_PROCESS_OK: All existing types of proxy messages in the RX queue are successfully read and parsed;
+ * BACKEND_PROXY_PROCESS_ERROR: All abnormal scenarios are covered, including uninitialized BackendEngine, NULL internal resources (e.g., rx_queue), empty shared memory RX queue (when messages 
+ * are expected), and failed calls to underlying message reading/parsing functions
+ * @note 1. Precondition: The engine must be initialized before calling this function, and messages must be pre-injected into the RX queue (e.g., via test_proxy_scenario_multi_type_msg_build) (refer to the normal scenario process in "Test Process - Message Reading Test" of "Backend Protocol Stack Unit Test.doc"), otherwise a process error will be returned directly;
+ * Message coverage: The current version supports reading 4 core message types, which may exist in any combination (one or more types) depending on the injection scenario. For details on message 
+ * structure, refer to "Section 3.1 Proxy Message Format" of the document:
+ * Device messages: Verify consistency with preset "device status query" commands;
+ * Strategy messages: Verify consistency with preset "query strategy configuration" commands (matching the "strategy configuration command parsing" scenario);
+ * Session messages: Verify consistency with preset "create session" (valid device ID) and "close session" (valid session ID) commands (matching the "session command parsing" scenario);
+ * Data messages: Verify consistency with preset boundary scenarios (empty payload and maximum-length payload (4088 bytes));
+ * Result feedback: The function internally uses error_print to print detailed logs of message reading/parsing (e.g., "Device message read successfully", "Data message parsing failed: 
+ * invalid payload length"),
+ * and the log format complies with the log specification for "message processing failure";
+ * Subsequent verification: After message reading is completed, the function may trigger internal verification logic (e.g., checking message count, comparing with injected content) to confirm 
+ * the correctness of the reading process, thus completing the full test link of "inject-read-verify".
+ */
+
+int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
+    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+    struct BackendSession           *cur_sess, *next_sess;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    uint8_t                         *proxy_msg;
+    ProxyMsgHeader                  *proxy_msg_hdr;
+    uint32_t                        msg_size;
+    int                             ret;
+
+    rx_queue = engine->rx_queue;
+
+    if(NULL == rx_queue){
+        error_print("test_proxy_scenario_msg_read_from_rx_queue failed: the rx_queue of the engine is not initialized!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    utils_print("In %s, before enter backend_engine_rx_queue_get\n", __func__);
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("In %s, after enter backend_engine_rx_queue_get\n", __func__);
+    utils_print("rx queue header is %d, tail is %d\n", rx_queue->header, rx_queue->tail);
+
+    backend_proxy_msg_process(proxy_msg);
+
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    backend_proxy_msg_process(proxy_msg);
+
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    backend_proxy_msg_process(proxy_msg);
+
+    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
+
+    proxy_msg_hdr = (ProxyMsgHeader *)proxy_msg;
+    utils_print("in data message, version = %d, message type = %d\n", proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type);
+    backend_proxy_msg_process(proxy_msg);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -526,10 +535,17 @@ int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
     utils_print("The address of the active_queue_f2b is %p\n", active_queue_f2b);
 #endif
 
+    sess_pool       = engine->sess_pool;
+    sess_pool_ops   = sess_pool->ops;
+
 #if 1
     utils_print("In %s\n", __func__);
     TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
         utils_print("current sess frontend_sess_id = %d, backend_sess_id = %d\n", cur_sess->frontend_sess_id, cur_sess->backend_sess_id);
+
+        ret = sess_pool_ops->data_process_f2b(cur_sess);
+
+        utils_print("After call data_process_f2b, ret = %d\n", ret);
     }// TAILQ_FOREACH_SAFE
 #endif
 

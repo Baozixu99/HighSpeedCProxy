@@ -15,6 +15,8 @@ DEFAULT_GATEWAY="192.168.1.1"
 NETNS_NAME=${1:-$DEFAULT_NETNS}
 INTERFACE=${2:-$DEFAULT_INTERFACE}
 
+ip link add veth0 type veth peer name veth1
+
 echo "操作开始: 创建网络命名空间 [$NETNS_NAME] 并移动网卡 [$INTERFACE]"
 
 # 检查网卡是否存在
