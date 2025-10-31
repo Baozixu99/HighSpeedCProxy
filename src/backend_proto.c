@@ -499,10 +499,19 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
         utils_print("After set trans_proto,  sess_para.trans_proto = %d, para_ipv4->trans_proto = %d\n", sess_para.trans_proto, para_ipv4->trans_proto);
         sess_para.ip_version        = SESS_IPV4_PROTO;
 
+        utils_print("In %s\n", __func__);
+        DUMP_BUFFER_CONTENT(&para_ipv4->ipv4_addr, sizeof(struct IPv4Address), "%d");
+
         ipv4_port_tuple             = &sess_para.ip_port_tuple.ipv4_port_tuple;
         ipv4_addr                   = &para_ipv4->ipv4_addr;
-        memcpy(&ipv4_port_tuple->ipv4_addr, &ipv4_addr, sizeof(struct IPv4Address));
+        memcpy(&ipv4_port_tuple->ipv4_addr, ipv4_addr, sizeof(struct IPv4Address));
         ipv4_port_tuple->port       = para_ipv4->port;
+
+        utils_print("The content of the ipv4_addr is: \n");
+        DUMP_BUFFER_CONTENT(ipv4_addr, sizeof(struct IPv4Address), "%d");
+
+        utils_print("The content of the ipv4_port_tuple->ipv4_addr is: \n");
+        DUMP_BUFFER_CONTENT(&ipv4_port_tuple->ipv4_addr, sizeof(struct IPv4Address), "%d");
         
         utils_print("In sess_para, the dev_id = %d, trans_proto = %d,ip_version = %d\n", sess_para.dev_id, sess_para.trans_proto, sess_para.ip_version);
     }else if(SESS_IPV6_PROTO == ip_version){
@@ -517,7 +526,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 
         ipv6_port_tuple             = &sess_para.ip_port_tuple.ipv6_port_tuple;
         ipv6_addr                   = &para_ipv6->ipv6_addr;
-        memcpy(&ipv6_port_tuple->ipv6_addr, &ipv6_addr, sizeof(struct IPv6Address));
+        memcpy(&ipv6_port_tuple->ipv6_addr, ipv6_addr, sizeof(struct IPv6Address));
         ipv6_port_tuple->port       = para_ipv6->port;
 
     }else{
