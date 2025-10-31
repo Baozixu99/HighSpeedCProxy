@@ -101,7 +101,7 @@ int create_socket_netns(int ns_id, struct SessMsgPara *para, int *fd){
     }
 
     new_fd = __create_socket_netns(ns_id, domain, type, protocol);
-
+    utils_print("In %s, new_fd = %d\n", __func__, new_fd);
     if(ERROR_SOCKET_FD == new_fd){
         error_print("create_socket_netns failed: the socket creation procedure is not completed successfully!");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -148,6 +148,10 @@ int connect_socket_netns(int fd, struct SessMsgPara *sess_para){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET, &uni_addr.addr.ipv4_addr.sin_addr, ip_str, INET_ADDRSTRLEN);
+    utils_print("In %s, fd = %d\n", __func__, fd);
+    utils_print("In %s, ip = %s, port = %d\n", __func__, ip_str, ntohs(uni_addr.addr.ipv4_addr.sin_port));
     set_nonblocking(fd);
 
     return BACKEND_PROXY_PROCESS_OK;
