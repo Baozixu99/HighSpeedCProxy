@@ -74,6 +74,7 @@ void poller_run(NetPoller *reactor)
 
 void poller_run(struct BackendEngine_ *eng, NetPoller *reactor)
 {
+    sleep(1);
     struct BackendSession           *sess;
     struct epoll_event              events[MAX_EVENTS + 1];
     struct BackendSessionPoolOps    *sess_pool_ops;
@@ -81,7 +82,7 @@ void poller_run(struct BackendEngine_ *eng, NetPoller *reactor)
     int                             nready, ret;
 
     nready = epoll_wait(reactor->epfd, events, MAX_EVENTS, 0);
-    
+    utils_print("poller_run: epoll_wait returns %d events\n", nready);
     if (nready < 0) 
     {
         printf("epoll_wait error, exit\n");

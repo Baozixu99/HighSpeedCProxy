@@ -724,11 +724,15 @@ int high_speed_data_process_nns(struct BackendSession *sess){
         msg_hdr->backend_sess_id    = sess->backend_sess_id;
         msg_hdr->proxy_msg_type     = PROXY_MSG_TYPE_DATA;
         msg_hdr->payload_len        = ret;
-
+        utils_print("high_speed_data_process_nns: read %d bytes from socket %d\n", ret, fd);
+        utils_print("high_speed_data_process_nns: msg_hdr->frontend_sess_id = %d, msg_hdr->backend_sess_id = %d, msg_hdr->payload_len = %d\n",
+                    msg_hdr->frontend_sess_id, msg_hdr->backend_sess_id, msg_hdr->payload_len);
+        utils_print("msgdata = %s\n", msg_data);
         SESS_MSG_SEG_INSERT_QUEUE(sess, cur_seg, b2f);
 
         bytes_available -= ret;
     }
+    BACKEND_SESS_LINK_TO_QUEUE(sess, b2f);
     return BACKEND_PROXY_PROCESS_OK;
 }
 
