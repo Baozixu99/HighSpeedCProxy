@@ -561,3 +561,34 @@ int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
 
     return BACKEND_PROXY_PROCESS_OK;
 }
+
+/**
+ * @brief Upper-layer scenario-based test function for the backend protocol stack, which reads pure data from sockets monitored by the epoll instance (managed by NetPoller) via the epoll interface,
+ * adds proxy data message headers to the data, sends it to the proxy frontend through the shared memory TX queue, and handles abnormal events (socket closure/error) by sending session closure commands.
+ * @details Designed based on the core responsibilities of "Scenario Functions", serving as a standardized entry for unit testing:
+ * 1. Event-driven data reading: Monitors sockets through the epoll instance maintained by the NetPoller member (engine->poller) of BackendEngine, waits for readable events via epoll interface,
+ *    and reads pure binary data from ready sockets (no proxy message headers included initially);
+ * 2. Data message encapsulation: After successfully reading pure data, automatically adds the standard proxy data message header (including message type, length, etc.) to the data,
+ *    encapsulates it into a structured proxy data message that conforms to the protocol specification;
+ * 3. Message forwarding: Obtains the shared memory TX queue handle (engine->tx_queue) from the BackendEngine context, and sends the encapsulated proxy data message to the proxy frontend following FIFO rules;
+ * 4. Abnormal event handling: If epoll detects abnormal events (e.g., EPOLLRDHUP (socket closure), EPOLLERR (socket error)) on monitored sockets, automatically constructs a standard proxy session closure command,
+ *    and sends it to the proxy frontend through the shared memory TX queue to ensure session state consistency;
+ * 5. Supported message types: Focuses on proxy data messages (encapsulated from pure socket data) and session closure commands (triggered by abnormal events), with the data message content depending on the pure data sent to the sockets;
+ * 6. Underlying function dependencies: Calls NetPoller's epoll operation functions , pure data reading functions,
+ *    proxy data message header encapsulation functions , shared memory TX queue sending functions ,
+ *    and session closure command construction functions to complete the full process;
+ * 7. Resource acquisition: Obtains core resources from BackendEngine context, including NetPoller instance (engine->poller, containing epoll file descriptor epfd and monitored socket set),
+ *    shared memory TX queue (engine->tx_queue), and proxy message header configuration (e.g., fixed message type for data messages), following epoll event-driven and queue sending rules.
+ * @param[in] engine Pointer to the BackendEngine global context, which must meet the requirements in the document:
+ * 1. Must be successfully initialized via the engine_init function (returning BACKEND_PROXY_PROCESS_OK) to ensure that core resources are ready;
+ * 2. The context must contain valid configuration parameters:
+ *    - Epoll configuration (via engine->poller): Wait timeout, maximum number of events per wait, socket monitoring rules;
+ *    - Proxy message configuration: Data message header format (e.g., header length, field order), session closure command code and structure;
+ *    - Avoid resource unavailability or configuration mismatch errors during epoll operation, data reading, message encapsulation, or queue sending.
+ */
+void test_proxy_scenario_msg_read_from_poller(BackendEngine *engine){
+    NetPoller       *net_poller;
+    net_poller      = &engine->poller;
+
+    poller_run(engine, net_poller);
+}
