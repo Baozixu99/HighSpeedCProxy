@@ -13,16 +13,6 @@
 
 #include "senario_test.h"
 
-void run()
-{
-    while (1)
-    {
-        //todo, poll/push share memory
-        engine_run();
-    }
-       
-}
-
 int main(int argc, char** argv)
 {
     BackendEngine *eng; 
@@ -32,14 +22,13 @@ int main(int argc, char** argv)
     eng = get_global_backend_engine();
 
     test_proxy_scenario_multi_type_msg_build(eng);
-    test_proxy_scenario_msg_read_from_rx_queue(eng);
-    test_proxy_scenario_process_active_f2b_sess_queue(eng);
+    // test_proxy_scenario_msg_read_from_rx_queue(eng);
+    // test_proxy_scenario_process_active_f2b_sess_queue(eng);
 
-    test_proxy_scenario_msg_read_from_poller(eng);
-    test_proxy_scenario_process_active_b2f_sess_queue(eng);
+    // test_proxy_scenario_msg_read_from_poller(eng);
+    // test_proxy_scenario_process_active_b2f_sess_queue(eng);
     
-    
+    engine_run();
 
-    // run();
     return 0;
 }

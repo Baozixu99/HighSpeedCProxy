@@ -611,6 +611,7 @@ int high_speed_data_process_b2f(struct BackendSession *sess){
      * 1. Copy data in each message segment in the backend-to-frontend queue (msg_b2f) to the shared memory TX queue. The front-end will read these messages latter.
      */
     TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_b2f, entry, next_seg){
+        DUMP_BUFFER_CONTENT(cur_seg->data + sizeof(ProxyMsgHeader), 8, "%c");
         ret = shared_mem_pool_queue_send_oc(tx_queue, cur_seg->data, cur_seg->len);
 /*
  * The TX queue is full. The high_speed_data_process_b2f should return and notice that the sending procedure from backend to front end continue next time.
@@ -693,6 +694,7 @@ int high_speed_data_process_nns(struct BackendSession *sess){
  * high_speed_data_process_nns reads data from the socket's receive buffer, converts it into proxy message data, and then organizes these messages into the
  * backend-to-frontend queue (msg_b2f).
  */
+    utils_print("high_speed_data_process_nns: bytes_available = %d\n", bytes_available);
     while(bytes_available > 0){
         cur_seg = sess_msg_seg_alloc(PROXY_MSG_HDR_PLUS_MAX_SIZE, SESS_MSG_SEG_DYNAMIC_ALLOC, NULL, NULL);
 
@@ -731,7 +733,7 @@ int high_speed_data_process_nns(struct BackendSession *sess){
 
         cur_seg->len = msg_hdr->payload_len + sizeof(ProxyMsgHeader);
         SESS_MSG_SEG_INSERT_QUEUE(sess, cur_seg, b2f);
-
+        DUMP_BUFFER_CONTENT(cur_seg->data + sizeof(ProxyMsgHeader), 8, "%c");
         bytes_available -= ret;
     }
     BACKEND_SESS_LINK_TO_QUEUE(sess, b2f);

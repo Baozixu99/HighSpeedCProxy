@@ -74,7 +74,7 @@ void poller_run(NetPoller *reactor)
 
 void poller_run(struct BackendEngine_ *eng, NetPoller *reactor)
 {
-    sleep(1);
+
     struct BackendSession           *sess;
     struct epoll_event              events[MAX_EVENTS + 1];
     struct BackendSessionPoolOps    *sess_pool_ops;
