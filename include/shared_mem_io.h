@@ -77,11 +77,11 @@ struct SharedMemoryPoolQueue {
      */
     uint8_t                map_mode2;
 
-    /* Head index of the ring buffer, pointing to the next element to be dequeued.
+    /* header index of the ring buffer, pointing to the next free slot for enqueuing.
        Works with `tail` to maintain FIFO order. */
     uint16_t                header;
 
-    /* Tail index of the ring buffer, pointing to the next free slot for enqueuing.
+    /* tail index of the ring buffer, pointing to the next element to be dequeued.
        Works with `header` to maintain FIFO order. */
     uint16_t                tail;
 

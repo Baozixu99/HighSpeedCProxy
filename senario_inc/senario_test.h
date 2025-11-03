@@ -117,8 +117,8 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine);
 
 int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine);
 
-int test_proxy_scenario_process_read_from_poller(BackendEngine *engine);
+void test_proxy_scenario_process_read_from_poller(BackendEngine *engine);
 
-void test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine);
+int test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine);
 
 #endif

@@ -545,7 +545,28 @@ int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
 
         ret = sess_pool_ops->data_process_f2b(cur_sess);
 
-        utils_print("After call data_process_f2b, ret = %d\n", ret);
+        utils_print("After call data_process_b2f, ret = %d\n", ret);
+
+/*
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the front-to-back (F2B) message queue have been sent via the session's socket. 
+ * Such sessions should be detached from the F2B active queue, and their "linked to queue" state flag should be cleared.
+ */
+        if(BACKEND_PROXY_PROCESS_OK == ret){
+            TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+            cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+        }
+/*
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
+ * detached from the front-to-end active queue, but also be removed from the session pool.
+ */
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+            sess_pool_ops->delete_sess(sess_pool, cur_sess);
+        }
+ /*
+  * Nothing to do when not all data has been sent and there are no errors.
+  */
+
     }// TAILQ_FOREACH_SAFE
 #endif
 
@@ -591,4 +612,46 @@ void test_proxy_scenario_msg_read_from_poller(BackendEngine *engine){
     net_poller      = &engine->poller;
 
     poller_run(engine, net_poller);
+}
+
+
+/**
+ * @brief Process the active Backend-to-Frontend session queue in the test proxy scenario
+ * @details This function is designed for processing Backend-to-Frontend (b2f) traffic.
+ * It accesses all active b2f sessions managed by the backend engine,
+ * calls the sess_pool_ops->data_process_b2f function in sequence for each session,
+ * and writes the packets in the session's b2f message queue to the shared memory TX queue.
+ *
+ * @param[in] engine Pointer to a BackendEngine structure that manages the active b2f sessions and related resources (including b2f message queues, shared memory TX queue, etc.)
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful processing of all active sessions; 
+ *                     BACKEND_PROXY_PROCESS_ERROR if any error occurs during processing
+ */
+int test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine){
+    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+    struct BackendSession           *cur_sess, *next_sess;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    uint8_t                         *proxy_msg;
+    uint32_t                        msg_size;
+    int                             ret;
+
+    utils_print("In %s, the address of the engine is %p\n", __func__, engine);
+
+    BACKEND_ENGINE_GET_B2F_QUEUE(engine, active_queue_b2f);
+
+    sess_pool       = engine->sess_pool;
+    sess_pool_ops   = sess_pool->ops;
+
+    utils_print("In %s\n", __func__);
+    TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
+        utils_print("current sess frontend_sess_id = %d, backend_sess_id = %d\n", cur_sess->frontend_sess_id, cur_sess->backend_sess_id);
+
+        ret = sess_pool_ops->data_process_b2f(cur_sess);
+
+        utils_print("After call data_process_f2b, ret = %d\n", ret);
+    }// TAILQ_FOREACH_SAFE
+
+
+    return BACKEND_PROXY_PROCESS_OK;
 }
