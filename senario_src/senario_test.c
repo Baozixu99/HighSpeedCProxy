@@ -649,9 +649,28 @@ int test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine){
 
         ret = sess_pool_ops->data_process_b2f(cur_sess);
 
-        utils_print("After call data_process_f2b, ret = %d\n", ret);
+        utils_print("After call data_process_b2f, ret = %d\n", ret);
+
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-end (B2F) message queue have been sent via the shared memory TX queue. 
+ * Such sessions should be detached from the B2F active queue, and their "linked to queue" state flag should be cleared.
+ */
+        if(BACKEND_PROXY_PROCESS_OK == ret){
+            TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
+            cur_sess->state_b2f &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+        }
     }// TAILQ_FOREACH_SAFE
 
-
+/*
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the shared memory TX queue. This type of session should not only be 
+ * detached from the front-to-end active queue, but also be removed from the session pool.
+ */
+        if(BACKEND_PROXY_PROCESS_ERROR == ret){
+            TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
+            sess_pool_ops->delete_sess(sess_pool, cur_sess);
+        }
+ /*
+  * Nothing to do when not all data has been sent and there are no errors.
+  */
     return BACKEND_PROXY_PROCESS_OK;
 }
