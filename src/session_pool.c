@@ -321,7 +321,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * Finally, register the socket belonging to the newly created session with the epoll instance.
  */
 
-    BACKEND_SESS_REGISTER_EPOLL(new_sess, EPOLLIN | EPOLLET, &ret);
+    BACKEND_SESS_REGISTER_EPOLL(new_sess, EPOLLIN, &ret);
 
     if(ret != BACKEND_PROXY_PROCESS_OK){
         error_print("high_speed_create_sess failed: failed to register the socket of the newly create session with the epoll instance!");
