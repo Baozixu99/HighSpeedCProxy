@@ -728,6 +728,8 @@ int high_speed_data_process_nns(struct BackendSession *sess){
         utils_print("high_speed_data_process_nns: msg_hdr->frontend_sess_id = %d, msg_hdr->backend_sess_id = %d, msg_hdr->payload_len = %d\n",
                     msg_hdr->frontend_sess_id, msg_hdr->backend_sess_id, msg_hdr->payload_len);
         utils_print("msgdata = %s\n", msg_data);
+
+        cur_seg->len = msg_hdr->payload_len + sizeof(ProxyMsgHeader);
         SESS_MSG_SEG_INSERT_QUEUE(sess, cur_seg, b2f);
 
         bytes_available -= ret;
