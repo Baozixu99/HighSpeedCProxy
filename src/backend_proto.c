@@ -115,7 +115,7 @@ int backend_proxy_dev_msg_process(uint8_t *msg){
     dev_msg_hdr = (DevMsgHeader *)msg;
 
     if(NULL == dev_msg_hdr){
-        error_print("backend_proxy_dev_msg_process() returns an error because the msg pointer is NULL!\n");
+        error_print("backend_proxy_dev_msg_process() failed: the msg pointer is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -130,8 +130,7 @@ int backend_proxy_dev_msg_process(uint8_t *msg){
  * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
  */
     if(ACTION_TYPE_COMMAND != action_type){
-        error_print("backend_proxy_dev_msg_process() returns an error, returns an error, \
-                     because the backend protocol stack only processes the device message of the signaling type!");
+        error_print("backend_proxy_dev_msg_process() failed: the backend protocol stack only processes the device message of the ACTION_TYPE_COMMAND type!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -160,7 +159,7 @@ int backend_proxy_dev_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uint1
     utils_print("In %s, corr_len = %d, payload_len = %d\n", __func__, corr_len, payload_len);
 
     if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
-            error_print("backend_proxy_dev_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
+            error_print("backend_proxy_dev_msg_process_ver1() failed: the msg_type or payload length is not valid!");
             return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -224,7 +223,7 @@ int backend_proxy_strgy_msg_process(uint8_t *msg){
     strgymsg_hdr = (StrgyMsgHeader *)msg;
 
     if(NULL == strgymsg_hdr){
-        error_print("backend_proxy_strgy_msg_process() returns an error because the msg pointer is NULL!\n");
+        error_print("backend_proxy_strgy_msg_process() failed: the msg pointer is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -240,8 +239,7 @@ int backend_proxy_strgy_msg_process(uint8_t *msg){
  * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
  */
     if(ACTION_TYPE_COMMAND != action_type){
-        error_print("backend_proxy_strgy_msg_process() returns an error, returns an error, \
-                     because the backend protocol stack only processes the device message of the signaling type!");
+        error_print("backend_proxy_strgy_msg_process() faild: the backend protocol stack only processes the strategy message of the ACTION_TYPE_COMMAND type!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -270,7 +268,7 @@ int backend_proxy_strgy_msg_process_ver1(uint16_t msg_type, uint16_t msg_id, uin
     utils_print("In %s, corr_len = %d, payload_len = %d\n", __func__, corr_len, payload_len);
 
     if(PROXY_MSG_INVALID_LEN == corr_len || corr_len != payload_len){
-        error_print("backend_proxy_strgy_msg_process_ver1() returns an error, because msg_type or payload length is not valid!");
+        error_print("backend_proxy_strgy_msg_process_ver1() failed: the msg_type or payload length is not valid!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -452,7 +450,7 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
  * @param[in] payload_len 16-bit length of the message payload (in bytes), specifying the size of the data in msg_payload
  * @param[in] msg_payload Pointer to the message payload data, containing the detailed content of the version 1 session creation request
  * @return int Execution result: Typically returns BACKEND_PROXY_PROCESS_OK on successful processing,
- *         or aBACKEND_PROXY_PROCESS_ERROR if validation fails, payload is invalid, or session creation encounters issues.
+ *         or BACKEND_PROXY_PROCESS_ERROR if validation fails, payload is invalid, or session creation encounters issues.
  */
 int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
   
