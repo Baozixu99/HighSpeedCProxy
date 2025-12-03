@@ -551,8 +551,7 @@ int high_speed_data_process_f2b(struct BackendSession *sess)
             // Free dynamically allocated data buffer
             free(cur_seg->data);
         } else if (cur_seg->type == SESS_MSG_SEG_SHARED_MEM) {
-            TAILQ_REMOVE(&sess->msg_f2b, cur_seg, entry);
-            
+
             // if (current_seg->mem_pool) {
             //     shared_memory_pool_release(current_seg->mem_pool, current_seg->data);
             // }
