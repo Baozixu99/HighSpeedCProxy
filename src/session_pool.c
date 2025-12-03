@@ -451,7 +451,7 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
  */
     sess_msg_queue_free_all(&sess->msg_f2b);
     sess_msg_queue_free_all(&sess->msg_b2f);
-
+    release_id(&s_pool->id_queue, backend_sess_id);
     free(sess);
 
 /*
@@ -551,7 +551,8 @@ int high_speed_data_process_f2b(struct BackendSession *sess)
             // Free dynamically allocated data buffer
             free(cur_seg->data);
         } else if (cur_seg->type == SESS_MSG_SEG_SHARED_MEM) {
-
+            TAILQ_REMOVE(&sess->msg_f2b, cur_seg, entry);
+            
             // if (current_seg->mem_pool) {
             //     shared_memory_pool_release(current_seg->mem_pool, current_seg->data);
             // }
