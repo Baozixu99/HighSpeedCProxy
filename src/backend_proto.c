@@ -316,7 +316,7 @@ int backend_proxy_strgy_msg_response(uint8_t *msg){
  *          The processing follows a hierarchical call structure:
  *          backend_proxy_sess_msg_process
  *              |-> backend_proxy_sess_msg_process_ver1
- *                  |-> backend_proxy_sess_msg_process_create_ver1
+ *                  |-> backend_proxy_sess_msg_process_active_create_ver1
  *                  |-> backend_proxy_sess_msg_process_close_ver1
  * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to map the message to 
  *                             the corresponding frontend request context.
@@ -421,7 +421,7 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
                 error_print("The backend_sess_id should be BACKEND_HANDOVER_SESSION_ID in a session message whose type is SESS_MSG_CREATE!");
                 ret = BACKEND_PROXY_PROCESS_ERROR;
             }else{
-                ret = backend_proxy_sess_msg_process_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
+                ret = backend_proxy_sess_msg_process_active_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
             }
             break;
         case SESS_MSG_CLOSE:
@@ -439,26 +439,27 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
 }
 
 /**
- * @brief Processes version 1 of session creation messages in the backend proxy
- * @details This function handles the processing logic for version 1 session creation messages.
- *          It typically parses the message payload, performs necessary validation, and executes
- *          session creation operations based on the provided parameters. It is responsible for
- *          coordinating frontend-backend session mapping for version 1 message format.
+ * @brief Processes version 1 of ACTIVE session creation messages in the backend proxy
+ * @details This function handles the processing logic for version 1 session creation messages where the **frontend actively sends a request to the backend**.
+ *          It typically parses the message payload, performs necessary validation, and executes session creation operations 
+ *          for backend sessions initiated by frontend requests (i.e., the frontend proactively triggers session creation by sending a request to the backend).
+ *          It is responsible for coordinating frontend-backend session mapping for version 1 message format, and will set the 
+ *          `establish_type` attribute of the BackendSession struct to BACKEND_SESS_ESTABLISH_ACTIVE during session creation.
  * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to associate with the corresponding frontend request
  * @param[in] backend_sess_id 16-bit identifier of the backend session, used for backend-side session tracking and management
  * @param[in] ip_version 16-bit value indicating the IP protocol version (e.g., IPv4 or IPv6) used in the session
  * @param[in] payload_len 16-bit length of the message payload (in bytes), specifying the size of the data in msg_payload
- * @param[in] msg_payload Pointer to the message payload data, containing the detailed content of the version 1 session creation request
- * @return int Execution result: Typically returns BACKEND_PROXY_PROCESS_OK on successful processing,
- *         or BACKEND_PROXY_PROCESS_ERROR if validation fails, payload is invalid, or session creation encounters issues.
+ * @param[in] msg_payload Pointer to the message payload data, containing the detailed content of the version 1 active session creation request (initiated by frontend to backend)
+ * @return int Execution result: Typically returns BACKEND_PROXY_PROCESS_OK on successful processing (active session created in response to frontend request),
+ *         or BACKEND_PROXY_PROCESS_ERROR if validation fails, payload is invalid, or session creation triggered by frontend request encounters issues.
  */
-int backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
+int backend_proxy_sess_msg_process_active_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
   
-    return __backend_proxy_sess_msg_process_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
+    return __backend_proxy_sess_msg_process_active_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
 }
 
 
-int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
+int __backend_proxy_sess_msg_process_active_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
     struct BackendSessionPool *pool;
     struct BackendSession *sess;
     SessParaIPv4 *para_ipv4;
@@ -473,12 +474,12 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 
 /*
  * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
- * In __backend_proxy_sess_msg_process_create_ver1, this function parses the session parameters and calls the function pointed to by the create_sess pointer to establish a new session.
+ * In __backend_proxy_sess_msg_active_process_create_ver1, this function parses the session parameters and calls the function pointed to by the create_sess pointer to establish a new session.
  */
     pool = get_backend_high_speed_pool();
 
     if(NULL == pool){
-        error_print("__backend_proxy_sess_msg_process_create_ver1 faield: the high speed pool is not initialized!\n");
+        error_print("__backend_proxy_sess_msg_process_active_create_ver1 faield: the high speed pool is not initialized!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -486,7 +487,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
 
     if(SESS_IPV4_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv4)){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the payload length does not match the IPv4 handover message!");
+            error_print("__backend_proxy_sess_msg_process_active_create_ver1 failed: the payload length does not match the IPv4 handover message!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
@@ -514,7 +515,7 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
         utils_print("In sess_para, the dev_id = %d, trans_proto = %d,ip_version = %d\n", sess_para.dev_id, sess_para.trans_proto, sess_para.ip_version);
     }else if(SESS_IPV6_PROTO == ip_version){
         if(payload_len != sizeof(SessParaIPv6)){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: payload length does not match the message type!");
+            error_print("__backend_proxy_sess_msg_process_active_create_ver1 failed: payload length does not match the message type!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         para_ipv6                   = (SessParaIPv6 *)msg_payload;
@@ -540,12 +541,12 @@ int __backend_proxy_sess_msg_process_create_ver1(uint16_t frontend_sess_id, uint
         utils_print("In %s, the address of the engine is %p, %p\n", __func__, pool->engine, get_global_backend_engine());
 
         if(!pool->ops->create_sess){
-            error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the create_sess does not point to a valid create-session function!\n");
+            error_print("__backend_proxy_sess_msg_process_active_create_ver1 failed: the create_sess does not point to a valid create-session function!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = pool->ops->create_sess(pool, &sess, &sess_para);
     }else{
-        error_print("__backend_proxy_sess_msg_process_create_ver1 failed: the IP version is not valid!");
+        error_print("__backend_proxy_sess_msg_process_active_create_ver1 failed: the IP version is not valid!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 

@@ -21,6 +21,12 @@ struct ControlMsg{
     uint16_t dev_id;
 };
 
+
+typedef enum {
+    SESS_ESTABLISH_PASSIVE = 0,
+    SESS_ESTABLISH_ACTIVE  = 1
+} SessEstablishType;
+
 /**
  * @brief Memory source type of the data field in message segment (SessMsgSeg)
  * 
@@ -69,7 +75,6 @@ struct SessMsgSeg {
 TAILQ_HEAD(SessMsgQueue, SessMsgSeg);
 
 
-
 struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data, struct SharedMemoryPool *mem_pool);
 void sess_msg_seg_free(struct SessMsgSeg **seg_ptr);
 
@@ -81,6 +86,7 @@ struct BackendEngine_;
 #define BACKEND_SESS_LINKED_TO_QUEUE            1
 struct BackendSession {
     int         sess_type;
+    int         establish_mode;
     int         sock_fd;
     int         ip_version;
     uint16_t    frontend_sess_id;

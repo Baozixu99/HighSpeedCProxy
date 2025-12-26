@@ -69,8 +69,10 @@ typedef struct BackendEngine_{
     struct SharedMemoryPoolLock     *mem_pool_lock; // Shared memory pool lock
     uint16_t                        selector_id;
     NetPoller                       poller;
-    struct SharedMemoryPoolQueue    *rx_queue;      // RX queue
-    struct SharedMemoryPoolQueue    *tx_queue;      // TX queue
+    int                             bind_udp_socket; // Socket descriptor for the listening UDP port (bound UDP port fd)
+    int                             bind_tcp_socket; // Socket descriptor for the listening TCP port (bound TCP port fd)
+    struct SharedMemoryPoolQueue    *rx_queue;       // RX queue
+    struct SharedMemoryPoolQueue    *tx_queue;       // TX queue
     struct BackendEngOps            *ops;
 } BackendEngine;
 
