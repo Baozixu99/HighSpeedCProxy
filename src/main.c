@@ -22,13 +22,15 @@ int main(int argc, char** argv)
     eng = get_global_backend_engine();
 
     test_proxy_scenario_multi_type_msg_build(eng);
-    // test_proxy_scenario_msg_read_from_rx_queue(eng);
-    // test_proxy_scenario_process_active_f2b_sess_queue(eng);
+    test_proxy_scenario_msg_read_from_rx_queue(eng);
+    test_proxy_scenario_process_active_f2b_sess_queue(eng);
 
-    // test_proxy_scenario_msg_read_from_poller(eng);
-    // test_proxy_scenario_process_active_b2f_sess_queue(eng);
+    test_proxy_scenario_msg_read_from_poller(eng);
+    test_proxy_scenario_process_active_b2f_sess_queue(eng);
     
-    engine_run();
+//    engine_run();
 
+    engine_destory();
+    
     return 0;
 }

@@ -7,6 +7,8 @@
 #include <netinet/in.h>
 #include <assert.h>
 #include "message.h"
+#include "session.h"
+
 
 #define MAX_DEV_NAME                            32  // Maximum length of device name
 #define MAX_HS_DEV_NUM                          16
@@ -70,11 +72,22 @@ struct HighSpeedNetDevStat {
     uint64_t rtt_std; // Standard deviation of round-trip time
 };
 
-struct TcpConnection {
-    int conn_fd;  
+
+struct UdpNode {
+    int                     node_fd;
+    struct BackendSession   *sess;
     TAILQ_ENTRY(TcpConnection) entry;  // Linked list node
 };
 
+
+struct TcpConnection {
+    int                     conn_fd;
+    struct BackendSession   *sess;
+    TAILQ_ENTRY(TcpConnection) entry;  // Linked list node
+};
+
+
+TAILQ_HEAD(NodeQueue, UdpNode);
 TAILQ_HEAD(ConnectionQueue, TcpConnection);
 
 
@@ -82,18 +95,22 @@ TAILQ_HEAD(ConnectionQueue, TcpConnection);
 
 struct HighSpeedNetDevice {
 // Device identification information
-    int dev_id;
-    int dev_type;
-    char *ns_name;
-    int ns_id;
-    int dev_status;
+    int                         dev_id;
+    int                         dev_type;
+    char                        *ns_name;
+    int                         ns_id;
+    int                         dev_status;
 // Device attribute information
-    char name[MAX_DEV_NAME];
+    char    name[MAX_DEV_NAME];
 // Network connection information
-    struct ConnectionQueue conn_q;
-    union IPAddress address;
+    struct  NodeQueue           node_q;
+    struct  ConnectionQueue     conn_q;
+    union   IPAddress           address;
 // Performance statistics information
-    struct HighSpeedNetDevStat stat;
+    struct  HighSpeedNetDevStat stat;
+// Tcp listening port and socket
+    int                         tcp_listening_port;
+    int                         tcp_listener;
 };
 
 struct HighSpeedNetDeviceSet {

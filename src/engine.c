@@ -4,6 +4,7 @@
 #include "backend_proto.h"
 #include "session.h"
 #include "session_pool.h"
+#include "netns_socket.h"
 
 BackendEngine *p_g_bk_eng;
 BackendEngine g_bk_eng;
@@ -40,6 +41,9 @@ SharedMemoryPoolQueueConfig high_speed_net_tx_queue_config =    {
     .capacity       = MAX_MAP_TABLE_ENTRY_COUNT,           // Total number of element 
     .block_size     = 4096                                 // 4096 bytes per element block
 };
+
+
+
 
  /*
   * Set of operational functions for the backend engine in high-speed network devices.
@@ -332,6 +336,103 @@ int open_named_netns(const char* name) {
     return ns_id;
 }
 
+/**
+ * @brief Create a TCP listening socket for high-speed network devices to listen for target-matched TCP handshake requests
+ * 
+ * @details According to the specified IP version (IPv4/IPv6), combined with the backend engine instance (BackendEngine *),
+ *          and the IP address (IPAddress) and TCP listening port (tcp_listening_port) configured in the high-speed network 
+ *          device instance (struct HighSpeedNetDevice), this function creates a TCP listening socket. 
+ *          The socket is specifically used to listen for TCP handshake requests (SYN packets) where the destination is 
+ *          the current device, the target IP is the device's IP, and the target port is the configured listening port. 
+ *          The creation process includes core operations such as socket initialization, binding, and listening, and 
+ *          relies on the backend engine for necessary context support. Returns a normal status code on success and 
+ *          an error status code on failure.
+ * 
+ * @param eng Pointer to the BackendEngine instance. Provides necessary backend context (e.g., resource management, 
+ *            protocol support) for the creation of the listening socket; must be properly initialized in advance.
+ * @param hs_dev Pointer to the high-speed network device instance. The IPAddress (device IP address) and 
+ *               tcp_listening_port (TCP listening port) fields must be properly configured in advance.
+ * @param ip_version IP protocol version, usually SESS_IPV4_PROTO (IPv4) or SESS_IPV6_PROTO (IPv6), specifying 
+ *                   the IP type for the created listening socket.
+ * 
+ * @return int Operation result status code:
+ *             - BACKEND_PROXY_PROCESS_OK: The listening socket is created successfully and is in a ready listening state.
+ *             - BACKEND_PROXY_PROCESS_ERROR: Failed to create the listening socket (possible reasons include port occupation, 
+ *               invalid IP/engine configuration, or failure of socket system calls).
+ * 
+ * @note 1. Before calling, ensure that the eng and hs_dev pointers are not NULL. The eng instance must be initialized normally,
+ *          and the IPAddress and tcp_listening_port fields of hs_dev must be legally configured.
+ *       2. This function is only responsible for creating the listening socket and does not handle the subsequent 
+ *          connection acceptance (accept) logic, which needs to be processed separately by the caller.
+ *       3. The function's execution depends on the backend engine's normal operation; if the engine is in an abnormal state,
+ *          the socket creation may fail.
+ */
+int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice *hs_dev, int ip_version){
+    int                 listen_fd, orig_netns;
+    struct sockaddr_in  dev_ip_addr;
+    struct in_addr      in4_addr;
+    struct IPv4Address  *ipv4_addr;
+
+
+/*
+ * Check input parameters, and initialize IP address.
+ */
+    if(NULL == eng || NULL == hs_dev){
+        error_print("create_hs_net_dev_tcp_listener failed: The input parameter hs_dev is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(hs_dev->tcp_listening_port <= 0){
+        error_print("create_hs_net_dev_tcp_listener failed: Invalid tcp_listening_port!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(SESS_IPV4_PROTO == ip_version){
+        ipv4_addr = &hs_dev->address.ipv4_addr;
+        COPY_IPV4_TO_IN(&in4_addr, ipv4_addr);
+    }else if(SESS_IPV6_PROTO == ip_version){
+        error_print("create_hs_net_dev_tcp_listener failed: The backend protocol does not support IPv6 yet. It will be supported in the future!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }else{
+        error_print("create_hs_net_dev_tcp_listener failed: Unsupported IP version!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+/*
+ * Create a listening socket.
+ */
+    memset(&dev_ip_addr, 0, sizeof(dev_ip_addr));
+    dev_ip_addr.sin_family  = AF_INET;
+    dev_ip_addr.sin_port    = htons(hs_dev->tcp_listening_port);
+    dev_ip_addr.sin_addr    = in4_addr;
+
+    listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd == -1) {
+        error_print("create_hs_net_dev_tcp_listener failed: Socket create failed!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(bind(listen_fd, (struct sockaddr*)&dev_ip_addr, sizeof(dev_ip_addr)) == -1) {
+        error_print("create_hs_net_dev_tcp_listener failed: Bind IP:port failed!\n");
+        close(listen_fd); 
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if (listen(listen_fd, MAX_TCP_PENDING_CONN) == -1) {
+        perror("listen failed");
+        error_print("create_hs_net_dev_tcp_listener failed: listen failed!\n");
+        close(listen_fd);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    set_nonblocking(listen_fd);
+    hs_dev->tcp_listener = listen_fd;
+
+    return BACKEND_PROXY_PROCESS_OK;
+};
+
+
 
 /**
  * @brief Initialize the high-speed network device of the backend engine
@@ -363,11 +464,11 @@ int open_named_netns(const char* name) {
  *
  * Example:
  * [ens01]
- * ip_addr =        192.168.10.10
- * dev_id  =        0
- * dev_type =       0
+ * ip_addr    =     192.168.10.10
+ * dev_id     =     0
+ * dev_type   =     0
  * dev_status =     1
- * ns_id =          100
+ * ns_id      =     100
  */
 int engine_init_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet *set = NULL;
@@ -375,7 +476,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     dictionary *ini;
     int dev_num, dev_name_len, cnt = 0;
     const char *dev_name, *ip_addr;
-    int ip_type, dev_id, dev_type, dev_status, ns_id;
+    int ip_type, dev_id, dev_type, dev_status, ns_id, tcp_port, listenning_socket;
     char *ns_name;
     struct in_addr in4_addr;
     struct in6_addr in6_addr;
@@ -445,7 +546,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 
 
 /*
- *Check if the string in the ip_addr item is valid.
+ * Check if the string in the ip_addr item is valid.
  * If valid, convert it to an IPv4 or IPv6 address.
  */
         ip_type = DEV_IP_TYPE(ip_addr);
@@ -554,9 +655,30 @@ int engine_init_hs_net_dev(BackendEngine *eng){
         }
 
         hs_dev->ns_id = ns_id;
-        utils_print("ns_id = %d\n", hs_dev->ns_id);        
+        utils_print("ns_id = %d\n", hs_dev->ns_id);
         TAILQ_INIT(&hs_dev->conn_q);
 
+/*
+ * Optional
+ * If tcp_listening_port is configured in config file, a listening socket will be created on Device IP:tcp_listen_port for new connections.
+ * The backend protocol can establish connections passively and notify the frontend of a new connection establishment.
+ */
+
+        memset(dev_pro_item, 0, sizeof(dev_pro_item));
+        snprintf(dev_pro_item, dev_name_len + strlen("tcp_listening_port") + 2, "%s:tcp_listening_port", dev_name);
+
+        tcp_port = iniparser_getint(ini, dev_pro_item, -1);
+
+        hs_dev->tcp_listening_port      = 0;
+        hs_dev->tcp_listener            = -1;
+        utils_print("tcp_port = %d\n", tcp_port);        
+
+        if(tcp_port > 0){
+
+        }else{
+            hs_dev->tcp_listening_port      = 0;
+            hs_dev->tcp_listener            = -1;
+        }
 
     }//  for(; cnt < dev_num; cnt++)
 
@@ -1133,3 +1255,52 @@ eng_run_step4:
  */
     }while(1);
 }
+
+
+
+void engine_destory_hs_net_dev(BackendEngine *eng){
+    struct HighSpeedNetDeviceSet *set = NULL;
+    struct HighSpeedNetDevice *hs_dev;
+    dictionary *ini;
+    int dev_num, cnt = 0;
+    const char *dev_name, *ip_addr;
+    int ip_type, dev_id, dev_type, dev_status, ns_id;
+    char *ns_name;
+    struct in_addr in4_addr;
+    struct in6_addr in6_addr;
+    union IPAddress *ip_data;
+
+    if(NULL == eng || NULL == eng->dev_set){
+        return;
+    }
+
+    dev_num = eng->dev_num;
+    set = eng->dev_set;
+
+    while(cnt < dev_num){
+        hs_dev = &set->hs_net_dev[cnt];
+
+        if(hs_dev->tcp_listening_port > 0){
+            if(-1 != hs_dev->tcp_listener){
+                close(hs_dev->tcp_listener);
+            }
+        }
+        cnt++;
+    }
+
+}
+
+
+void engine_destory_sess_pool(BackendEngine *eng);
+void engine_destory_mem_pool(BackendEngine *eng);
+void engine_destory_mem_pool_lock(BackendEngine *eng);
+
+
+void engine_destory(){
+    int ret;
+
+    p_g_bk_eng = &g_bk_eng;
+    memset(p_g_bk_eng, 0, sizeof(BackendEngine));
+}
+
+

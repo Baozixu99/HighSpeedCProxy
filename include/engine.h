@@ -12,7 +12,10 @@
 #include "common_utils.h"
 
 
-#define HS_NET_DEV_CFG "hs_net_dev.ini"
+#define HS_NET_DEV_CFG          "hs_net_dev.ini"
+
+#define MAX_TCP_PENDING_CONN    10
+
 /*
  * Check if the string is a valid IPv4 address
  * Parameter: ip_str - string to check
@@ -118,6 +121,7 @@ int engine_init_shared_mem_pool_lock(BackendEngine *eng);
 int engine_init_shared_mem_queue(BackendEngine *eng);
 int engine_init_poller(BackendEngine *eng);
 
+int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice *hs_dev, int ip_version);
 void engine_destory_hs_net_dev(BackendEngine *eng);
 void engine_destory_sess_pool(BackendEngine *eng);
 void engine_destory_mem_pool(BackendEngine *eng);
