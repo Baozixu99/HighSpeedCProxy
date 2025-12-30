@@ -20,6 +20,7 @@ int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct 
 
 //ops
 int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
+int high_speed_create_sess_active(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession *sess);
 struct BackendSession* high_speed_search_sess(struct BackendSessionPool *s_pool, uint16_t id);
 int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSession *sess);
@@ -27,14 +28,15 @@ void high_speed_destroy_pool(struct BackendSessionPool *s_pool);
 
 
 struct BackendSessionPoolOps high_speed_pool_ops = {
-    .create_sess = high_speed_create_sess,
-    .insert_sess = high_speed_insert_sess,
-    .search_sess = high_speed_search_sess,
-    .delete_sess = high_speed_delete_sess,
-    .data_process_f2b = high_speed_data_process_f2b,
-    .data_process_b2f = high_speed_data_process_b2f,
-    .data_process_nns =high_speed_data_process_nns, 
-    .destroy_pool = high_speed_destroy_pool
+    .create_sess        = high_speed_create_sess,
+    .create_sess_active = high_speed_create_sess_active,
+    .insert_sess        = high_speed_insert_sess,
+    .search_sess        = high_speed_search_sess,
+    .delete_sess        = high_speed_delete_sess,
+    .data_process_f2b   = high_speed_data_process_f2b,
+    .data_process_b2f   = high_speed_data_process_b2f,
+    .data_process_nns   = high_speed_data_process_nns, 
+    .destroy_pool       = high_speed_destroy_pool
 };
 
 struct BackendSessionPool *get_backend_high_speed_pool(){
@@ -342,6 +344,287 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
 
     return BACKEND_PROXY_PROCESS_OK;
 
+create_sess_error:
+/*
+ * Response a message to notify the front-end that the session creation procedure failed.
+ */
+    backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(engine, frontend_sess_id, BACKEND_HANDOVER_SESSION_ID, para->ip_version, SESS_MSG_CREATE, &resp_dat);
+
+/*
+ * Reclaim resources.
+ */
+    if(NULL != new_sess){
+        free(new_sess);
+    }
+
+    if(0 != new_sess_id){
+        release_id(&s_pool->id_queue, new_sess_id);
+    }
+
+    if(ERROR_SOCKET_FD != fd){
+        close(fd);
+    }
+
+    return BACKEND_PROXY_PROCESS_ERROR;
+ }
+
+
+ int high_speed_create_sess_active(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para){
+/*
+ * The procedure of creating a session can be divided into two steps:
+ * STEP 1. Allocate resources, including session object, backend session ID, socket, etc.
+ * STEP 2. Establish a session according to the parameters provided by the front end, and create a session message to inform the front-end proxy of the result of the 
+ *         creation request.
+ *
+ * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
+ */
+    BackendEngine                   *engine;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    struct BackendSession           *new_sess = NULL;
+    NetChannel                      *net_channel;
+    uint16_t                        frontend_sess_id, new_sess_id, dev_id;
+    int                             fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id, ret;
+    SessOpRespData                  resp_dat;
+    struct HighSpeedNetDevice       *hs_dev;
+    struct SessionNode              *sess_node;
+
+    engine          = s_pool->engine;
+    sess_pool_ops   = s_pool->ops;
+
+    utils_print("In %s\n", __func__);
+    utils_print("The address of engine is %p\n", engine);
+    utils_print("The address of engine ops is %p\n", engine->ops);
+    utils_print("The address of session pool ops is %p\n", sess_pool_ops);
+#if 0
+    utils_print("In %s, the address of the engine is %p, ops is %p， hs_backend_eng_ops address is %p, and chooes_dev is %p\n", 
+                __func__, engine, engine->ops, get_hs_backend_engine_ops(), engine->ops->choose_dev);
+#endif
+
+    if(NULL == engine || NULL == engine->ops || NULL == engine->ops->choose_dev){
+        error_print("high_speed_create_sess_active fails: the session pool does not belong to any engine, or the engine is not initialized successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    if(NULL == sess_pool_ops || NULL == sess_pool_ops->insert_sess){
+        error_print("high_speed_create_sess_active fails: the session pool operation function set is not initialized correctly!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+/*
+ * STEP 1.
+ * (1) Allocate memory for storing the backend session object;
+ * (2) Parse session message parameters, obtain the device ID, and execute the device selection procedure if necessary;
+ * (3) Determine the namespace ID by parsing the device ID of the specified high-speed network device, and create a new socket based on the session message parameters.
+ */
+    engine              = s_pool->engine;
+    frontend_sess_id    = para->frontend_sess_id;
+    new_sess            = (struct BackendSession*)malloc(sizeof(struct BackendSession));
+    if(NULL == new_sess){
+        error_print("high_speed_create_sess_active failed: failed to allocate memory for BackendSession!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
+
+    new_sess_id = allocate_id(&s_pool->id_queue);
+    if(0 == new_sess_id){
+        error_print("high_speed_create_sess_active failed: failed to allocating session ID!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
+
+    para->backend_sess_id = new_sess_id;
+
+/*
+ * Choose the namespace of the preferred high-speed network device for creating a socket.
+ */
+    dev_id = para->dev_id;
+
+
+/*
+ * If the device ID equals 0xFF, it means the backend engine should take responsibility for choosing the most appropriate high-speed network device on which the 
+ * new session is established.
+ */
+
+    utils_print("The dev_id is %d, %s\n", dev_id, __func__);
+    if(DEV_ID_AUTO_HANDOVER == dev_id){
+        if(BACKEND_PROXY_PROCESS_OK != engine->ops->choose_dev(engine, &dev_id)){
+            error_print("high_speed_create_sess_active failed: the network device selection procedure failed!");
+            resp_dat.status = SESS_OP_STATUS_FAIL;
+            resp_dat.code   = SESS_OP_CODE_DEVICE_ERROR;
+            goto create_sess_error;
+        }
+    }
+
+/*
+ * Get the namespace ID to which the selected high-speed network device is set.
+ */
+//    hs_dev = &engine->dev_set[dev_id];
+    ns_id = GET_NS_ID(engine->dev_set, dev_id);
+    if(ERROR_NAMESPACE_ID == ns_id){
+        error_print("high_speed_create_sess_active failed: failed to obtain the namespace ID that the selected high-speed network device belongs to!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_DEVICE_ERROR;
+        goto create_sess_error;
+    }
+
+/*
+ * Create a socket with given parameters.
+ */
+    if(BACKEND_PROXY_PROCESS_OK != create_socket_netns(ns_id, para, &fd)){
+        error_print("high_speed_create_sess_active failed: failed to create a socket with the given parameters!");
+        fd = ERROR_SOCKET_FD;
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
+
+/*
+ * STEP 2:
+ * (1). Connect to the specified IP:Port tuple using the newly created socket; if successful, add this socket to the epoll wait list;
+ * (2). Initialize all members of the new session object;
+ * (3). Create a RESPONSE message to notify the frontend proxy that the new session has been created successfully;
+ * (4). Insert the session into the corresponding session pool.
+ */
+
+/*
+ * Now connect to the remote IP:Port.
+ *
+ * PLEASE NOTICE
+ *
+ * The datagram socket can also "connect" to the specified IP:Port. However, the behavior is quite different from that of a stream socket when connecting to the remote 
+ * side. We choose to call connect on a datagram socket in order to unify the procedure of the backend proxy network stack. The details are processed by the Linux kernel
+ * network stack.
+ */
+
+    if(BACKEND_PROXY_PROCESS_OK != connect_socket_netns(fd, para)){
+        error_print("high_speed_create_sess_active failed: failed to connect to the specified IP:Port!");
+/*
+ * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
+ * We have not developed the failed-reason function; it is reserved for future development.
+ */
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_NETWORK_UNREACHABLE;
+
+        goto create_sess_error;
+    }
+/*
+ * Initialize the network channel.
+ */
+    net_channel             = &new_sess->net_channel;
+    net_channel->sock_fd    = fd;
+    net_channel->arg        = &engine->poller;
+    net_channel->sess       = new_sess;
+
+/*
+ * Initialize session object.
+ */    
+    new_sess->frontend_sess_id  = para->frontend_sess_id;
+    new_sess->backend_sess_id   = new_sess_id;
+    new_sess->ip_version        = para->ip_version;
+    new_sess->sock_fd           = fd;
+    new_sess->eng               = engine;
+    new_sess->state_f2b         &= BACKEND_SESS_LINKED_TO_QUEUE;
+    new_sess->state_b2f         &= BACKEND_SESS_LINKED_TO_QUEUE;
+    new_sess->establish_mode    = SESS_ESTABLISH_ACTIVE;
+    new_sess->proto_type        = para->trans_proto;
+    TAILQ_INIT(&new_sess->msg_f2b);
+    utils_print("In %s, TAILQ_EMPTY(&new_sess->msg_f2b) returns %d\n", __func__, TAILQ_EMPTY(&new_sess->msg_f2b));
+    TAILQ_INIT(&new_sess->msg_b2f);
+    utils_print("In %s, TAILQ_EMPTY(&new_sess->msg_b2f) returns %d\n", __func__, TAILQ_EMPTY(&new_sess->msg_b2f));
+
+/*
+ * Allocate a SessionNode from the specified HighSpeedNetDevice. If the allocation succeeds, bind the node to either the udp_node or tcp_node queue of the device according to the proto_type.
+ */
+    hs_dev      = &engine->dev_set[dev_id];
+    sess_node   = HIGH_SPEED_NET_DEV_POP_FREE_SESSION_NODE(hs_dev);
+
+    utils_print("In %s, the address of the sess_node is %p\n",  __func__, sess_node);
+
+    if(NULL == sess_node){
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto create_sess_error;
+    }
+
+    new_sess->sess_dev_link_state   &= ~BACKEND_SESS_LINKED_TO_DEV_NODE;
+    sess_node->sess                 = new_sess;
+    new_sess->sess_node             = sess_node;
+    ret = HIGH_SPEED_NET_DEV_INSERT_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
+
+    utils_print("In %s, the sess_dev_link_state is %d\n",  __func__, new_sess->sess_dev_link_state);
+
+//    HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
+//    utils_print("After HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE, the sess_dev_link_state is %d\n",  new_sess->sess_dev_link_state);
+
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("high_speed_create_sess_active failed: failed to insert sess node to the proper sess node queue!");
+        sess_node->sess         = NULL;
+        new_sess->sess_node     = NULL;
+        HIGH_SPEED_NET_DEV_PUSH_FREE_SESSION_NODE(hs_dev, sess_node);
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_DEVICE_ERROR;
+        goto create_sess_error;
+    }
+
+    utils_print("In %s, the ret of HIGH_SPEED_NET_DEV_INSERT_SESSION_NODE is %d\n", __func__, ret);
+
+/*
+ * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
+ */
+
+
+    *sess = new_sess;
+
+    resp_dat.status = SESS_OP_STATUS_SUCCESS;
+    resp_dat.code   = SESS_OP_CODE_SUCCESS;
+
+    ret = backend_proxy_send_sess_msg_to_frontend_via_shmem(new_sess, SESS_MSG_CREATE, &resp_dat);
+    
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("high_speed_create_sess_active failed: failed to push the session creat-response message into the tx queue!");
+/*
+ * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
+ * We want the backend proxy protocol to try again by sending a message to notify that the establishment procedure has failed.
+ */
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto recycle_sess_node;
+    }
+/*
+ * Finally, register the socket belonging to the newly created session with the epoll instance.
+ */
+
+    BACKEND_SESS_REGISTER_EPOLL(new_sess, EPOLLIN, &ret);
+
+    if(ret != BACKEND_PROXY_PROCESS_OK){
+        error_print("high_speed_create_sess_active failed: failed to register the socket of the newly create session with the epoll instance!");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto recycle_sess_node;
+    }
+
+
+    ret = sess_pool_ops->insert_sess(s_pool, new_sess);
+
+    if(ret != BACKEND_PROXY_PROCESS_OK){
+        error_print("high_speed_create_sess_active failed: failed to insert the session instance into the session pool!");
+        BACKEND_SESS_UNREGISTER_EPOLL(new_sess, &ret);
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto recycle_sess_node;
+    }
+
+    utils_print("high_speed_create_sess_active returns successfully!\n");
+    return BACKEND_PROXY_PROCESS_OK;
+
+recycle_sess_node:
+    HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
+    sess_node->sess         = NULL;
+    new_sess->sess_node     = NULL;
+    HIGH_SPEED_NET_DEV_PUSH_FREE_SESSION_NODE(hs_dev, sess_node);
 create_sess_error:
 /*
  * Response a message to notify the front-end that the session creation procedure failed.

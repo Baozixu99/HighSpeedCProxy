@@ -474,7 +474,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet *set = NULL;
     struct HighSpeedNetDevice *hs_dev;
     dictionary *ini;
-    int dev_num, dev_name_len, cnt = 0;
+    int dev_num, dev_name_len, cnt = 0, cnt_node;
     const char *dev_name, *ip_addr;
     int ip_type, dev_id, dev_type, dev_status, ns_id, tcp_port, listenning_socket;
     char *ns_name;
@@ -656,7 +656,9 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 
         hs_dev->ns_id = ns_id;
         utils_print("ns_id = %d\n", hs_dev->ns_id);
-        TAILQ_INIT(&hs_dev->conn_q);
+        TAILQ_INIT(&hs_dev->tcp_node_queue);
+        TAILQ_INIT(&hs_dev->udp_node_queue);
+        TAILQ_INIT(&hs_dev->free_node_queue);
 
 /*
  * Optional
@@ -679,6 +681,30 @@ int engine_init_hs_net_dev(BackendEngine *eng){
             hs_dev->tcp_listening_port      = 0;
             hs_dev->tcp_listener            = -1;
         }
+
+
+    //    Loop to allocate MAX_SESS_NODE_NUM SessionNode instances and insert them into free_node queue
+        cnt_node = 0;
+        for (; cnt_node < MAX_SESS_NODE_NUM; cnt_node++){
+    //  Allocate memory for a single SessionNode
+            struct SessionNode *node = (struct SessionNode *)malloc(sizeof(struct SessionNode));
+//            utils_print("In %s, the address of the sess_node is %p\n",  __func__, node);
+            if (node == NULL) {
+            // Memory allocation failed: release all allocated nodes to avoid memory leak
+                struct SessionNode *tmp_node = NULL;
+                struct SessionNode *next_node = NULL;
+
+            //    Safely traverse the free_node queue and release all inserted nodes
+                TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->free_node_queue, entry, next_node) {
+                    TAILQ_REMOVE(&hs_dev->free_node_queue, tmp_node, entry);
+                    free(tmp_node);
+                }
+                
+                goto hs_net_error;
+            } // if (node == NULL)
+            node->sess = NULL;
+            TAILQ_INSERT_TAIL(&hs_dev->free_node_queue, node, entry);
+        }// for (; cnt_node < MAX_SESS_NODE_NUM; cnt_node++)
 
     }//  for(; cnt < dev_num; cnt++)
 

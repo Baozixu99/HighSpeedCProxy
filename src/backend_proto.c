@@ -540,11 +540,11 @@ int __backend_proxy_sess_msg_process_active_create_ver1(uint16_t frontend_sess_i
 
         utils_print("In %s, the address of the engine is %p, %p\n", __func__, pool->engine, get_global_backend_engine());
 
-        if(!pool->ops->create_sess){
+        if(!pool->ops->create_sess_active){
             error_print("__backend_proxy_sess_msg_process_active_create_ver1 failed: the create_sess does not point to a valid create-session function!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
-        ret = pool->ops->create_sess(pool, &sess, &sess_para);
+        ret = pool->ops->create_sess_active(pool, &sess, &sess_para);
     }else{
         error_print("__backend_proxy_sess_msg_process_active_create_ver1 failed: the IP version is not valid!");
         return BACKEND_PROXY_PROCESS_ERROR;

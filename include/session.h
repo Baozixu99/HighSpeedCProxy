@@ -83,9 +83,15 @@ void sess_msg_queue_free_all(struct SessMsgQueue *queue);
 struct BackendProtocolProcess; 
 struct BackendEngine_;
 
-#define BACKEND_SESS_LINKED_TO_QUEUE            1
+#define BACKEND_SESS_LINKED_TO_QUEUE                1
+#define BACKEND_SESS_LINKED_TO_DEV_NODE             1
+
+struct SessionNode;
+
 struct BackendSession {
     int         sess_type;
+    int         proto_type;
+    int         dev_id;
     int         establish_mode;
     int         sock_fd;
     int         ip_version;
@@ -100,6 +106,18 @@ struct BackendSession {
  */
     uint8_t state_f2b; 
     uint8_t state_b2f; 
+
+/**
+ * Backend session and HighSpeedNetDevice link state flag
+ * details  1. Basic state indication: When set to BACKEND_SESS_LINKED_TO_DEV_NODE, the current BackendSession
+ *            is bound to either the udp_node or tcp_node queue of the struct HighSpeedNetDevice instance indexed by dev_id,
+ *            and the specific queue (udp_node/tcp_node) is determined by the value of proto_type(SESS_TCP_PROTO/SESS_UDP_PROTO).
+ *          2. Key function for session closure: Session closure can be either a normal shutdown or an abnormal shutdown
+ *            caused by proxy unexpected termination. This state (BACKEND_SESS_LINKED_TO_DEV_NODE) ensures that
+ *            the function pointed to by the delete_sess pointer can correctly handle both of these two closure scenarios
+ *            during its invocation.
+ */
+    uint8_t sess_dev_link_state; 
 // Message queues
     struct SessMsgQueue msg_f2b; // front-end to back-end message queue
     struct SessMsgQueue msg_b2f; // back-end to front-end message queue
@@ -109,11 +127,12 @@ struct BackendSession {
 // Protocol processing
     struct BackendProtocolProcess *protocol_process; // protocol processing module pointer
 // Pointer to the backend engine associated with this session
-    struct BackendEngine_ *eng;
+    struct BackendEngine_   *eng;
 // Private data pointer (used to store session-specific data)
-    void            *pri_data;
-    NetChannel      net_channel;
-    UT_hash_handle  hh;
+    struct SessionNode      *sess_node;
+    void                    *pri_data;
+    NetChannel              net_channel;
+    UT_hash_handle          hh;
 };
 
 /**
