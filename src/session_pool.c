@@ -21,6 +21,7 @@ int __high_speed_create_sess_fastpath(struct BackendSessionPool *s_pool, struct 
 //ops
 int high_speed_create_sess(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
 int high_speed_create_sess_active(struct BackendSessionPool *s_pool, struct BackendSession **sess, struct SessMsgPara *para);
+int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct BackendSession **sess, PassiveSessParaIP *para);
 int high_speed_insert_sess(struct BackendSessionPool* s_pool, struct BackendSession *sess);
 struct BackendSession* high_speed_search_sess(struct BackendSessionPool *s_pool, uint16_t id);
 int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSession *sess);
@@ -28,15 +29,16 @@ void high_speed_destroy_pool(struct BackendSessionPool *s_pool);
 
 
 struct BackendSessionPoolOps high_speed_pool_ops = {
-    .create_sess        = high_speed_create_sess,
-    .create_sess_active = high_speed_create_sess_active,
-    .insert_sess        = high_speed_insert_sess,
-    .search_sess        = high_speed_search_sess,
-    .delete_sess        = high_speed_delete_sess,
-    .data_process_f2b   = high_speed_data_process_f2b,
-    .data_process_b2f   = high_speed_data_process_b2f,
-    .data_process_nns   = high_speed_data_process_nns, 
-    .destroy_pool       = high_speed_destroy_pool
+    .create_sess            = high_speed_create_sess,
+    .create_sess_active     = high_speed_create_sess_active,
+    .create_sess_passive    = high_speed_create_sess_passive,
+    .insert_sess            = high_speed_insert_sess,
+    .search_sess            = high_speed_search_sess,
+    .delete_sess            = high_speed_delete_sess,
+    .data_process_f2b       = high_speed_data_process_f2b,
+    .data_process_b2f       = high_speed_data_process_b2f,
+    .data_process_nns       = high_speed_data_process_nns, 
+    .destroy_pool           = high_speed_destroy_pool
 };
 
 struct BackendSessionPool *get_backend_high_speed_pool(){
@@ -376,7 +378,7 @@ create_sess_error:
  * STEP 2. Establish a session according to the parameters provided by the front end, and create a session message to inform the front-end proxy of the result of the 
  *         creation request.
  *
- * The main body of the session creation procedure lies in the function which the create_sess pointer points to.
+ * The main body of the session creation procedure lies in the function which the create_sess_active pointer points to.
  */
     BackendEngine                   *engine;
     struct BackendSessionPoolOps    *sess_pool_ops;
@@ -416,7 +418,6 @@ create_sess_error:
  * (2) Parse session message parameters, obtain the device ID, and execute the device selection procedure if necessary;
  * (3) Determine the namespace ID by parsing the device ID of the specified high-speed network device, and create a new socket based on the session message parameters.
  */
-    engine              = s_pool->engine;
     frontend_sess_id    = para->frontend_sess_id;
     new_sess            = (struct BackendSession*)malloc(sizeof(struct BackendSession));
     if(NULL == new_sess){
@@ -649,6 +650,174 @@ create_sess_error:
     return BACKEND_PROXY_PROCESS_ERROR;
  }
 
+/**
+ * @brief  Allocates and initializes a passive session object, then sends the session creation message to the front-end via shared memory
+ * @details This function completes three core tasks in sequence: 
+ *          1. Allocates a new passive session object from the specified backend session pool;
+ *          2. Initializes the session object with the input PassiveSessParaIP parameters (including dev_id, IP-port tuple, etc.);
+ *          3. Constructs a standard session creation message and transmits it to the front-end module through the shared memory mechanism.
+ * @param  s_pool  Pointer to struct BackendSessionPool, which is the source pool for allocating session objects (input parameter).
+ * @param  sess    Double pointer to struct BackendSession, used to output the allocated and initialized passive session object (output parameter).
+ * @param  para    Pointer to PassiveSessParaIP, which provides the core initialization parameters for the passive session (input parameter).
+ * @return Returns status code @ref BACKEND_PROXY_PROCESS_OK if all operations (allocation, initialization, message sending) are completed successfully;
+ *         Returns status code @ref BACKEND_PROXY_PROCESS_ERROR if any step fails (e.g., session allocation failure, parameter invalidation, shared memory transmission failure).
+ * @note   Currently, the function only returns BACKEND_PROXY_PROCESS_OK by default; extended exception handling logic can be added to return BACKEND_PROXY_PROCESS_ERROR for abnormal scenarios.
+ * @fn     int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct BackendSession **sess, PassiveSessParaIP *para)
+ */
+int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct BackendSession **sess, PassiveSessParaIP *para){
+/*
+ * The passive session creation procedure can be divided into two steps:
+ * STEP 1. Allocate resources, including the session object and backend session ID. Note that the socket is pre-created prior to the invocation of the high_speed_create_sess_passive function.
+ * STEP 2. Establish a session using the parameters provided by the frontend, and construct a session creation message to inform the front-end proxy that a passive session has been established.
+ *
+ * The core logic of the session creation procedure resides in the function pointed to by the create_sess_passive pointer.
+ */
+    BackendEngine                   *engine;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    struct BackendSession           *new_sess = NULL;
+    NetChannel                      *net_channel;
+    uint16_t                        frontend_sess_id, backend_sess_id, new_sess_id, dev_id;
+    int                             ret;
+    struct HighSpeedNetDevice       *hs_dev;
+    struct SessionNode              *sess_node = NULL;
+    GeneralProxyMsgHeader           msg_header;
+    SessMsgHeader                   *sess_msg_hdr;
+    SessIPv4Params                  sess_ipv4_paras;
+
+
+    engine          = s_pool->engine;
+    sess_pool_ops   = s_pool->ops;
+
+    utils_print("In %s\n", __func__);
+    utils_print("The address of engine is %p\n", engine);
+    utils_print("The address of engine ops is %p\n", engine->ops);
+    utils_print("The address of session pool ops is %p\n", sess_pool_ops);
+
+    if(NULL == engine || NULL == engine->ops){
+        error_print("high_speed_create_sess_passive fails: the session pool does not belong to any engine, or the engine is not initialized successfully!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    if(NULL == sess_pool_ops || NULL == sess_pool_ops->insert_sess){
+        error_print("high_speed_create_sess_passive fails: the session pool operation function set is not initialized correctly!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    
+    if(NULL == sess || NULL == para){
+        error_print("high_speed_create_sess_passive failed: invalid input parameters (sess or para is NULL)\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(SESS_IPV4_PROTO != para->ip_version){
+        error_print("high_speed_create_sess_passive failed: only IPv4 is supported at present (IPv6 support is planned for future extensions)\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    if(para->dev_id >= MAX_HS_DEV_NUM){
+        error_print("high_speed_create_sess_passive failed: invalid dev_id (exceeds MAX_HS_DEV_NUM)\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+/*
+ * STEP 1.
+ * Allocate and initialize memory for the backend session object.
+ * Then allocate a corresponding backend session ID and session node for it.
+ */
+    new_sess    = (struct BackendSession*)malloc(sizeof(struct BackendSession));
+
+    if(NULL == new_sess){
+        error_print("high_speed_create_sess_active failed: failed to allocate memory for BackendSession!");
+        goto create_sess_passive_error;
+    }
+
+    new_sess_id = allocate_id(&s_pool->id_queue);
+
+    if(0 == new_sess_id){
+        error_print("high_speed_create_sess_active failed: failed to allocating session ID!");
+        goto create_sess_passive_error;
+    }
+
+    hs_dev      = &engine->dev_set[dev_id];
+    sess_node   = HIGH_SPEED_NET_DEV_POP_FREE_SESSION_NODE(hs_dev);
+
+    if(NULL == sess_node){
+        error_print("high_speed_create_sess_active failed: failed to allocating sess node!\n");
+        goto create_sess_passive_error;
+    }
+
+    new_sess->backend_sess_id       = new_sess_id;
+    new_sess->dev_id                = dev_id;
+    new_sess->ip_version            = para->ip_version;
+    new_sess->sock_fd               = para->fd;
+    new_sess->eng                   = engine;
+    new_sess->state_f2b             &= BACKEND_SESS_LINKED_TO_QUEUE;
+    new_sess->state_b2f             &= BACKEND_SESS_LINKED_TO_QUEUE;
+    new_sess->establish_mode        = SESS_ESTABLISH_PASSIVE;
+    new_sess->proto_type            = para->trans_proto;
+
+
+    new_sess->sess_dev_link_state   &= ~BACKEND_SESS_LINKED_TO_DEV_NODE;
+    sess_node->sess                 = new_sess;
+    new_sess->sess_node             = sess_node;
+
+
+    ret = HIGH_SPEED_NET_DEV_INSERT_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
+
+    if(BACKEND_PROXY_PROCESS_ERROR == ret){
+        error_print("high_speed_create_sess_active failed: can not insert session node to according protocol queue!\n");
+        goto create_sess_passive_error;
+    }
+/*
+ * Fills information for generating session create-command message for passive session creation.
+ * Because the session instance has not been successfully created in frontend size, the frontend_sess_id cannot be registered. 
+ * The backend proxy protocol will fill the frontend session ID field with FRONTEND_HANDOVER_SESSION_ID.
+ *
+ * It is not necessary to fill the payload_len field.
+ */
+    msg_header.outer_header.version             = PROXY_PROTO_VERSION_1;
+    msg_header.outer_header.proxy_msg_type      = PROXY_MSG_TYPE_SESS;
+    msg_header.outer_header.frontend_sess_id    = FRONTEND_HANDOVER_SESSION_ID;
+    msg_header.outer_header.backend_sess_id     = new_sess_id;
+
+//    header.outer_header.payload_len;
+    sess_msg_hdr                                = &msg_header.inner_header.sess_hdr;
+    sess_msg_hdr->version                       = PROXY_PROTO_SESS_VERSION_1;
+    sess_msg_hdr->msg_type                      = SESS_MSG_CREATE;
+    sess_msg_hdr->action_type                   = ACTION_TYPE_COMMAND;
+    sess_msg_hdr->ip_version                    = para->ip_version;
+    sess_msg_hdr->payload_len                   = sizeof(SessIPv4Params);
+
+
+    return BACKEND_PROXY_PROCESS_OK;
+create_sess_passive_error:
+/*
+ * Reclaim resources.
+ */
+
+    if(0 != new_sess_id){
+        release_id(&s_pool->id_queue, new_sess_id);
+    }
+
+    if(NULL != new_sess){
+        if(NULL != sess_node){
+            if(new_sess->sess_dev_link_state & BACKEND_SESS_LINKED_TO_DEV_NODE){
+                HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
+            }
+
+            sess_node->sess         = NULL;
+            new_sess->sess_node     = NULL;
+            HIGH_SPEED_NET_DEV_PUSH_FREE_SESSION_NODE(hs_dev, sess_node);
+        }
+
+        free(new_sess);
+    }
+
+
+    return BACKEND_PROXY_PROCESS_ERROR;
+}
+
 
 int high_speed_insert_sess(struct BackendSessionPool *s_pool, struct BackendSession *sess)
 {
@@ -678,14 +847,16 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
 {
 /*
  * The process of deleting a session can be divided into two steps:
- * STEP 1. Release resources, including session objects, backend session IDs, sockets, etc.
+ * STEP 1. Release resources, including session objects, backend session ID, socket, session node, etc.
  * STEP 2. Create a session message to inform the front-end proxy of the result of the 
  *         session closure request.
  */
-    uint16_t        frontend_sess_id, backend_sess_id;
-    SessOpRespData  resp_dat;
-    int             ret, ip_version;
-    BackendEngine*  *eng;
+    uint16_t                    frontend_sess_id, backend_sess_id;
+    SessOpRespData              resp_dat;
+    int                         ret, ip_version, dev_id;
+    BackendEngine               *eng;
+    struct HighSpeedNetDevice   *hs_dev;
+    struct SessionNode          *sess_node;
 
 
     if(NULL == s_pool || NULL == sess || NULL == s_pool->engine){
@@ -719,6 +890,7 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
     frontend_sess_id    = sess->frontend_sess_id;
     backend_sess_id     = sess->backend_sess_id;
     ip_version          = sess->ip_version;
+    dev_id              = sess->dev_id;
 /*
  * STEP 1(2).
  */
@@ -735,6 +907,42 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
     sess_msg_queue_free_all(&sess->msg_f2b);
     sess_msg_queue_free_all(&sess->msg_b2f);
     release_id(&s_pool->id_queue, backend_sess_id);
+
+/*
+ * A session may be terminated either gracefully or abnormally. The value of the sess_dev_link_state flag determines the corresponding processing behavior.
+ * 
+ * If the BACKEND_SESS_LINKED_TO_DEV_NODE flag is set, it means the session termination procedure is triggered by the application itself, or by the remote peer in
+ * a normal manner. The session node should be reattached to the free node list.
+ * 
+ * Otherwise, it means the session termination procedure is triggered when the backend proxy process is terminated by an interrupt signal. In this case, the 
+ * session node should NOT be reattached to the free node list. Instead, the memory occupied by the session node should be freed. This is not done in the 
+ * high_speed_delete_sess function. It is the sole duty of the backend engine destruction procedure.
+ */
+    eng    = s_pool->engine;
+    dev_id = sess->dev_id;
+
+    if(dev_id < 0 || dev_id >= MAX_HS_DEV_NUM){
+/*
+ * Invalid device ID. Simply ignore the session node recycling procedure.
+ */
+        error_print("high_speed_delete_sess notice: the session device ID is invalid!\n");
+    }else{
+/*
+ * Device ID is valid.
+ */
+        if(sess->sess_dev_link_state & BACKEND_SESS_LINKED_TO_DEV_NODE){
+            hs_dev = &eng->dev_set[dev_id];
+            sess_node = sess->sess_node;
+/*
+ * Recycle the session node. 
+ */
+            HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
+            sess_node->sess         = NULL;
+            HIGH_SPEED_NET_DEV_PUSH_FREE_SESSION_NODE(hs_dev, sess_node);
+        }
+    }
+
+
     free(sess);
 
 /*
@@ -742,7 +950,7 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
  * Create a session close-response message based on the information in the session close-command message, and send this message 
  * to the front-end proxy via shared memory.
  */
-    eng             = s_pool->engine;
+
     resp_dat.status = SESS_OP_STATUS_SUCCESS;
     resp_dat.code   = SESS_OP_CODE_SUCCESS;
     ret = backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(eng, frontend_sess_id, backend_sess_id, ip_version, SESS_MSG_CLOSE, &resp_dat);

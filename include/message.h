@@ -487,6 +487,23 @@ typedef union {
     IPv6PortTuple ipv6_port_tuple;
 }IPPortTuple;
 
+
+/**
+ * @brief  IP-related parameters structure for passive sessions
+ * @details This structure encapsulates all core IP layer and associated parameters required for managing a passive session.
+ *          It includes device identification, transport protocol type, IP version, and the corresponding IP-port combination,
+ *          which serves as a fundamental data structure for passive session initialization and runtime management.
+ * @struct PassiveSessParaIP
+ */
+typedef struct{
+    int                 fd;             /**< File descriptor of the socket associated with the passive session */
+    uint16_t            dev_id;         /**< Device identifier, used to uniquely identify the target device in the session */
+    uint16_t            trans_proto;    /**< Transport protocol used for the session (e.g., TCP, UDP) */
+    uint16_t            ip_version;     /**< IP protocol version, determines how to parse the ip_port_tuple union */
+    IPPortTuple         ip_port_tuple;  /**< IP-port tuple union, stores the specific IP address and transport layer port information */
+} PassiveSessParaIP;
+
+
 /*
  * The structure of the session create-response message's payload.
  */

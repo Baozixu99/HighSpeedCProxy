@@ -29,6 +29,7 @@ struct BackendSessionPool {
 struct BackendSessionPoolOps {
     int (*create_sess)(struct BackendSessionPool *s_pool, struct BackendSession **sess,  struct SessMsgPara *para);
     int (*create_sess_active)(struct BackendSessionPool *s_pool, struct BackendSession **sess,  struct SessMsgPara *para);
+    int (*create_sess_passive)(struct BackendSessionPool *s_pool, struct BackendSession **sess, PassiveSessParaIP *para);
     int (*insert_sess)(struct BackendSessionPool *s_pool, struct BackendSession *sess);
 
     struct BackendSession* (*search_sess)(struct BackendSessionPool *s_pool, uint16_t id);
