@@ -370,12 +370,12 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
  */
     if(ACTION_TYPE_COMMAND != action_type){
         error_print("backend_proxy_sess_msg_process() returns an error, returns an error, \
-                     because the backend protocol stack only processes the device message of the signaling type!");
+                     because the backend protocol stack only processes the session message of the signaling type!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
 /*
- * Before processing device messages, the protocol stack should check the validity of parameters.
+ * Before processing session messages, the protocol stack should check the validity of parameters.
  *
  * Currently, the protocol stack only processes Version 1 device messages.
  */

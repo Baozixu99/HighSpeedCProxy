@@ -3,6 +3,8 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "dev.h"
 #include "session_pool.h"

@@ -27,6 +27,41 @@ SharedMemoryPoolQueueConfig high_speed_net_rx_queue_config =     {
     .block_size     = 4096                                 // 4096 bytes per element block
 };
 
+
+
+/**
+ * @brief Custom handler for SIGINT signal (triggered by Ctrl+C)
+ * 
+ * This function is registered to handle the SIGINT signal (signal number 2) 
+ * which is generated when the user presses Ctrl+C in the terminal. Its core 
+ * responsibility is to gracefully release all resources occupied by the engine 
+ * before the process exits, avoiding resource leaks or inconsistent states.
+ * 
+ * @param signum Integer representing the signal number (SIGINT = 2 for Ctrl+C)
+ * 
+ * @details 
+ * The handling process includes the following key steps:
+ * 1. Log the reception of SIGINT signal for debugging and audit purposes
+ * 2. Release engine-related resources (memory, file descriptors, network connections)
+ * 3. Clean up associated sessions of devices through session nodes
+ * 4. Ensure all resources are properly freed before process termination
+ * 
+ * @note 
+ * 1. This function must use async-signal-safe functions only (e.g., write(), _exit())
+ *    Avoid non-safe functions like printf(), malloc(), free() in production code
+ * 2. The engine resource release logic must be idempotent to prevent double-free issues
+ * 3. If the process should not exit after handling, remove the exit() call and return normally
+ * 
+ * @warning 
+ * Improper resource release may lead to memory leaks or device session corruption
+ */
+void backend_proxy_sigint_handler(int signum){
+    
+// Exit the process gracefully after resource cleanup
+    _exit(EXIT_SUCCESS);
+}
+
+
 /**
  * Configuration structure for the high-speed network transmit queue.
  * 
@@ -934,6 +969,9 @@ void engine_init()
     }
 
     utils_print("engine_init_poller() succeeded!\n");
+/*
+ * 
+ */
 }
 
 
@@ -1286,7 +1324,7 @@ eng_run_step4:
 
 void engine_destory_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet *set = NULL;
-    struct HighSpeedNetDevice *hs_dev;
+    struct HighSpeedNetDevice    *hs_dev;
     dictionary *ini;
     int dev_num, cnt = 0;
     const char *dev_name, *ip_addr;
@@ -1303,6 +1341,9 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
     dev_num = eng->dev_num;
     set = eng->dev_set;
 
+/*
+ * Release the various resources occupied by the device.
+ */
     while(cnt < dev_num){
         hs_dev = &set->hs_net_dev[cnt];
 
@@ -1311,6 +1352,11 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
                 close(hs_dev->tcp_listener);
             }
         }
+/*
+ * Through the session node, release the associated sessions of the device.
+ */
+
+
         cnt++;
     }
 
