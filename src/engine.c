@@ -56,7 +56,7 @@ SharedMemoryPoolQueueConfig high_speed_net_rx_queue_config =     {
  * Improper resource release may lead to memory leaks or device session corruption
  */
 void backend_proxy_sigint_handler(int signum){
-    
+
 // Exit the process gracefully after resource cleanup
     _exit(EXIT_SUCCESS);
 }
@@ -1323,10 +1323,12 @@ eng_run_step4:
 
 
 void engine_destory_hs_net_dev(BackendEngine *eng){
-    struct HighSpeedNetDeviceSet *set = NULL;
-    struct HighSpeedNetDevice    *hs_dev;
-    dictionary *ini;
-    int dev_num, cnt = 0;
+    struct HighSpeedNetDeviceSet    *set = NULL;
+    struct HighSpeedNetDevice       *hs_dev;
+    dictionary                      *ini;
+    int                             dev_num, cnt = 0;
+    struct BackendSession           *tcp_sess, *udp_sess;
+    struct SessionNode              *tmp_node, *next_tcp_node, *next_udp_node, *next_free_node;
     const char *dev_name, *ip_addr;
     int ip_type, dev_id, dev_type, dev_status, ns_id;
     char *ns_name;
@@ -1355,10 +1357,31 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
 /*
  * Through the session node, release the associated sessions of the device.
  */
+        TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->tcp_node_queue, entry, next_tcp_node) {
+            TAILQ_REMOVE(&hs_dev->tcp_node_queue, tmp_node, entry);
+            tcp_sess = tmp_node->sess;
+//            free(tmp_node);
+        }
 
 
+        TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->udp_node_queue, entry, next_udp_node) {
+            TAILQ_REMOVE(&hs_dev->udp_node_queue, tmp_node, entry);
+            udp_sess = tmp_node->sess;
+//            free(tmp_node);
+        }
+
+
+        TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->free_node_queue, entry, next_free_node) {
+            TAILQ_REMOVE(&hs_dev->free_node_queue, tmp_node, entry);
+//            free(tmp_node);
+        }
+
+
+/*
+ * Release all the free session nodes.
+ */
         cnt++;
-    }
+    } // while(cnt < dev_num)
 
 }
 
