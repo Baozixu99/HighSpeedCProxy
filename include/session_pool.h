@@ -49,6 +49,7 @@ struct BackendSessionPoolOps {
 
 struct BackendSessionPool  *high_speed_pool;
 int high_speed_init_pool(struct BackendSessionPool *pool); 
+void high_speed_deinit_pool(struct BackendSessionPool *pool);
 
 struct BackendSessionPool *get_backend_high_speed_pool();
 

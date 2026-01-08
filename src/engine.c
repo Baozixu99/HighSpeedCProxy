@@ -1321,11 +1321,37 @@ eng_run_step4:
 }
 
 
-
+/**
+ * @brief Destroys all resources associated with high-speed network devices managed by the backend engine
+ * 
+ * @details This function cleans up all resources occupied by high-speed network devices in the backend engine,
+ *          following a strict resource release sequence to avoid leaks or undefined behavior:
+ *          1. Perform defensive null pointer checks on critical input parameters (BackendEngine and its core members)
+ *          2. Iterate over all high-speed network devices in the device set:
+ *              - Close active TCP listener sockets if the listening port is configured
+ *              - Release TCP session nodes: remove from queue, clear BACKEND_SESS_LINKED_TO_DEV_NODE flag,
+ *                delete session instance via session pool ops, free node memory, and reset the TCP queue
+ *              - Release UDP session nodes (same logic as TCP nodes) and reset the UDP queue
+ *              - Free all nodes in the free node queue (no associated valid session instances) and reset the queue
+ *          3. Close the epoll instance (epfd) used for I/O polling by the backend engine
+ * 
+ * @param eng Pointer to the BackendEngine structure that manages high-speed network devices and session pools
+ *            - If eng is NULL, or critical members (dev_set, sess_pool, sess_pool->ops, delete_sess) are NULL,
+ *              the function returns immediately without any cleanup
+ *            - eng->dev_num specifies the total number of high-speed network devices to process
+ * 
+ * @note Session nodes are not recycled to the free node queue when deleting TCP/UDP sessions (the BACKEND_SESS_LINKED_TO_DEV_NODE
+ *       flag is cleared before session deletion, preventing node recycling)
+ * @note All node queues (TCP, UDP, free node) are explicitly reset with TAILQ_INIT after resource release to ensure clean state
+ * @warning This function performs irreversible resource release: closed sockets/epoll instances and freed memory
+ *          cannot be recovered; call only when the backend engine is shutting down or devices are no longer needed
+ * @warning The function name contains a typo ("destory" should be "destroy") - ensure consistency with call sites
+ */
 void engine_destory_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet    *set = NULL;
     struct HighSpeedNetDevice       *hs_dev;
-    dictionary                      *ini;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *ops;
     int                             dev_num, cnt = 0;
     struct BackendSession           *tcp_sess, *udp_sess;
     struct SessionNode              *tmp_node, *next_tcp_node, *next_udp_node, *next_free_node;
@@ -1336,12 +1362,14 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
     struct in6_addr in6_addr;
     union IPAddress *ip_data;
 
-    if(NULL == eng || NULL == eng->dev_set){
+    if(NULL == eng || NULL == eng->dev_set || NULL == eng->sess_pool || NULL == eng->sess_pool->ops || NULL == eng->sess_pool->ops->delete_sess){
         return;
     }
 
-    dev_num = eng->dev_num;
-    set = eng->dev_set;
+    dev_num     = eng->dev_num;
+    set         = eng->dev_set;
+    sess_pool   = eng->sess_pool;
+    ops         = sess_pool->ops;
 
 /*
  * Release the various resources occupied by the device.
@@ -1356,37 +1384,63 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
         }
 /*
  * Through the session node, release the associated sessions of the device.
+ *
+ * There is no need to recycle the session node when deleting TCP and UDP sessions. If the BACKEND_SESS_LINKED_TO_DEV_NODE flag is cleared, the corresponding 
+ * session node will not be recycled to the free node queue when the session instance  deletion procedure (high_speed_delete_sess) is invoked.
  */
         TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->tcp_node_queue, entry, next_tcp_node) {
             TAILQ_REMOVE(&hs_dev->tcp_node_queue, tmp_node, entry);
             tcp_sess = tmp_node->sess;
-//            free(tmp_node);
+            tcp_sess->sess_dev_link_state &= ~BACKEND_SESS_LINKED_TO_DEV_NODE;
+            ops->delete_sess(sess_pool, tcp_sess);
+            free(tmp_node);
+            tmp_node = NULL;
         }
 
+        TAILQ_INIT(&hs_dev->tcp_node_queue);
 
         TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->udp_node_queue, entry, next_udp_node) {
             TAILQ_REMOVE(&hs_dev->udp_node_queue, tmp_node, entry);
             udp_sess = tmp_node->sess;
-//            free(tmp_node);
+            udp_sess->sess_dev_link_state &= ~BACKEND_SESS_LINKED_TO_DEV_NODE;
+            ops->delete_sess(sess_pool, udp_sess);
+            free(tmp_node);
+            tmp_node = NULL;
         }
 
+        TAILQ_INIT(&hs_dev->udp_node_queue);
 
+/*
+ * Session nodes in the free node queue are not associated with any valid session instances, 
+ * so they can be directly freed without additional checks.
+ */
         TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->free_node_queue, entry, next_free_node) {
             TAILQ_REMOVE(&hs_dev->free_node_queue, tmp_node, entry);
-//            free(tmp_node);
+            free(tmp_node);
+            tmp_node = NULL;
         }
 
-
+        TAILQ_INIT(&hs_dev->free_node_queue);
 /*
  * Release all the free session nodes.
  */
         cnt++;
     } // while(cnt < dev_num)
 
+    close(eng->poller.epfd);
+
 }
 
 
-void engine_destory_sess_pool(BackendEngine *eng);
+void engine_destory_sess_pool(BackendEngine *eng){
+    struct BackendSessionPool       *sess_pool;
+
+    if(NULL == eng || NULL == eng->sess_pool){
+        return;
+    }
+}
+
+
 void engine_destory_mem_pool(BackendEngine *eng);
 void engine_destory_mem_pool_lock(BackendEngine *eng);
 

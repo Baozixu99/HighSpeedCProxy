@@ -80,7 +80,7 @@ uint16_t allocate_id(struct BackendSessionIDQueue *id_q)
 
 void release_id(struct BackendSessionIDQueue *id_q, uint16_t id)
 {   
-    struct BackendSessionID* id_e = (struct BackendSessionID*)malloc(
+    struct BackendSessionID *id_e = (struct BackendSessionID*)malloc(
             sizeof(struct BackendSessionID));
     if (!id_e) {
         printf("Memory allocate failed!\n");
@@ -89,6 +89,19 @@ void release_id(struct BackendSessionIDQueue *id_q, uint16_t id)
     id_e->id = id;
     TAILQ_INSERT_TAIL(id_q, id_e, entry);
     // printf("push %p %d\n", id_e, id_e->id);
+}
+
+void release_id_queue(struct BackendSessionIDQueue *id_q){
+    struct BackendSessionID *id_tmp, *id_next;
+
+    if(NULL == id_q){
+        return;
+    }
+
+    TAILQ_FOREACH_SAFE(id_tmp, id_q, entry, id_next){
+        TAILQ_REMOVE(id_q, id_tmp, entry);
+        free(id_tmp);
+    }
 }
 
 int high_speed_init_pool(struct BackendSessionPool *pool)
@@ -107,6 +120,11 @@ int high_speed_init_pool(struct BackendSessionPool *pool)
     pool->ops = &high_speed_pool_ops;
     pool->engine = get_global_backend_engine();
     return 0;
+}
+
+
+void high_speed_deinit_pool(struct BackendSessionPool *pool){
+
 }
 
 void inc_sess_num(struct BackendSessionPool *pool)
