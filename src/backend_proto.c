@@ -61,12 +61,11 @@ int backend_proxy_msg_process(uint8_t *msg){
         }
         ret = backend_proxy_strgy_msg_process(msg_ptr);
     }else if(PROXY_MSG_TYPE_SESS == msg_type){
+#if 0
 /*
  * If the frontend wants to establish a session between the frontend and backend, the backend_sess_id in the handover request should be 
  * FRONTEND_HANDOVER_SESSION_ID in proxy message.
  */
-
- #if 0
          if (frontend_sess_id != FRONTEND_HANDOVER_SESSION_ID || backend_sess_id != BACKEND_HANDOVER_SESSION_ID){
             error_print("The front end id in handover request message should be FRONTEND_HANDOVER_SESSION_ID， and the backend_sess_id should be BACKEND_HANDOVER_SESSION_ID!");
             return BACKEND_PROXY_PROCESS_ERROR;
@@ -365,12 +364,12 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
         }
 #endif
 
-/*    
- * The backend protocol stack only processes messages where the action_type is ACTION_TYPE_COMMAND.
+/*
+ * The backend protocol stack only processes messages whose action_type is either  ACTION_TYPE_COMMAND or ACTION_TYPE_RESPONSE. Messages with other action_type values 
+ * are not supported and will trigger an error.
  */
-    if(ACTION_TYPE_COMMAND != action_type){
-        error_print("backend_proxy_sess_msg_process() returns an error, returns an error, \
-                     because the backend protocol stack only processes the session message of the signaling type!");
+    if(ACTION_TYPE_COMMAND != action_type && ACTION_TYPE_RESPONSE != action_type){
+        error_print("backend_proxy_sess_msg_process() error: unsupported action_type. Only ACTION_TYPE_COMMAND and ACTION_TYPE_RESPONSE are processed by the backend protocol stack.\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -397,8 +396,8 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
 int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t msg_type, 
                                         uint16_t action_type, uint16_t ip_version, uint16_t payload_len, 
                                         uint8_t *msg_payload){
-    int corr_len;
-    int ret = BACKEND_PROXY_PROCESS_ERROR;
+    int                             corr_len;
+    int                             ret = BACKEND_PROXY_PROCESS_ERROR;
 
 /* 
  * Check whether the payload length matches the message type and signaling type.
@@ -418,8 +417,17 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
     switch(msg_type) {
         case SESS_MSG_CREATE:
             if (BACKEND_HANDOVER_SESSION_ID != backend_sess_id){
-                error_print("The backend_sess_id should be BACKEND_HANDOVER_SESSION_ID in a session message whose type is SESS_MSG_CREATE!");
-                ret = BACKEND_PROXY_PROCESS_ERROR;
+/*
+ * Passive session creation procedure.
+ */
+                if(action_type != ACTION_TYPE_RESPONSE){
+                    error_print("backend_proxy_sess_msg_process_ver1 failed: If the backend_sess_id in a SESS_MSG_CREATE message has been previously allocated \ 
+                                 (passive session creation), the action_type must be ACTION_TYPE_RESPONSE!\n");
+                    ret = BACKEND_PROXY_PROCESS_ERROR;
+                }else{
+                    ret = backend_proxy_sess_msg_process_passive_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
+                }
+                
             }else{
                 ret = backend_proxy_sess_msg_process_active_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
             }
@@ -551,6 +559,76 @@ int __backend_proxy_sess_msg_process_active_create_ver1(uint16_t frontend_sess_i
     }
 
     return ret;
+}
+
+
+/**
+ * @brief Processes version 1 of PASSIVE session creation messages in the backend proxy
+ * @details This function handles the processing logic for version 1 session creation messages where the **backend passively accepts and processes a session creation request (triggered by external client connections)**.
+ *          It typically parses the message payload, performs necessary validation, and executes session creation operations 
+ *          for backend sessions initiated by passive connection establishment (i.e., the backend passively completes session creation in response to external client connections, rather than being triggered by proactive frontend requests).
+ *          It is responsible for coordinating frontend-backend session mapping for version 1 message format, and will set the 
+ *          `establish_type` attribute of the BackendSession struct to BACKEND_SESS_ESTABLISH_PASSIVE during session creation.
+ * @param[in] frontend_sess_id 16-bit identifier of the frontend session, used to associate with the corresponding frontend response for passive session mapping
+ * @param[in] backend_sess_id 16-bit identifier of the backend session, used for backend-side passive session tracking and management (pre-allocated for passive connection scenarios)
+ * @param[in] ip_version 16-bit value indicating the IP protocol version (e.g., IPv4 or IPv6) used in the passive session
+ * @param[in] payload_len 16-bit length of the message payload (in bytes), specifying the size of the data in msg_payload
+ * @param[in] msg_payload Pointer to the message payload data, containing the detailed content of the version 1 passive session creation request (triggered by backend passive acceptance of external client connections)
+ * @return int Execution result: Typically returns BACKEND_PROXY_PROCESS_OK on successful processing (passive session created in response to external client connection),
+ *         or BACKEND_PROXY_PROCESS_ERROR if validation fails, payload is invalid, or session creation triggered by backend passive connection encounters issues.
+ */
+int backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
+    return __backend_proxy_sess_msg_process_passive_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
+}
+
+
+int __backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t ip_version, uint16_t payload_len, uint8_t *msg_payload){
+    struct BackendEngine_           *eng;
+    struct BackendSessionPool       *s_pool;
+    struct BackendSessionPoolOps    *ops;
+    struct BackendSession           *sess;
+    struct SharedMemoryPool         *mem_pool;
+
+
+
+    utils_print("In %s\n", __func__);
+
+    eng = get_global_backend_engine();
+
+    if(NULL == eng || NULL == eng->sess_pool || NULL == eng->mem_pool || NULL == eng->sess_pool->ops){
+        error_print("__backend_proxy_sess_msg_process_passive_create_ver1 failed: eng, eng->sess_pool, eng->mem_pool, or eng->sess_pool->ops is NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    s_pool      = eng->sess_pool;
+    ops         = eng->sess_pool->ops;
+    mem_pool    = eng->mem_pool;
+
+    if(NULL == ops->search_sess){
+        error_print("__backend_proxy_sess_msg_process_passive_create_ver1 failed: ops->search_sess (session searching function) is not initialized!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess = ops->search_sess(s_pool, backend_sess_id);
+
+    if(NULL == sess){
+        error_print("__backend_proxy_sess_msg_process_passive_create_ver1 failed: no backend session found for the specified backend_sess_id!");
+        return BACKEND_PROXY_PROCESS_ERROR;   
+    }
+
+    if(SESS_ESTABLISH_PASSIVE != sess->establish_mode){
+        error_print("__backend_proxy_sess_msg_process_passive_create_ver1 failed: backend session's establish_mode is not SESS_ESTABLISH_PASSIVE (mismatched session establishment mode)!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    utils_print("frontend id = %d, backend id = %d\n", sess->frontend_sess_id, sess->backend_sess_id);
+
+/*
+ * Perhaps the socket associated with this session instance should be added to the epoll interest list here? 
+ * This operation requires further careful consideration.
+ */
+
+    return BACKEND_PROXY_PROCESS_OK;
 }
 
 

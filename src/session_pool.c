@@ -703,6 +703,7 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
     GeneralProxyMsgHeader           msg_header;
     SessMsgHeader                   *sess_msg_hdr;
     SessIPv4Params                  sess_ipv4_paras;
+    uint8_t                         *res_buf[100] = {NULL};
 
 
     engine          = s_pool->engine;
@@ -812,9 +813,12 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
     sess_msg_hdr->payload_len                   = sizeof(SessIPv4Params);
 
     sess_ipv4_paras.device_selection            = new_sess->dev_id;
+    sess_ipv4_paras.transport_layer_proto       = para->trans_proto;
+    memcpy(&sess_ipv4_paras.dest_endpoint, &para->ip_port_tuple.ipv4_port_tuple, sizeof(IPv4PortTuple));
 
+    ret = build_proxy_general_message(engine, &msg_header, &sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_SHARED, engine->tx_queue);
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 create_sess_passive_error:
 /*
  * Reclaim resources.

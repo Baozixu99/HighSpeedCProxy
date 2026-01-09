@@ -1161,6 +1161,8 @@ void engine_listener_run(struct BackendEngine_ *eng){
             close(sock_fd);
             continue;
         }
+
+        set_nonblocking(sock_fd);
     }// for(dev_cnt = 0; dev_cnt < dev_num; dev_cnt++)
 
 
@@ -1566,14 +1568,15 @@ void engine_destory_sess_pool(BackendEngine *eng){
 
 
 void engine_destory_mem_pool(BackendEngine *eng);
-void engine_destory_mem_pool_lock(BackendEngine *eng);
 
+void engine_destory_mem_pool_lock(BackendEngine *eng);
 
 void engine_destory(){
     int ret;
 
     p_g_bk_eng = &g_bk_eng;
+
+    engine_destory_hs_net_dev(p_g_bk_eng);
+
     memset(p_g_bk_eng, 0, sizeof(BackendEngine));
 }
-
-
