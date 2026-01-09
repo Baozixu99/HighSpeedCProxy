@@ -419,6 +419,7 @@ int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice
 
     if(hs_dev->tcp_listening_port <= 0){
         error_print("create_hs_net_dev_tcp_listener failed: Invalid tcp_listening_port!\n");
+        hs_dev->tcp_listening_port = -1;
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -1040,6 +1041,129 @@ int backend_engine_rx_queue_get(struct SharedMemoryPoolQueue *queue, void **buf_
 int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void **data_ptr, 
                                 size_t data_len, size_t *sent_len){
     return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Runs the listener loop for backend engine to handle TCP passive connection establishment
+ * 
+ * @details This function is the core entry point for processing TCP passive connections in the backend engine.
+ *          It executes the following key steps in sequence:
+ *          1. Iterates through all struct HighSpeedNetDevice instances managed by the input BackendEngine_ pointer (eng)
+ *          2. For each device, checks if the TCP listener socket (tcp_listener) has been successfully initialized
+ *          3. If the listener socket is ready, repeatedly calls the accept() system call to handle passive connection establishment:
+ *              - Creates a new socket file descriptor to correspond with the newly established connection
+ *              - Allocates and initializes a new struct BackendSession instance, and associates it with the new socket
+ *              - Constructs a "new session" message and sends it to the proxy frontend for further processing
+ * 
+ * @param eng Pointer to the struct BackendEngine_ instance that manages all high-speed network devices
+ *            - If eng is NULL, the function will exit early without any connection processing (defensive check recommended in implementation)
+ *            - eng must contain valid struct HighSpeedNetDevice instances with initialized tcp_listener to process connections
+ * 
+ * @note The function only processes TCP passive connections (via accept())—UDP connections are not handled here
+ * @note The new struct BackendSession instance is tightly associated with the new connection socket to track session state
+ * @warning The function assumes tcp_listener has been properly bound and listened (e.g., via bind()/listen()) before invocation;
+ *          uninitialized tcp_listener will be skipped without error reporting
+ * @warning Ensure the proxy frontend is ready to receive the "new session" message to avoid message loss or processing failures
+ */
+void engine_listener_run(struct BackendEngine_ *eng){
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *ops;
+    struct BackendSession           *sess;
+    struct HighSpeedNetDeviceSet    *dev_set;
+    struct HighSpeedNetDevice       *hs_dev;
+    struct sockaddr_in              client_addr;
+    PassiveSessParaIP               passive_sess_para;
+    socklen_t                       client_addr_len = sizeof(client_addr);
+    int                             dev_num, dev_cnt, sock_fd, ret;
+
+    if(NULL == eng || NULL == eng->dev_set || 0 == eng->dev_num || NULL == eng->sess_pool || NULL == eng->sess_pool->ops){
+
+        if (NULL == eng) {
+            error_print("engine_listener_run failed: BackendEngine pointer (eng) is NULL\n");
+        } else if (NULL == eng->dev_set) {
+            error_print("engine_listener_run failed: eng->dev_set (HighSpeedNetDeviceSet) is NULL\n");
+        } else if (0 == eng->dev_num) {
+            error_print("engine_listener_run: eng->dev_num is 0 - no high-speed network devices available for listener processing\n");
+        }else if (NULL == eng->sess_pool) {
+            error_print("engine_listener_run failed: eng->sess_pool (BackendSessionPool) is NULL\n");
+        } else if (NULL == eng->sess_pool->ops) {
+            error_print("engine_listener_run failed: eng->sess_pool->ops (BackendSessionPoolOps) is NULL\n");
+        }
+        return;
+    }
+
+    dev_set     = eng->dev_set;
+    dev_num     = eng->dev_num;
+    sess_pool   = eng->sess_pool;
+    ops         = sess_pool->ops;
+    dev_cnt     = 0;
+
+/*
+ * STEP 1. This loop iterates through all instances of struct HighSpeedNetDevice that are managed by the input BackendEngine_ pointer.
+ */
+    for(dev_cnt = 0; dev_cnt < dev_num; dev_cnt++){
+        hs_dev = &dev_set->hs_net_dev[dev_cnt];
+
+        if(-1 == hs_dev->tcp_listener)
+            continue;
+
+        client_addr_len = sizeof(client_addr);
+/*
+ * STEP 2. Call accept() to retrieves the first pending connection from the listen queue of the specified TCP listener, and creates a new connected socket (sock_fd) for communicating 
+ * with the client.
+ * Even if multiple connections are waiting in the accept queue, engine_listener_run accepts only one connection from the TCP listener at a time to ensure fairness among all devices.
+ */
+        sock_fd = accept(hs_dev->tcp_listener, (struct sockaddr *)&client_addr, &client_addr_len);
+
+        if (-1 == sock_fd){
+    /*
+     * Handle fatal errors that are not related to non-blocking mode.
+     * EAGAIN/EWOULDBLOCK: No pending connections in the accept queue (normal for non-blocking sockets), no need to terminate the program.
+     * Other errno values: Real fatal errors (e.g., invalid socket, insufficient permissions, resource exhaustion), print error message 
+     *                     and terminate the program abnormally.
+     */
+            if (errno != EAGAIN && errno != EWOULDBLOCK){
+                error_print("engine_listener_run failed: accept() call failed!\n");
+                exit(EXIT_FAILURE);
+            }
+    /*
+     * If errno is EAGAIN or EWOULDBLOCK: No pending connections available for the current device's TCP listener.
+     * This is a normal scenario in non-blocking socket mode, so we simply skip to the next device in the loop
+     * without any error handling or program termination.
+     */
+            continue;
+        }
+/*
+ * STEP 3. Construct a backend session instance that is associated with the passive TCP connection. 
+ *         Then construct a session-creation message to notify the frontend proxy to complete the 
+ *         session creation procedure.
+ *
+ * Currently, the backend proxy protocol only supports the IPv4 passive connection establishment procedure.
+ * Support for IPv6 is planned for future implementation.
+ */
+        memset(&passive_sess_para, 0, sizeof(PassiveSessParaIP));
+        passive_sess_para.fd                                    = sock_fd;
+        passive_sess_para.dev_id                                = hs_dev->dev_id;
+        passive_sess_para.ip_version                            = SESS_IPV4_PROTO;
+        passive_sess_para.trans_proto                           = SESS_TCP_PROTO;
+        passive_sess_para.ip_port_tuple.ipv4_port_tuple.port    = ntohs(client_addr.sin_port);
+        COPY_IN_TO_IPV4(&passive_sess_para.ip_port_tuple.ipv4_port_tuple.ipv4_addr, &client_addr.sin_addr);
+
+        ret = ops->create_sess_passive(sess_pool, &sess, &passive_sess_para);
+
+
+/*
+ * Process abnormal scenarios. Close the connected socket if a session-creation request for the frontend proxy cannot be created successfully.
+ */
+        if(BACKEND_PROXY_PROCESS_OK != ret){
+            error_print("engine_listener_run failed: failed to create a new session instance associated with the connection!\n");
+            close(sock_fd);
+            continue;
+        }
+    }// for(dev_cnt = 0; dev_cnt < dev_num; dev_cnt++)
+
+
 }
 
 /**

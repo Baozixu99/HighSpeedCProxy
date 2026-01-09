@@ -124,7 +124,9 @@ int high_speed_init_pool(struct BackendSessionPool *pool)
 
 
 void high_speed_deinit_pool(struct BackendSessionPool *pool){
-
+    release_id_queue(&pool->id_queue);
+    TAILQ_INIT(&pool->queue_f2b);
+    TAILQ_INIT(&pool->queue_b2f);
 }
 
 void inc_sess_num(struct BackendSessionPool *pool)
@@ -738,6 +740,8 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
         error_print("high_speed_create_sess_passive failed: invalid dev_id (exceeds MAX_HS_DEV_NUM)\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+
+    dev_id = para->dev_id;
 /*
  * STEP 1.
  * Allocate and initialize memory for the backend session object.
@@ -806,6 +810,8 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
     sess_msg_hdr->action_type                   = ACTION_TYPE_COMMAND;
     sess_msg_hdr->ip_version                    = para->ip_version;
     sess_msg_hdr->payload_len                   = sizeof(SessIPv4Params);
+
+    sess_ipv4_paras.device_selection            = new_sess->dev_id;
 
 
     return BACKEND_PROXY_PROCESS_OK;
