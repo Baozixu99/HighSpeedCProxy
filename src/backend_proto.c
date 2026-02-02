@@ -588,6 +588,7 @@ int __backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_
     struct BackendSessionPoolOps    *ops;
     struct BackendSession           *sess;
     struct SharedMemoryPool         *mem_pool;
+    int                             ret;
 
 
 
@@ -625,10 +626,15 @@ int __backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_
 
 /*
  * Perhaps the socket associated with this session instance should be added to the epoll interest list here? 
- * This operation requires further careful consideration.
+ * This operation requires further careful consideration:
+ *     1) Handling logic after EPOLLIN event triggering (e.g., data reading, session state update);
+ *     2) Resource management of the epoll instance (e.g., maximum file descriptor limit, duplicate registration avoidance);
+ *     3) Exception handling for epoll registration failure (e.g., ret return value check and fallback strategy);
+ *     4) Dynamic adjustment of monitored events (e.g., adding EPOLLOUT when writing data to the socket).
  */
+    BACKEND_SESS_REGISTER_EPOLL(sess, EPOLLIN, &ret);
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 
