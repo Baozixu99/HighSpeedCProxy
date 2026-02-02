@@ -652,8 +652,6 @@ int __backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_
  *         Returns BACKEND_PROXY_PROCESS_ERROR if payload is invalid, session identifiers are incorrect, parsing fails, or closure operations encounter errors.
  */
 int backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload){
-
-
     return __backend_proxy_sess_msg_process_close_ver1(frontend_sess_id, backend_sess_id, payload_len, msg_payload);
 }
 
