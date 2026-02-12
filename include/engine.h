@@ -12,6 +12,7 @@
 #include "shared_mem_io.h"
 #include "poller.h"
 #include "common_utils.h"
+#include "hyperamp_shm_queue.h"
 
 
 #define HS_NET_DEV_CFG          "hs_net_dev.ini"
