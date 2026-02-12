@@ -89,7 +89,7 @@
          __asm__ volatile("mfence" ::: "memory");
      }
      
-    inline void hyperamp_cache_invalidate(volatile void *addr, size_t size) {
+    void hyperamp_cache_invalidate(volatile void *addr, size_t size) {
          (void)addr; (void)size;
          __asm__ volatile("mfence" ::: "memory");
      }
@@ -257,7 +257,7 @@ void hyperamp_spinlock_unlock(volatile HyperampSpinlock *lock)
  * @note The lock structure must be in shared memory accessible to all threads
  * @note No cache maintenance operations are performed in this function
  */
-inline int hyperamp_spinlock_trylock(volatile HyperampSpinlock *lock, uint32_t zone_id)
+int hyperamp_spinlock_trylock(volatile HyperampSpinlock *lock, uint32_t zone_id)
 {
     if (!lock) return HYPERAMP_ERROR;
     
@@ -323,7 +323,7 @@ void hyperamp_safe_memset(volatile void *dst, uint8_t val, size_t len)
  * @param[in] src   Source address (uncached memory)
  * @param[in] len   Length of memory to copy (in bytes)
  */
-inline void hyperamp_safe_memcpy(volatile void *dst, const volatile void *src, size_t len)
+void hyperamp_safe_memcpy(volatile void *dst, const volatile void *src, size_t len)
 {
     volatile uint8_t *d = (volatile uint8_t *)dst;
     const volatile uint8_t *s = (const volatile uint8_t *)src;
@@ -386,6 +386,7 @@ uint32_t hyperamp_safe_read_u32(const volatile void *addr, size_t offset)
     HYPERAMP_BARRIER();
     return val;
 }
+
 
 /**
  * @brief Secure 64-bit read from uncached memory (byte-by-byte)
@@ -569,7 +570,7 @@ int hyperamp_queue_init(volatile HyperampShmQueue *queue,
  * 
  * @return 1 if initialized (capacity > 0), 0 otherwise
  */
-inline int hyperamp_queue_is_initialized(volatile HyperampShmQueue *queue)
+int hyperamp_queue_is_initialized(volatile HyperampShmQueue *queue)
 {
     if (!queue) return 0;
     
@@ -607,7 +608,7 @@ inline int hyperamp_queue_is_initialized(volatile HyperampShmQueue *queue)
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-inline int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
+int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
                                   uint32_t zone_id,
                                   const void *data,
                                   size_t data_len,
@@ -672,7 +673,7 @@ inline int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-inline int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
+int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
                                   uint32_t zone_id,
                                   void *data,
                                   size_t max_len,
@@ -741,7 +742,7 @@ inline int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-inline int hyperamp_queue_peek(volatile HyperampShmQueue *queue,
+int hyperamp_queue_peek(volatile HyperampShmQueue *queue,
                                uint32_t zone_id,
                                void *data,
                                size_t max_len,
@@ -788,7 +789,7 @@ inline int hyperamp_queue_peek(volatile HyperampShmQueue *queue,
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-inline int hyperamp_queue_alloc_slot(volatile HyperampShmQueue *queue,
+int hyperamp_queue_alloc_slot(volatile HyperampShmQueue *queue,
                                      uint32_t zone_id,
                                      uint64_t *slot_addr,
                                      volatile void *virt_base)
@@ -830,7 +831,7 @@ inline int hyperamp_queue_alloc_slot(volatile HyperampShmQueue *queue,
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-inline int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
+int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
                                        uint32_t zone_id)
 {
     if (!queue) return HYPERAMP_ERROR;

@@ -237,7 +237,7 @@ typedef struct {
 
 void hyperamp_cache_clean(volatile void *addr, size_t size);
      
-inline void hyperamp_cache_invalidate(volatile void *addr, size_t size);
+void hyperamp_cache_invalidate(volatile void *addr, size_t size);
 
 void hyperamp_safe_memset(volatile void *dst, uint8_t val, size_t len);
 
@@ -245,46 +245,48 @@ uint16_t hyperamp_safe_read_u16(const volatile void *addr, size_t offset);
 
 uint32_t hyperamp_safe_read_u32(const volatile void *addr, size_t offset);
 
+void hyperamp_safe_memcpy(volatile void *dst, const volatile void *src, size_t len);
+
 void hyperamp_spinlock_init(volatile HyperampSpinlock *lock);
 
 void hyperamp_spinlock_lock(volatile HyperampSpinlock *lock, uint32_t zone_id);
 
 void hyperamp_spinlock_unlock(volatile HyperampSpinlock *lock);
 
-inline int hyperamp_spinlock_trylock(volatile HyperampSpinlock *lock, uint32_t zone_id);
+int hyperamp_spinlock_trylock(volatile HyperampSpinlock *lock, uint32_t zone_id);
 
 int hyperamp_queue_init(volatile HyperampShmQueue *queue, 
                                        const HyperampQueueConfig *config,
                                        int is_creator);
 
-inline int hyperamp_queue_is_initialized(volatile HyperampShmQueue *queue);
+int hyperamp_queue_is_initialized(volatile HyperampShmQueue *queue);
 
-inline int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
+int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
                                           uint32_t zone_id,
                                           const void *data,
                                           size_t data_len,
                                           volatile void *virt_base);
 
-inline int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
+int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
                                   uint32_t zone_id,
                                   void *data,
                                   size_t max_len,
                                   size_t *actual_len,
                                   volatile void *virt_base);
 
-inline int hyperamp_queue_peek(volatile HyperampShmQueue *queue,
+int hyperamp_queue_peek(volatile HyperampShmQueue *queue,
                                uint32_t zone_id,
                                void *data,
                                size_t max_len,
                                size_t *actual_len,
                                volatile void *virt_base);
 
-inline int hyperamp_queue_alloc_slot(volatile HyperampShmQueue *queue,
+int hyperamp_queue_alloc_slot(volatile HyperampShmQueue *queue,
                                      uint32_t zone_id,
                                      uint64_t *slot_addr,
                                      volatile void *virt_base);
 
-inline int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
+int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
                                        uint32_t zone_id);
 
 /* ==================== Platform Detection and Cache Operation Macros ==================== */
