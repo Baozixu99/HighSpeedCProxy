@@ -235,15 +235,25 @@ typedef struct {
      ((queue)->capacity - (queue)->tail + (queue)->header))
 
 
-inline void hyperamp_spinlock_init(volatile HyperampSpinlock *lock);
+void hyperamp_cache_clean(volatile void *addr, size_t size);
+     
+inline void hyperamp_cache_invalidate(volatile void *addr, size_t size);
 
-inline void hyperamp_spinlock_lock(volatile HyperampSpinlock *lock, uint32_t zone_id);
+void hyperamp_safe_memset(volatile void *dst, uint8_t val, size_t len);
 
-inline void hyperamp_spinlock_unlock(volatile HyperampSpinlock *lock);
+uint16_t hyperamp_safe_read_u16(const volatile void *addr, size_t offset);
+
+uint32_t hyperamp_safe_read_u32(const volatile void *addr, size_t offset);
+
+void hyperamp_spinlock_init(volatile HyperampSpinlock *lock);
+
+void hyperamp_spinlock_lock(volatile HyperampSpinlock *lock, uint32_t zone_id);
+
+void hyperamp_spinlock_unlock(volatile HyperampSpinlock *lock);
 
 inline int hyperamp_spinlock_trylock(volatile HyperampSpinlock *lock, uint32_t zone_id);
 
-inline int hyperamp_queue_init(volatile HyperampShmQueue *queue, 
+int hyperamp_queue_init(volatile HyperampShmQueue *queue, 
                                        const HyperampQueueConfig *config,
                                        int is_creator);
 
@@ -277,6 +287,93 @@ inline int hyperamp_queue_alloc_slot(volatile HyperampShmQueue *queue,
 inline int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
                                        uint32_t zone_id);
 
+/* ==================== Platform Detection and Cache Operation Macros ==================== */
 
+#if defined(__aarch64__) || defined(__arm64__)
+    /* ARM64 platform: Use memory barrier instead of hardware cache instructions 
+       (privileged instructions cannot be executed in user space) */
+    #define CACHE_INVALIDATE(addr) do { \
+        __asm__ volatile("dmb sy" ::: "memory"); \
+    } while(0)
+    
+    #define CACHE_FLUSH(addr) do { \
+        __asm__ volatile("dmb sy" ::: "memory"); \
+    } while(0)
+    
+#elif defined(__x86_64__) || defined(__i386__)
+    /* x86/x86_64 platform: Use memory barrier 
+       (Cache coherence is automatically managed by hardware) */
+    #define CACHE_INVALIDATE(addr) do { \
+        __asm__ volatile("mfence" ::: "memory"); \
+    } while(0)
+    
+    #define CACHE_FLUSH(addr) do { \
+        __asm__ volatile("mfence" ::: "memory"); \
+    } while(0)
+    
+#else
+    /* Other platforms: Use compiler memory barrier */
+    #define CACHE_INVALIDATE(addr) __sync_synchronize()
+    #define CACHE_FLUSH(addr) __sync_synchronize()
+    #warning "Unknown architecture, using compiler memory barrier"
+#endif
+
+/* ==================== Configuration Definitions ==================== */
+
+/* Shared memory physical address - New HyperAMP layout (bidirectional communication) */
+// Actually only need to use mmap base address SHM_START_PADDR + SHM_DATA_SIZE
+// Phytium platform
+// #define SHM_START_PADDR          0xDE000000UL  // Shared memory base physical address
+// i.MX8MP platform
+#define SHM_START_PADDR             0x7E000000UL  // Shared memory base physical address
+#define SHM_QUEUE_SIZE              (4 * 1024)    // 4KB Queue control area (actual ~4068 bytes)
+#define SHM_DATA_SIZE               (4 * 1024 * 1024)  // 4MB Data area
+
+#define SHM_TOTAL_SIZE              (SHM_QUEUE_SIZE * 2 + SHM_DATA_SIZE)  // Total ~4.01MB
+
+/* Queue configuration */
+#define DEFAULT_QUEUE_CAPACITY      256
+#define DEFAULT_BLOCK_SIZE          4096  // Matches HighSpeedCProxy's HSNET_MEM_BLOCK_SIZE
+
+/* Zone ID */
+#define ZONE_ID_LINUX               0
+#define ZONE_ID_SEL4                1
+
+
+// Virtual address: Start of the TX queue in Hyperamp shared memory (seL4 → Linux)
+#define SHM_TX_QUEUE_VADDR    ((volatile HyperampShmQueue *)0xFFFF9276D000)
+
+// Virtual address: Start of the RX queue in Hyperamp shared memory (Linux → seL4)
+#define SHM_RX_QUEUE_VADDR    ((volatile HyperampShmQueue *)0xFFFF9276E000)
+
+// Virtual address: Start of the general data region in Hyperamp shared memory
+#define SHM_DATA_REGION_VA    ((volatile void *)0xFFFF9276F000)
+
+
+/* ==================== Global State Context ==================== */
+
+typedef struct {
+    int fd_mem;                              // File descriptor for /dev/mem
+    volatile void *shm_base;                 // Base address of shared memory mapping
+    size_t shm_size;                         // Mapped size
+    uint64_t phys_addr;                      // Physical address
+    
+    volatile HyperampShmQueue *tx_queue;     // Linux → seL4 queue for sending data
+    volatile HyperampShmQueue *rx_queue;     // seL4 → Linux queue for receiving data
+    volatile void *data_region;              // Base address of shared data region (4MB)
+    
+    int initialized;                         // Initialization flag
+    
+    // Statistics
+    uint32_t tx_count;                       // Transmit packet count
+    uint32_t rx_count;                       // Receive packet count
+    uint32_t tx_errors;                      // Transmit error count
+    uint32_t rx_errors;                      // Receive error count
+} HyperampLinuxContext;
+
+
+int hyperamp_linux_init(uint64_t phys_addr, int is_creator);
+
+extern HyperampLinuxContext g_ctx;
 
 #endif

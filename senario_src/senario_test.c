@@ -475,10 +475,10 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    utils_print("In %s, before enter backend_engine_rx_queue_get\n", __func__);
+    utils_print("In %s, before enter backend_engine_rx_queue_get, proxy_msg = %p\n", __func__, proxy_msg);
     ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("In %s, after enter backend_engine_rx_queue_get\n", __func__);
-    utils_print("rx queue header is %d, tail is %d\n", rx_queue->header, rx_queue->tail);
+    utils_print("rx queue header is %d, tail is %d, proxy_msg = %p\n", rx_queue->header, rx_queue->tail, proxy_msg);
 
     backend_proxy_msg_process(proxy_msg);
 

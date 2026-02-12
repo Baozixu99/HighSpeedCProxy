@@ -1,3 +1,13 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <time.h>
+#include <errno.h>
 #include "hyperamp_shm_queue.h"
 
 /**
@@ -74,7 +84,7 @@
      #define HYPERAMP_DSB()   __asm__ volatile("mfence" ::: "memory")
      #define HYPERAMP_ISB()   __asm__ volatile("" ::: "memory")
      
-    inline void hyperamp_cache_clean(volatile void *addr, size_t size) {
+    void hyperamp_cache_clean(volatile void *addr, size_t size) {
          (void)addr; (void)size;
          __asm__ volatile("mfence" ::: "memory");
      }
@@ -114,7 +124,7 @@
  * @note    The lock structure must be allocated in memory that is accessible to all threads
  *          that will use the spinlock.
  */
-inline void hyperamp_spinlock_init(volatile HyperampSpinlock *lock)
+void hyperamp_spinlock_init(volatile HyperampSpinlock *lock)
 {
     if (!lock) return;
     
@@ -151,7 +161,7 @@ inline void hyperamp_spinlock_init(volatile HyperampSpinlock *lock)
  * @warning This function will spin indefinitely if the lock cannot be acquired
  * @warning Should only be used in contexts where deadlock is guaranteed not to occur
  */
-inline void hyperamp_spinlock_lock(volatile HyperampSpinlock *lock, uint32_t zone_id)
+void hyperamp_spinlock_lock(volatile HyperampSpinlock *lock, uint32_t zone_id)
 {
     if (!lock) return;
     
@@ -217,7 +227,7 @@ inline void hyperamp_spinlock_lock(volatile HyperampSpinlock *lock, uint32_t zon
  * 
  * @param[in] lock  Pointer to the spinlock structure (must be valid and held by the caller)
  */
-inline void hyperamp_spinlock_unlock(volatile HyperampSpinlock *lock)
+void hyperamp_spinlock_unlock(volatile HyperampSpinlock *lock)
 {
     if (!lock) return;
     
@@ -289,7 +299,7 @@ inline int hyperamp_spinlock_trylock(volatile HyperampSpinlock *lock, uint32_t z
  * @param[in] val   Value to set (8-bit)
  * @param[in] len   Length of memory to set (in bytes)
  */
-inline void hyperamp_safe_memset(volatile void *dst, uint8_t val, size_t len)
+void hyperamp_safe_memset(volatile void *dst, uint8_t val, size_t len)
 {
     volatile uint8_t *p = (volatile uint8_t *)dst;
     for (size_t i = 0; i < len; i++) {
@@ -339,7 +349,7 @@ inline void hyperamp_safe_memcpy(volatile void *dst, const volatile void *src, s
  * 
  * @return 16-bit value read from memory
  */
-inline uint16_t hyperamp_safe_read_u16(const volatile void *addr, size_t offset)
+uint16_t hyperamp_safe_read_u16(const volatile void *addr, size_t offset)
 {
     const volatile uint8_t *p = (const volatile uint8_t *)addr;
     uint16_t val = 0;
@@ -366,7 +376,7 @@ inline uint16_t hyperamp_safe_read_u16(const volatile void *addr, size_t offset)
  * 
  * @return 32-bit value read from memory
  */
-inline uint32_t hyperamp_safe_read_u32(const volatile void *addr, size_t offset)
+uint32_t hyperamp_safe_read_u32(const volatile void *addr, size_t offset)
 {
     const volatile uint8_t *p = (const volatile uint8_t *)addr;
     uint32_t val = 0;
@@ -424,7 +434,7 @@ inline uint64_t hyperamp_safe_read_u64(const volatile void *addr, size_t offset)
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-inline int hyperamp_queue_init(volatile HyperampShmQueue *queue, 
+int hyperamp_queue_init(volatile HyperampShmQueue *queue, 
                                const HyperampQueueConfig *config,
                                int is_creator)
 {
@@ -839,5 +849,275 @@ inline int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
     HYPERAMP_BARRIER();
     hyperamp_spinlock_unlock(&queue->queue_lock);
     
+    return HYPERAMP_OK;
+}
+
+
+/**
+ * @brief Maps physical memory to user space
+ * 
+ * @details This function maps a physical memory region into the current process's 
+ *          address space using /dev/hvisor for uncached memory access.
+ *          The resulting mapping is stored in the global context (g_ctx).
+ * 
+ * @param[in] phys_addr  Physical address to map
+ * @param[in] size       Size of the memory region to map
+ * 
+ * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
+ */
+static int map_physical_memory(uint64_t phys_addr, size_t size)
+{
+    // Use /dev/hvisor instead of /dev/mem for uncached memory mapping
+    g_ctx.fd_mem = open("/dev/hvisor", O_RDWR | O_SYNC);
+    if (g_ctx.fd_mem < 0) {
+        perror("[HyperAMP] Failed to open /dev/hvisor");
+        return HYPERAMP_ERROR;
+    }
+    
+    // Calculate page-aligned mapping parameters
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    off_t page_offset = phys_addr & (page_size - 1);  // Offset within first page
+    size_t map_size = size + page_offset;              // Total size including offset
+    
+    // Map physical memory with uncached attributes through /dev/hvisor
+    // Note: Pass raw physical address directly to mmap - kernel handles page conversion
+    void *mapped = mmap(NULL, map_size, 
+                        PROT_READ | PROT_WRITE, 
+                        MAP_SHARED, 
+                        g_ctx.fd_mem, 
+                        phys_addr);  // Direct physical address without pre-alignment
+    
+    if (mapped == MAP_FAILED) {
+        perror("[HyperAMP] mmap failed");
+        close(g_ctx.fd_mem);
+        g_ctx.fd_mem = -1;
+        return HYPERAMP_ERROR;
+    }
+    
+    // Store final mapped address adjusted for page offset
+    g_ctx.shm_base = (volatile void *)((char *)mapped + page_offset);
+    g_ctx.shm_size = size;
+    g_ctx.phys_addr = phys_addr;
+    
+    // Log mapping details
+    printf("[HyperAMP] Physical memory mapped via /dev/hvisor (uncached):\n");
+    printf("[HyperAMP]   Physical addr: 0x%lx\n", phys_addr);
+    printf("[HyperAMP]   Virtual addr:  %p\n", g_ctx.shm_base);
+    printf("[HyperAMP]   Size:          %zu bytes\n", size);
+    
+    return HYPERAMP_OK;
+}
+
+
+/**
+ * @brief Unmaps physical memory from user space
+ * 
+ * @details This function properly unmaps previously mapped physical memory and
+ *          closes the associated file descriptor. It handles the page alignment
+ *          offset to ensure correct memory unmapping.
+ */
+void unmap_physical_memory(void)
+{
+    if (g_ctx.shm_base) {
+        // Calculate original mapping base address and size
+        size_t page_size = sysconf(_SC_PAGESIZE);
+        off_t page_offset = g_ctx.phys_addr & (page_size - 1);
+        void *map_base = (void *)((char *)g_ctx.shm_base - page_offset);
+        size_t map_size = g_ctx.shm_size + page_offset;
+        
+        // Unmap the memory region
+        munmap(map_base, map_size);
+        g_ctx.shm_base = NULL;
+    }
+    
+    // Close the memory device file descriptor
+    if (g_ctx.fd_mem >= 0) {
+        close(g_ctx.fd_mem);
+        g_ctx.fd_mem = -1;
+    }
+}
+
+
+HyperampLinuxContext g_ctx = {0};  // Global state context for HyperAMP Linux client
+
+/* ==================== Public API ==================== */
+
+/**
+ * @brief Initializes the HyperAMP Linux client
+ * 
+ * @details This function initializes the HyperAMP Linux client and establishes 
+ *          connection to the shared memory region. If phys_addr is 0, it uses 
+ *          the default shared memory address defined in configuration.
+ * 
+ * @note When is_creator=1, the function will initialize both queues (to and from SEL4)
+ *       When is_creator=0, it only connects to existing queues
+ * 
+ * @param[in] phys_addr  Shared memory physical address (0 to use default value)
+ * @param[in] is_creator 1 if the caller is the queue creator (initialize queue), 
+ *                       0 if connecting to an existing queue
+ * 
+ * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
+ */
+int hyperamp_linux_init(uint64_t phys_addr, int is_creator)
+{
+    if (g_ctx.initialized) {
+        printf("[HyperAMP] Already initialized\n");
+        return HYPERAMP_OK;
+    }
+    
+    // Use default address (start of TX Queue)
+    if (phys_addr == 0) {
+        phys_addr = SHM_START_PADDR;
+    }
+    
+    printf("[HyperAMP] ========================================\n");
+    printf("[HyperAMP] Initializing HyperAMP Linux Client\n");
+    printf("[HyperAMP] ========================================\n");
+    printf("[HyperAMP] Mode: %s\n", is_creator ? "CREATOR" : "CONNECTOR");
+    printf("[HyperAMP] Physical address: 0x%lx\n", phys_addr);
+    
+    // Map physical memory (from TX Queue start address, map entire region)
+    if (map_physical_memory(phys_addr, SHM_TOTAL_SIZE) != HYPERAMP_OK) {
+        return HYPERAMP_ERROR;
+    }
+    
+    // HyperAMP 4KB Queue Layout (matches seL4 side):
+    // 0x7E000000: RX Queue (4KB) - seL4 writes, Linux reads (seL4 sends requests to Linux)
+    // 0x7E001000: TX Queue (4KB) - Linux writes, seL4 reads (Linux sends responses to seL4)
+    // 0x7E002000: Data Region (4MB) - Shared data area
+    // 
+    // Linux's RX Queue = seL4's TX Queue (physical address 0x7E000000)
+    // Linux's TX Queue = seL4's RX Queue (physical address 0x7E001000)
+    g_ctx.tx_queue = (volatile HyperampShmQueue *)((char *)g_ctx.shm_base + SHM_QUEUE_SIZE);  // 0x7E001000
+    g_ctx.rx_queue = (volatile HyperampShmQueue *)g_ctx.shm_base;                              // 0x7E000000
+    g_ctx.data_region = (volatile void *)((char *)g_ctx.shm_base + 2 * SHM_QUEUE_SIZE);
+    
+    printf("[HyperAMP] Memory layout:\n");
+    printf("[HyperAMP]   TX Queue:    %p (phys: 0x%lx)\n", 
+           g_ctx.tx_queue, phys_addr + SHM_QUEUE_SIZE);
+    printf("[HyperAMP]   RX Queue:    %p (phys: 0x%lx)\n", 
+           g_ctx.rx_queue, phys_addr);
+    printf("[HyperAMP]   Data Region: %p (phys: 0x%lx, size: %d bytes)\n", 
+           g_ctx.data_region, phys_addr + 2 * SHM_QUEUE_SIZE, SHM_DATA_SIZE);
+    
+    // Initialize queue configurations
+    HyperampQueueConfig tx_config = {
+        .map_mode = HYPERAMP_MAP_MODE_CONTIGUOUS_BOTH,
+        .capacity = DEFAULT_QUEUE_CAPACITY,
+        .block_size = DEFAULT_BLOCK_SIZE,
+        .phy_addr = phys_addr,  // TX Queue base address
+        .virt_addr = (uint64_t)g_ctx.tx_queue,
+    };
+    
+    HyperampQueueConfig rx_config = {
+        .map_mode = HYPERAMP_MAP_MODE_CONTIGUOUS_BOTH,
+        .capacity = DEFAULT_QUEUE_CAPACITY,
+        .block_size = DEFAULT_BLOCK_SIZE,
+        .phy_addr = phys_addr + SHM_QUEUE_SIZE,  // RX Queue address
+        .virt_addr = (uint64_t)g_ctx.rx_queue,
+    };
+
+
+    // Linux side is the creator of TX Queue, seL4 side is creator of RX Queue
+    // But for simplicity, let Linux initialize both queues
+    if (is_creator) {
+        printf("[HyperAMP] Initializing TX queue......\n");
+        if (hyperamp_queue_init(g_ctx.tx_queue, &tx_config, 1) != HYPERAMP_OK) {
+            printf("[HyperAMP] Failed to init TX queue\n");
+            unmap_physical_memory();
+            return HYPERAMP_ERROR;
+        }
+        
+        printf("[HyperAMP] Initializing RX queue...\n");
+        if (hyperamp_queue_init(g_ctx.rx_queue, &rx_config, 1) != HYPERAMP_OK) {
+            printf("[HyperAMP] Failed to init RX queue\n");
+            unmap_physical_memory();
+            return HYPERAMP_ERROR;
+        }
+        
+        // Clear data region
+        printf("[HyperAMP] Clearing data region...\n");
+        hyperamp_safe_memset(g_ctx.data_region, 0, SHM_DATA_SIZE);
+    } else {
+        // Wait for queues to be initialized (check capacity field instead of magic, 
+        // as magic field is beyond 4KB boundary)
+        printf("[HyperAMP] Connecting to existing queues (no wait mode)...\n");
+        
+        /* Important: Flush CPU data cache to ensure reading latest data written by seL4 */
+        CACHE_INVALIDATE(g_ctx.tx_queue);
+        CACHE_INVALIDATE(g_ctx.rx_queue);
+        
+        // Print raw data for debugging
+        printf("[HyperAMP] DEBUG: Raw TX Queue bytes (first 32):\n[HyperAMP]   ");
+        volatile uint8_t *tx_bytes = (volatile uint8_t *)g_ctx.tx_queue;
+        for (int i = 0; i < 32; i++) {
+            printf("%02x ", tx_bytes[i]);
+            if ((i + 1) % 16 == 0 && i < 31) printf("\n[HyperAMP]   ");
+        }
+        printf("\n");
+        
+        printf("[HyperAMP] DEBUG: Raw RX Queue bytes (first 32):\n[HyperAMP]   ");
+        volatile uint8_t *rx_bytes = (volatile uint8_t *)g_ctx.rx_queue;
+        for (int i = 0; i < 32; i++) {
+            printf("%02x ", rx_bytes[i]);
+            if ((i + 1) % 16 == 0 && i < 31) printf("\n[HyperAMP]   ");
+        }
+        printf("\n");
+        
+        // Directly read capacity field
+        uint16_t tx_cap = hyperamp_safe_read_u16(g_ctx.tx_queue, offsetof(HyperampShmQueue, capacity));
+        uint16_t rx_cap = hyperamp_safe_read_u16(g_ctx.rx_queue, offsetof(HyperampShmQueue, capacity));
+        
+        printf("[HyperAMP] TX capacity=%u (expected 256), RX capacity=%u (expected 256)\n", tx_cap, rx_cap);
+        
+        // Debug: Print raw bytes at queue headers
+        printf("[HyperAMP] DEBUG: TX Queue raw bytes at offset 0-15:\n");
+        printf("[HyperAMP]   ");
+        for (int i = 0; i < 16; i++) {
+            printf("%02x ", ((volatile uint8_t *)g_ctx.tx_queue)[i]);
+        }
+        printf("\n");
+        
+        printf("[HyperAMP] DEBUG: RX Queue raw bytes at offset 0-15:\n");
+        printf("[HyperAMP]   ");
+        for (int i = 0; i < 16; i++) {
+            printf("%02x ", ((volatile uint8_t *)g_ctx.rx_queue)[i]);
+        }
+        printf("\n");
+        
+        if (tx_cap == 0 && rx_cap == 0) {
+            printf("[HyperAMP] INFO: Queues not yet initialized by seL4\n");
+            printf("[HyperAMP] Will wait for seL4 to initialize them...\n");
+            // Don't return error, let backend simulator keep polling
+        } else if (tx_cap == 256 && rx_cap == 256) {
+            printf("[HyperAMP] ? Found initialized queue(s), ready for communication\n");
+        } else {
+            printf("[HyperAMP] WARNING: Unexpected capacity values (may indicate wrong address or corrupted memory)\n");
+        }
+    }
+#if 1
+    g_ctx.initialized = 1;
+    g_ctx.tx_count = 0;
+    g_ctx.rx_count = 0;
+    g_ctx.tx_errors = 0;
+    g_ctx.rx_errors = 0;
+    
+    printf("[HyperAMP] Initialization complete!\n");
+    
+    // Safely read queue information (byte-by-byte)
+    uint32_t tx_magic = hyperamp_safe_read_u32(g_ctx.tx_queue, offsetof(HyperampShmQueue, magic));
+    uint16_t tx_capacity = hyperamp_safe_read_u16(g_ctx.tx_queue, offsetof(HyperampShmQueue, capacity));
+    uint16_t tx_block_size = hyperamp_safe_read_u16(g_ctx.tx_queue, offsetof(HyperampShmQueue, block_size));
+    
+    uint32_t rx_magic = hyperamp_safe_read_u32(g_ctx.rx_queue, offsetof(HyperampShmQueue, magic));
+    uint16_t rx_capacity = hyperamp_safe_read_u16(g_ctx.rx_queue, offsetof(HyperampShmQueue, capacity));
+    uint16_t rx_block_size = hyperamp_safe_read_u16(g_ctx.rx_queue, offsetof(HyperampShmQueue, block_size));
+    
+    printf("[HyperAMP] TX Queue: magic=0x%08x, capacity=%u, block_size=%u\n",
+           tx_magic, tx_capacity, tx_block_size);
+    printf("[HyperAMP] RX Queue: magic=0x%08x, capacity=%u, block_size=%u\n",
+           rx_magic, rx_capacity, rx_block_size);
+    printf("[HyperAMP] ========================================\n");
+#endif
     return HYPERAMP_OK;
 }
