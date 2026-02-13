@@ -977,7 +977,7 @@ int engine_init_hyperamp_queue(BackendEngine *eng){
     eng->hyper_tx_queue         = g_ctx.tx_queue;
     eng->hyper_amp_data_region  = g_ctx.data_region;
 
-    utils_print("In %s, the address of hyper_rx_queue = %p, hyper_tx_queue = %p, hyper_amp_data_region = %p\n", eng->hyper_rx_queue, eng->hyper_tx_queue, eng->hyper_amp_data_region);
+    utils_print("In %s, the address of hyper_rx_queue = %p, hyper_tx_queue = %p, hyper_amp_data_region = %p\n", __func__, eng->hyper_rx_queue, eng->hyper_tx_queue, eng->hyper_amp_data_region);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -1189,7 +1189,7 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
         }
 
         if(NULL == data){
-            error_print("eng is NULL!\n");
+            error_print("data is NULL!\n");
         }
 
         if(NULL == out_len){
