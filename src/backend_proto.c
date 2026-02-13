@@ -1124,7 +1124,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             error_print("build_proxy_general_message failed: insufficient memory for allocation!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
-    }else if(MEMORY_ALLOC_AMPQUEUE  == msg_buf){
+    }else if(MEMORY_ALLOC_AMPQUEUE  == alloc_mode){
         if(NULL == engine->hyper_tx_queue){
             error_print("build_proxy_general_message failed: HyperAMP TX queue is not initialized!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
