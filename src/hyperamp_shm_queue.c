@@ -680,7 +680,10 @@ int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
                                   size_t *actual_len,
                                   volatile void *virt_base)
 {
-    if (!queue || !data || max_len == 0) return HYPERAMP_ERROR;
+    if (!queue || !data || max_len == 0) {
+        printf("hyperamp_queue_dequeue failed: queue =%p, data = %p, max_len = %d\n", queue, data, max_len);
+        return HYPERAMP_ERROR;
+    }
     
     /* Invalidate cache before reading to ensure latest data */
     hyperamp_cache_invalidate((volatile void *)queue, 64);
@@ -690,6 +693,7 @@ int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
     
     // Check if queue is empty
     if (queue->tail == queue->header) {
+        printf("hyperamp_queue_dequeue failed: queue is empty!\n");
         hyperamp_spinlock_unlock(&queue->queue_lock);
         return HYPERAMP_ERROR;  // Queue empty
     }
