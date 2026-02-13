@@ -1173,9 +1173,9 @@ int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void
 int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len, 
                                         uint8_t *data, size_t *out_len){
     int ret;
+#if 0
     if(NULL == eng || NULL == eng->hyper_rx_queue || eng->hyper_amp_data_region || NULL == data || NULL == out_len){
         error_print("frontend_engine_hyperamp_rx_queue_get failed: invalid input parameters (NULL pointers)\n");
-#if 1
         if(NULL == eng){
             error_print("eng is NULL!\n");
         }else{
@@ -1195,10 +1195,36 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
         if(NULL == out_len){
             error_print("out_len is NULL!\n");
         }
-#endif
         return BACKEND_PROXY_PROCESS_ERROR;   
     }
+#endif
+
+    if(NULL == eng){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: eng is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(NULL == eng->hyper_rx_queue){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: eng->hyper_rx_queue is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(NULL == eng->hyper_amp_data_region){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: eng->hyper_amp_data_region is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
     
+    if(NULL == data){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: data is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(NULL == out_len){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: out_len is NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+
     ret = hyperamp_queue_dequeue(eng->hyper_rx_queue, HYPERAMP_ZONE_ID_Linux, data, max_msg_len, out_len, eng->hyper_amp_data_region);
 
     if(HYPERAMP_ERROR == ret){
