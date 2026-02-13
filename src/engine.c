@@ -977,6 +977,8 @@ int engine_init_hyperamp_queue(BackendEngine *eng){
     eng->hyper_tx_queue         = g_ctx.tx_queue;
     eng->hyper_amp_data_region  = g_ctx.data_region;
 
+    utils_print("In %s, the address of hyper_rx_queue = %p, hyper_tx_queue = %p, hyper_amp_data_region = %p\n", eng->hyper_rx_queue, eng->hyper_tx_queue, eng->hyper_amp_data_region);
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -1173,6 +1175,27 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
     int ret;
     if(NULL == eng || NULL == eng->hyper_rx_queue || eng->hyper_amp_data_region || NULL == data || NULL == out_len){
         error_print("frontend_engine_hyperamp_rx_queue_get failed: invalid input parameters (NULL pointers)\n");
+#if 1
+        if(NULL == eng){
+            error_print("eng is NULL!\n");
+        }else{
+            if(NULL == eng->hyper_rx_queue){
+                error_print("hyper_rx_queue is NULL!\n");
+            }
+
+            if(NULL == eng->hyper_amp_data_region){
+                error_print("hyper_amp_data_region is NULL!\n");
+            }
+        }
+
+        if(NULL == data){
+            error_print("eng is NULL!\n");
+        }
+
+        if(NULL == out_len){
+            error_print("out_len is NULL!\n");
+        }
+#endif
         return BACKEND_PROXY_PROCESS_ERROR;   
     }
     
