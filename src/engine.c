@@ -1225,6 +1225,7 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
     }
     
 
+    utils_print("In %s, the address of hyper_rx_queue is %d\n", __func__, eng->hyper_rx_queue);
     ret = hyperamp_queue_dequeue(eng->hyper_rx_queue, HYPERAMP_ZONE_ID_Linux, data, max_msg_len, out_len, eng->hyper_amp_data_region);
 
     if(HYPERAMP_ERROR == ret){
