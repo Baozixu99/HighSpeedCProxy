@@ -866,7 +866,7 @@ int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
  * 
  * @return HYPERAMP_OK on success, HYPERAMP_ERROR on failure
  */
-static int map_physical_memory(uint64_t phys_addr, size_t size)
+int map_physical_memory(uint64_t phys_addr, size_t size)
 {
     // Use /dev/hvisor instead of /dev/mem for uncached memory mapping
     g_ctx.fd_mem = open("/dev/hvisor", O_RDWR | O_SYNC);

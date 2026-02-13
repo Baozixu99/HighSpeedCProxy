@@ -66,22 +66,24 @@
 
 struct BackendEngOps; 
 
-typedef struct BackendEngine_{
-    struct HighSpeedNetDeviceSet    *dev_set;       // High speed network device set
-    uint16_t                        dev_num;
-    uint16_t                        active_mask;    // Show the positions of all the active high-speed network devices as a mask.
-    struct BackendSessionPool       *sess_pool;     // Session pool
-    struct SharedMemoryPool         *mem_pool;      // Shared memory pool
-    struct SharedMemoryPoolLock     *mem_pool_lock; // Shared memory pool lock
-    uint16_t                        selector_id;
-    NetPoller                       poller;
-    int                             bind_udp_socket; // Socket descriptor for the listening UDP port (bound UDP port fd)
-    int                             bind_tcp_socket; // Socket descriptor for the listening TCP port (bound TCP port fd)
-    struct SharedMemoryPoolQueue    *rx_queue;       // RX queue
-    struct SharedMemoryPoolQueue    *tx_queue;       // TX queue
-    struct BackendEngOps            *ops;
+typedef struct BackendEngine_ {
+    struct HighSpeedNetDeviceSet    *dev_set;               /**< @brief Pointer to the set of high-speed network devices managed by this engine. */
+    uint16_t                        dev_num;                /**< @brief Number of high-speed network devices in dev_set. */
+    uint16_t                        active_mask;            /**< @brief Bitmask indicating which network devices in dev_set are currently active (bit i set => device i is active). */
+    struct BackendSessionPool       *sess_pool;             /**< @brief Session pool for managing reusable backend session objects used in connection handling. */
+    struct SharedMemoryPool         *mem_pool;              /**< @brief Shared memory pool used for allocating message buffers and other data structures shared across components. */
+    struct SharedMemoryPoolLock     *mem_pool_lock;         /**< @brief Lock mechanism (e.g., spinlock or mutex) protecting concurrent access to the shared memory pool. */
+    uint16_t                        selector_id;            /**< @brief ID of the current device or queue selector strategy used for load distribution among network devices. */
+    NetPoller                       poller;                 /**< @brief I/O event poller (typically epoll-based) for monitoring file descriptors such as listening sockets and notification channels. */
+    int                             bind_udp_socket;        /**< @brief File descriptor of the bound UDP listening socket used to receive incoming UDP traffic. */
+    int                             bind_tcp_socket;        /**< @brief File descriptor of the bound TCP listening socket used to accept new TCP connections. */
+    struct SharedMemoryPoolQueue    *rx_queue;              /**< @brief Receive queue for inbound packets/messages from the network, allocated from the shared memory pool. */
+    struct SharedMemoryPoolQueue    *tx_queue;              /**< @brief Transmit queue for outbound packets/messages destined for the network, allocated from the shared memory pool. */
+    volatile HyperampShmQueue       *hyper_rx_queue;        /**< @brief HyperAMP shared-memory queue for receiving messages from the frontend engine (running in seL4 guest OS). */
+    volatile HyperampShmQueue       *hyper_tx_queue;        /**< @brief HyperAMP shared-memory queue for sending messages to the frontend engine (running in seL4 guest OS). */
+    void                            *hyper_amp_data_region; /**< @brief Base address of the shared memory region backing HyperAMP queues, mapped into the Linux address space for cross-environment communication. */
+    struct BackendEngOps            *ops;                   /**< @brief Pointer to a table of backend engine operations (function pointers) implementing runtime behaviors such as start, stop, and packet processing. */
 } BackendEngine;
-
 
 struct BackendEngOps {
     int (*enable_dev)(BackendEngine *eng, uint16_t mask);                            // Enable devices in the high-speed network device set
@@ -123,6 +125,8 @@ int engine_init_shared_mem_pool(BackendEngine *eng);
 int engine_init_shared_mem_pool_lock(BackendEngine *eng);
 int engine_init_shared_mem_queue(BackendEngine *eng);
 int engine_init_poller(BackendEngine *eng);
+int engine_init_hyperamp_queue(BackendEngine *eng);
+
 
 int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice *hs_dev, int ip_version);
 void engine_destory_hs_net_dev(BackendEngine *eng);

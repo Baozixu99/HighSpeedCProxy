@@ -29,6 +29,8 @@ SharedMemoryPoolQueueConfig high_speed_net_rx_queue_config =     {
 
 
 
+
+
 /**
  * @brief Custom handler for SIGINT signal (triggered by Ctrl+C)
  * 
@@ -894,11 +896,89 @@ int engine_init_shared_mem_queue(BackendEngine *eng){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+
+/**
+ * @brief Initialize the epoll-based poller of the backend engine
+ * 
+ * This function initializes the epoll instance that belongs to the given BackendEngine. 
+ * The poller is responsible for efficiently monitoring I/O events on file descriptors 
+ * (e.g., network sockets, eventfd, or other kernel-managed resources) used by the backend engine. 
+ * Initialization includes creating an epoll file descriptor via epoll_create1(), setting up 
+ * internal event tracking structures, and preparing the poller for subsequent registration 
+ * of I/O sources (e.g., listening sockets or HyperAMP notification channels).
+ * This component is essential for event-driven I/O handling in the Linux-based backend.
+ * 
+ * @param eng [in/out] Pointer to a BackendEngine structure. The function initializes the 
+ *                     poller-related fields within this structure (e.g., epoll_fd, max_events 
+ *                     buffer, and associated metadata).
+ * 
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK: Poller initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed (e.g., epoll_create1() failed, 
+ *                                        insufficient memory for event buffer, or invalid state)
+ * 
+ * @note 1. Ensure the eng pointer points to a valid BackendEngine instance before invocation.
+ *       2. The poller is intended for use within the Linux environment and relies on standard 
+ *          Linux I/O multiplexing facilities; it is not involved in seL4-side operations.
+ *       3. After initialization, file descriptors must be explicitly added to the poller 
+ *          before their events can be detected during polling.
+ */
 int engine_init_poller(BackendEngine *eng){
-
-
     return poller_init(&eng->poller);
 };
+
+
+
+/**
+ 2  * @brief Initialize the HyperAMP queue of the backend engine
+ 3  * 
+ 4  * This function initializes the HyperAMP queue within the BackendEngine structure. 
+ 5  * The HyperAMP queue is a shared communication channel used for message exchange between 
+ 6  * the frontend engine (running in a seL4 guest OS) and the backend engine (running on Linux). 
+ 7  * It enables low-latency, reliable inter-environment messaging by providing a pre-allocated, 
+ 8  * fixed-size buffer with synchronized read/write access semantics. Initialization includes 
+ 9  * allocating or mapping the shared memory region, setting up queue metadata (e.g., head/tail pointers, 
+ 10  * capacity, and state flags), and ensuring the queue is ready to receive messages from the frontend.
+ 11  * 
+ 12  * @param eng [in/out] Pointer to a BackendEngine structure. The function initializes members 
+ 13  *                     related to the HyperAMP queue (e.g., shared buffer pointer, queue size, 
+ 14  *                     producer/consumer indices, and operational status) within this structure.
+ 15  * 
+ 16  * @return int Execution result
+ 17  *         - BACKEND_PROXY_PROCESS_OK: HyperAMP queue initialized successfully
+ 18  *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed (e.g., shared memory allocation/mapping 
+ 19  *                                        failure, invalid configuration, or alignment issues)
+ 20  * 
+ 21  * @note 1. Ensure the eng pointer points to a valid BackendEngine instance before calling this function.
+ 22  *       2. Proper setup of the underlying inter-environment communication infrastructure 
+ 23  *          (e.g., virtio, shared memory regions, or IPC channels between seL4 and Linux) must be 
+ 24  *          completed prior to invoking this function.
+ 25  *       3. The queue layout and memory must be compatible with both the seL4 guest and Linux host 
+ 26  *          to ensure correct cross-environment visibility and cache coherency.
+ 27  */
+int engine_init_hyperamp_queue(BackendEngine *eng){
+    int ret;
+/*
+ * Initialize the HyperAMP Linux client using the default shared memory address.
+ * Since is_creator=1, Linux acts as the creator and initializes both the RX and TX HyperAMP queues.
+ * This call also initializes the global HyperampLinuxContext variable g_ctx,
+ * which holds the shared memory layout, including pointers to the hyper_rx_queue,
+ * hyper_tx_queue, and the underlying data region. The backend engine later retrieves
+ * these pointers from g_ctx to establish cross-environment communication with the seL4 frontend.
+ */
+    ret = hyperamp_linux_init(0, 1);
+
+    if(HYPERAMP_ERROR == ret){
+        error_print("engine_init_hyperamp_queue failed: hyperamp_linux_init returned error\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    eng->hyper_rx_queue         = g_ctx.rx_queue;
+    eng->hyper_tx_queue         = g_ctx.tx_queue;
+    eng->hyper_amp_data_region  = g_ctx.data_region;
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
 
 
 void engine_init()
@@ -911,7 +991,7 @@ void engine_init()
     ret = engine_init_hs_net_dev(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_hs_net_dev() failed!");
+        error_print("engine_init failed: engine_init_hs_net_dev returned error!\n");
         return;
     }
 
@@ -919,7 +999,7 @@ void engine_init()
 
     ret = engine_init_eng_ops(p_g_bk_eng);
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_hs_net_dev() failed!");
+        error_print("engine_init failed: engine_init_eng_ops returned error!\n");
         return;
     }
 
@@ -929,7 +1009,7 @@ void engine_init()
     ret = engine_init_sess_pool(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_sess_pool() failed!");
+        error_print("engine_init failed: engine_init_sess_pool returned error!\n");
         return;
     }
 
@@ -938,7 +1018,7 @@ void engine_init()
     ret = engine_init_shared_mem_pool(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_shared_mem_pool() failed!");
+        error_print("engine_init failed: engine_init_shared_mem_pool returned error!\n");
         return;
     }
 
@@ -947,7 +1027,7 @@ void engine_init()
     ret = engine_init_shared_mem_pool_lock(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_shared_mem_pool_lock() failed!");
+        error_print("engine_init failed: engine_init_shared_mem_pool_lock returned error!\n");
         return;
     }
 
@@ -956,7 +1036,7 @@ void engine_init()
     ret = engine_init_shared_mem_queue(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_shared_mem_queue() failed!");
+        error_print("engine_init failed: engine_init_shared_mem_queue returned error!\n");
         return;
     }
 
@@ -965,11 +1045,18 @@ void engine_init()
     ret = engine_init_poller(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("engine_init_poller() failed!");
+        error_print("engine_init failed: engine_init_poller returned error!\n");
         return;
     }
 
     utils_print("engine_init_poller() succeeded!\n");
+
+    ret = engine_init_hyperamp_queue(p_g_bk_eng);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("engine_init failed: engine_init_hyperamp_queue returned error!\n");
+        return;
+    }
 /*
  * 
  */
