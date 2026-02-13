@@ -338,9 +338,8 @@ int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
 #define DEFAULT_BLOCK_SIZE          4096  // Matches HighSpeedCProxy's HSNET_MEM_BLOCK_SIZE
 
 /* Zone ID */
-#define ZONE_ID_LINUX               0
-#define ZONE_ID_SEL4                1
-
+#define HYPERAMP_ZONE_ID_Linux       0
+#define HYPERAMP_ZONE_ID_SEL4        1
 
 // Virtual address: Start of the TX queue in Hyperamp shared memory (seL4 → Linux)
 #define SHM_TX_QUEUE_VADDR    ((volatile HyperampShmQueue *)0xFFFF9276D000)

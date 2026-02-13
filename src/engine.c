@@ -1132,6 +1132,69 @@ int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void
 
 
 /**
+ * @brief Retrieves a message from the HyperAMP receive queue managed by the BackendEngine.
+ *
+ * @details This function fetches message data from the HyperAMP RX queue associated with the given
+ *          BackendEngine instance, and copies the message data to the provided buffer pointed to by @p data.
+ *          It returns an integer status code to indicate the operation result, and outputs the actual 
+ *          length of the retrieved message through the @p out_len parameter.
+ *          The caller must check the returned status code before using the data in @p data and the value in @p out_len.
+ *
+ * @param[in]  eng         Pointer to the BackendEngine instance, cannot be NULL
+ * @param[in]  max_msg_len Maximum allowed length of the message to read (i.e., the size of the @p data buffer),
+ *                         used to prevent buffer overflow
+ * @param[out] data        Pointer to a uint8_t buffer that stores the retrieved message data;
+ *                         valid only when the return value is BACKEND_PROXY_PROCESS_OK
+ * @param[out] out_len     Pointer to a size_t variable that stores the actual length of the retrieved message;
+ *                         valid only when the return value is BACKEND_PROXY_PROCESS_OK
+ *
+ * @return Integer status code indicating the result of the operation:
+ *         - BACKEND_PROXY_PROCESS_OK: Operation succeeded
+ *         - BACKEND_PROXY_PROCESS_ERROR: System-level error occurred
+ *         - BACKEND_PROXY_PROCESS_AGAIN: Message temporarily unavailable
+ *
+ * @retval BACKEND_PROXY_PROCESS_OK
+ *         Message data is retrieved successfully, the @p data buffer contains valid message content
+ *         and @p out_len holds the actual message length
+ * @retval BACKEND_PROXY_PROCESS_ERROR
+ *         A system-level error occurred (e.g., engine is NULL, internal queue not initialized, @p data/@p out_len is NULL),
+ *         the @p data buffer and @p out_len are undefined
+ * @retval BACKEND_PROXY_PROCESS_AGAIN
+ *         Message data is temporarily unavailable (e.g., HyperAMP RX queue is empty),
+ *         the @p data buffer and @p out_len are undefined
+ *
+ * @note The message data copied to @p data is sourced from shared memory (e.g., @c g_ctx.data_region).
+ *       The ownership of the @p data buffer is held by the caller (who is responsible for allocating/freeing it),
+ *       while the underlying shared memory lifecycle follows the HyperAMP queue protocol.
+ *       Refer to HyperAMP documentation for detailed memory and lifecycle management rules.
+ */
+int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len, 
+                                        uint8_t *data, size_t *out_len){
+    int ret;
+    if(NULL == eng || NULL == eng->hyper_rx_queue || eng->hyper_amp_data_region || NULL == data || NULL == out_len){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: invalid input parameters (NULL pointers)\n");
+        return BACKEND_PROXY_PROCESS_ERROR;   
+    }
+    
+    ret = hyperamp_queue_dequeue(eng->hyper_rx_queue, HYPERAMP_ZONE_ID_Linux, data, max_msg_len, out_len, eng->hyper_amp_data_region);
+
+    if(HYPERAMP_ERROR == ret){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: hyperamp_queue_dequeue execution failed!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;  
+    }else if(HYPERAMP_AGAIN == ret){
+        return BACKEND_PROXY_PROCESS_AGAIN;
+    }else{
+/* 
+ * hyperamp_queue_dequeue execution succeeded, no action required. 
+ */
+    }
+
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
  * @brief Runs the listener loop for backend engine to handle TCP passive connection establishment
  * 
  * @details This function is the core entry point for processing TCP passive connections in the backend engine.

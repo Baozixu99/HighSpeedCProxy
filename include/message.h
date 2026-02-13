@@ -596,7 +596,8 @@ struct SharedMemoryPoolQueue;
 
 typedef enum {
     MEMORY_ALLOC_SHARED,    // Allocate in shared memory
-    MEMORY_ALLOC_CALLER     // Allocated by caller
+    MEMORY_ALLOC_CALLER,    // Allocated by caller
+    MEMORY_ALLOC_AMPQUEUE   // Message is placed directly into the HyperAMP queue
 } MemoryAllocMode;
 
 int build_proxy_general_message(struct BackendEngine_ *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, 

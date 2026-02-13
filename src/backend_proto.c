@@ -2,6 +2,8 @@
 #include "engine.h"
 #include "message.h"
 
+uint8_t global_amp_tx_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
+
 int backend_proxy_msg_process(uint8_t *msg){
     ProxyMsgHeader *proxy_msg_hdr;
     int proxy_proto_ver, msg_len, ret;
@@ -1073,7 +1075,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
     DevMsgHeader    *dev_hdr;
     StrgyMsgHeader  *strgy_hdr;
     SessMsgHeader   *sess_hdr;
-    int             ret;
+    int             ret, alloc_size;
 
 /*
  * Check the validity of the input parameters.
@@ -1111,10 +1113,35 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
 
 //        SHM_POOL_QUEUE_LOOKUP_VIRTADDR(ring_buf, 1, 1, &mem_addr);
 //        SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
+    }else if(MEMORY_ALLOC_CALLER == alloc_mode){
+        /*
+ * Frontend protocol should allocate memory dynamically.
+ */
+        alloc_size = sizeof(ProxyMsgHeader) + header->outer_header.payload_len;
+        msg_buf         = malloc(alloc_size);
+
+        if(NULL == msg_buf){
+            error_print("build_proxy_general_message failed: insufficient memory for allocation!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }else if(MEMORY_ALLOC_AMPQUEUE  == msg_buf){
+        if(NULL == engine->hyper_tx_queue){
+            error_print("build_proxy_general_message failed: HyperAMP TX queue is not initialized!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        memset(global_amp_tx_buf, 0, sizeof(global_amp_tx_buf));
+        msg_buf         = global_amp_tx_buf;
+        *result_msg     = msg_buf;
+    }else{
+        error_print("build_proxy_general_message failed: unsupported allocte mode!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
+
 /*
  * Fill the proxy message header.
  */
+
+
     proxy_msg_hdr                       = (ProxyMsgHeader *)msg_buf;
     proxy_msg_hdr->version              = header->outer_header.version;
     proxy_msg_hdr->proxy_msg_type       = outer_msg_type = header->outer_header.proxy_msg_type;
@@ -1200,6 +1227,23 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
         debug_cnt++;
     }
 #endif
+
+/*
+ * In MEMORY_ALLOC_AMPQUEUE mode, the created message should be pushed into the HyperAMP shared queue.
+ */
+    if(MEMORY_ALLOC_AMPQUEUE == alloc_mode){
+        msg_buf -= sizeof(ProxyMsgHeader);
+        ret = hyperamp_queue_enqueue(engine->hyper_tx_queue, HYPERAMP_ZONE_ID_Linux, msg_buf, payload_len + proxy_msg_payload_len + sizeof(ProxyMsgHeader), engine->hyper_amp_data_region);
+
+        if(HYPERAMP_OK == ret){
+            return BACKEND_PROXY_PROCESS_OK;
+        }else if(HYPERAMP_AGAIN == ret){
+            return BACKEND_PROXY_PROCESS_AGAIN;
+        }else{
+            error_print("build_proxy_general_message failed: faild to push message into the HyperAmp queue!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }
     return BACKEND_PROXY_PROCESS_OK;
 }
 
