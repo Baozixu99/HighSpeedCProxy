@@ -614,7 +614,9 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
                                   size_t data_len,
                                   volatile void *virt_base)
 {
-    if (!queue || !data || data_len == 0) return HYPERAMP_ERROR;
+    if (!queue || !data || data_len == 0) {
+        printf("hyperamp_queue_enqueue failed: queue =%p, data = %p, data_len = %d\n", queue, data, data_len);
+        return HYPERAMP_ERROR;}
     if (data_len > queue->block_size) return HYPERAMP_ERROR;
     
     // Acquire lock
@@ -628,6 +630,7 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
     
     // Check if queue would become full
     if (new_header == queue->tail) {
+        printf("hyperamp_queue_enqueue failed: queue is full!\n");
         hyperamp_spinlock_unlock(&queue->queue_lock);
         return HYPERAMP_ERROR;  // Queue full
     }
