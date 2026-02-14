@@ -1232,6 +1232,7 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
         error_print("frontend_engine_hyperamp_rx_queue_get failed: hyperamp_queue_dequeue execution failed!\n");
         return BACKEND_PROXY_PROCESS_ERROR;  
     }else if(HYPERAMP_AGAIN == ret){
+        error_print("frontend_engine_hyperamp_rx_queue_get failed: queue is empty!\n");
         return BACKEND_PROXY_PROCESS_AGAIN;
     }else{
 /* 

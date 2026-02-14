@@ -632,7 +632,7 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
     if (new_header == queue->tail) {
         printf("hyperamp_queue_enqueue failed: queue is full!\n");
         hyperamp_spinlock_unlock(&queue->queue_lock);
-        return HYPERAMP_ERROR;  // Queue full
+        return HYPERAMP_AGAIN;  // Queue full
     }
     
     // Calculate write address: header+1 position
@@ -694,11 +694,12 @@ int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
     // Acquire lock
     hyperamp_spinlock_lock(&queue->queue_lock, zone_id);
     
+    printf("In %s, tail = %d, header = %d\n", __func__, queue->tail, queue->header);
     // Check if queue is empty
     if (queue->tail == queue->header) {
         printf("hyperamp_queue_dequeue failed: queue is empty!\n");
         hyperamp_spinlock_unlock(&queue->queue_lock);
-        return HYPERAMP_ERROR;  // Queue empty
+        return HYPERAMP_AGAIN;  // Queue empty
     }
     
     // Calculate read address: tail+1 position

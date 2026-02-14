@@ -81,7 +81,7 @@ typedef struct BackendEngine_ {
     struct SharedMemoryPoolQueue    *tx_queue;              /**< @brief Transmit queue for outbound packets/messages destined for the network, allocated from the shared memory pool. */
     volatile HyperampShmQueue       *hyper_rx_queue;        /**< @brief HyperAMP shared-memory queue for receiving messages from the frontend engine (running in seL4 guest OS). */
     volatile HyperampShmQueue       *hyper_tx_queue;        /**< @brief HyperAMP shared-memory queue for sending messages to the frontend engine (running in seL4 guest OS). */
-    void                            *hyper_amp_data_region; /**< @brief Base address of the shared memory region backing HyperAMP queues, mapped into the Linux address space for cross-environment communication. */
+    volatile void                   *hyper_amp_data_region; /**< @brief Base address of the shared memory region backing HyperAMP queues, mapped into the Linux address space for cross-environment communication. */
     struct BackendEngOps            *ops;                   /**< @brief Pointer to a table of backend engine operations (function pointers) implementing runtime behaviors such as start, stop, and packet processing. */
 } BackendEngine;
 
