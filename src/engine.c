@@ -1412,6 +1412,7 @@ void engine_run()
 {
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    volatile HyperampShmQueue       *hyper_rx_queue, *hyper_tx_queue;
     struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
     struct BackendSession           *cur_sess, *next_sess;
     struct BackendSessionPool       *sess_pool;
@@ -1442,7 +1443,29 @@ void engine_run()
 
     rx_queue = eng->rx_queue;
     tx_queue = eng->tx_queue;
-    
+
+
+/* 
+ * hyper_rx_queue: HyperAMP receive queue instance for cross-OS shared memory communication.
+ * This local receive queue maps to the front-end's HyperAMP transmit queue (hyper_tx_queue).
+ * Data sent by the front-end through its hyper_tx_queue is received locally via this hyper_rx_queue.
+ * 
+ * hyper_tx_queue: HyperAMP transmit queue instance for cross-OS shared memory communication.
+ * This local transmit queue serves as the front-end's HyperAMP receive queue (hyper_rx_queue).
+ * Data sent locally through this hyper_tx_queue is received by the front-end via its hyper_rx_queue.
+ * 
+ * hyper_amp_data_region: The memory region where cross-OS shared memory data is stored,
+ * which is the underlying storage for data transmitted via HyperAMP queues.
+ */
+    if(NULL == eng->hyper_rx_queue || NULL == eng->hyper_tx_queue || NULL == eng->hyper_amp_data_region){
+        error_print("engine_run failed: The global backend engine's HyperAMP RX queue, HyperAMP TX queue or HyperAMP shared memory data region has not been initialized!");
+        return ;
+    }
+
+    hyper_rx_queue = eng->hyper_rx_queue;
+    hyper_tx_queue = eng->hyper_tx_queue;
+
+
     BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
     BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
 

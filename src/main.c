@@ -16,7 +16,7 @@
 int main(int argc, char** argv)
 {
     BackendEngine *eng;
-    int           ret; 
+    int           ret, proto_msg_len; 
 
     engine_init();
     
