@@ -1173,31 +1173,6 @@ int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void
 int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len, 
                                         uint8_t *data, size_t *out_len){
     int ret;
-#if 0
-    if(NULL == eng || NULL == eng->hyper_rx_queue || eng->hyper_amp_data_region || NULL == data || NULL == out_len){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: invalid input parameters (NULL pointers)\n");
-        if(NULL == eng){
-            error_print("eng is NULL!\n");
-        }else{
-            if(NULL == eng->hyper_rx_queue){
-                error_print("hyper_rx_queue is NULL!\n");
-            }
-
-            if(NULL == eng->hyper_amp_data_region){
-                error_print("hyper_amp_data_region is NULL!\n");
-            }
-        }
-
-        if(NULL == data){
-            error_print("data is NULL!\n");
-        }
-
-        if(NULL == out_len){
-            error_print("out_len is NULL!\n");
-        }
-        return BACKEND_PROXY_PROCESS_ERROR;   
-    }
-#endif
 
     if(NULL == eng){
         error_print("frontend_engine_hyperamp_rx_queue_get failed: eng is NULL!\n");
@@ -1670,6 +1645,249 @@ eng_run_step4:
     }while(1);
 }
 
+
+/**
+ * @brief Main loop function of the engine, handling message processing and data transmission cyclically
+ * 
+ * This function executes a continuous loop consisting of four main steps. After completing all steps,
+ * it returns to the first step to implement the core operation of the backend engine.
+ * 
+ * @details The loop process is as follows:
+ * 
+ * 1. Read data from the HyperAMP RX queue owned by the BackendEngine instance, and process them sequentially 
+ * through the backend proxy protocol stack.
+ *    
+ *    If any data is read, there are two cases:
+ *    (a) For device messages, strategy messages, and session messages:
+ *        The backend proxy protocol stack performs corresponding processing for each type, constructs
+ *        response packets, and returns them to the frontend proxy through the HyperAMP TX queue.
+ *    (b) For sessions that receive data messages:
+ *        These sessions are placed into the frontend-to-backend active queue for processing in step (2).
+ *     
+ *    If no data message is found, the procedure jumps to step (3).
+ * 
+ * 2. Access and process session instances in the frontend-to-backend active queue sequentially:
+ *    Read data messages from these sessions, extract and process the payload, then send the processed
+ *    payload through the socket corresponding to the session.
+ * 
+ * 3. Check sockets with events in the epoll list (focusing on those with received data), handling two scenarios:
+ *    (a) If a socket close event is detected (e.g., TCP four-way handshake), construct a session close
+ *        message and send it to the frontend proxy through the shared memory's TX queue.
+ *    (b) If data is detected, read the data, construct a data message, place it into the send buffer of the
+ *        session instance corresponding to the socket, and add the session instance to the
+ *        backend-to-frontend active queue.
+ *    
+ *    If no data is found in the socket set managed by the epoll list, the function returns directly to step (1).
+ * 
+ * 4. Sequentially process sessions in the backend-to-frontend active queue:
+ *    Read data messages from these sessions and send them to the frontend proxy through the shared memory's TX queue.
+ * 
+ * After completing the above four steps, the function returns to step (1) to continue the loop.
+ */
+void engine_run_hyperamp(){
+    BackendEngine                   *eng;
+    volatile HyperampShmQueue       *hyper_rx_queue, *hyper_tx_queue;
+    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+    struct BackendSession           *cur_sess, *next_sess;
+    struct BackendSessionPool       *sess_pool;
+    struct BackendSessionPoolOps    *sess_pool_ops;
+    NetPoller                       *net_poller;
+    uint8_t                         *proxy_msg;
+    uint32_t                        msg_size;
+    int                             ret, block_size;
+    uint8_t                         msg_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
+
+    eng = get_global_backend_engine();
+
+    if(NULL == eng){
+        error_print("engine_run failed: the global backend engine is not initialized!");
+        return ;
+    }
+
+
+
+/* 
+ * hyper_rx_queue: HyperAMP receive queue instance for cross-OS shared memory communication.
+ * This local receive queue maps to the front-end's HyperAMP transmit queue (hyper_tx_queue).
+ * Data sent by the front-end through its hyper_tx_queue is received locally via this hyper_rx_queue.
+ * 
+ * hyper_tx_queue: HyperAMP transmit queue instance for cross-OS shared memory communication.
+ * This local transmit queue serves as the front-end's HyperAMP receive queue (hyper_rx_queue).
+ * Data sent locally through this hyper_tx_queue is received by the front-end via its hyper_rx_queue.
+ * 
+ * hyper_amp_data_region: The memory region where cross-OS shared memory data is stored,
+ * which is the underlying storage for data transmitted via HyperAMP queues.
+ */
+    if(NULL == eng->hyper_rx_queue || NULL == eng->hyper_tx_queue || NULL == eng->hyper_amp_data_region){
+        error_print("engine_run_hyperamp failed: The global backend engine's HyperAMP RX queue, HyperAMP TX queue or HyperAMP shared memory data region has not been initialized!");
+        return ;
+    }
+
+    hyper_rx_queue = eng->hyper_rx_queue;
+    hyper_tx_queue = eng->hyper_tx_queue;
+
+
+    BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
+    BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
+
+    if(NULL == active_queue_f2b || NULL == active_queue_b2f){
+        error_print("engine_run_hyperamp failed: The global backend engine's f2b session queue or b2f session queue has not been initialized!");
+        return ;
+    }
+
+    if(NULL == eng->sess_pool || NULL == eng->sess_pool->ops){
+        error_print("engine_run_hyperamp failed: Global backend engine's session pool (sess_pool) or its operation set (ops) is not initialized!");
+        return ;
+    }
+
+    sess_pool       = eng->sess_pool;
+    sess_pool_ops   = sess_pool->ops;
+    net_poller      = &eng->poller;
+
+    do{
+/*
+ * STEP (1)
+ */
+eng_run_step1:
+
+        do{
+    /*
+     * Retrieve data from the Hyper AMP RX queue.
+     */
+            ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &block_size);
+
+    /*
+     * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid queue handle, shared memory access exception, etc.)
+     * Processing cannot continue; print error message and return directly.
+     */
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                error_print("engine_run_hyperamp failed: failed to get data from the HyperAMP RX queue!\n");
+                return;
+            }
+
+
+    /*
+     * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates temporary inability to retrieve data (e.g., empty queue, resource temporarily occupied, etc., non-error state)     
+     * No error reporting needed; jump to eng_run_step2 to execute the next process.
+     */
+            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+                goto eng_run_step2;
+            }
+
+
+    /*
+     * Process the proxy message.
+     */
+            backend_proxy_msg_process(msg_buf);
+
+        }while(BACKEND_PROXY_PROCESS_OK == ret);
+
+
+/*
+ * STEP (2)
+ */
+eng_run_step2:
+
+/*
+ * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
+ */
+        BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
+
+        TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
+/*
+ * Call the data_process_f2b function pointer in the session pool's operation set (sess_pool_ops), which attempts to send the front-to-end to back-end data maintained by the 
+ * current session (cur_sess) via the socket maintained by this session.
+ *
+ * The return value corresponds to three scenarios:
+ * Returns BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
+ * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been sent, and no errors occurred.
+ * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
+ */
+            ret = sess_pool_ops->data_process_f2b(cur_sess);
+
+/*
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the front-to-back (F2B) message queue have been sent via the session's socket. 
+ * Such sessions should be detached from the F2B active queue, and their "linked to queue" state flag should be cleared.
+ */
+            if(BACKEND_PROXY_PROCESS_OK == ret){
+                TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+                cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+            }
+/*
+ * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
+ * detached from the front-to-end active queue, but also be removed from the session pool.
+ */
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+                sess_pool_ops->delete_sess(sess_pool, cur_sess);
+            }
+ /*
+  * Nothing to do when not all data has been sent and there are no errors.
+  */
+        } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess)
+
+
+/*
+ * STEP (3)
+ */
+eng_run_step3:
+/*
+ * The execution process of poller_run function is as follows:
+ * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
+ * (2) Mark the sessions that have received data as active back-to-front active sessions.
+ */
+        poller_run(eng, net_poller);
+
+
+
+eng_run_step4:
+/*
+ * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
+ */
+        BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
+
+        TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
+/*
+ * Call the data_process_b2f function pointer from the session pool's operation set (sess_pool_ops). This function attempts to send the back-to-front 
+ * (B2F) data maintained by the current session (cur_sess) via the shared-memory TX queue.
+ *
+ * Return value scenarios:
+ * - BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
+ * - BACKEND_PROXY_PROCESS_AGAIN: Not all data was sent, and no errors occurred.
+ * - BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
+ */
+            ret = sess_pool_ops->data_process_b2f(cur_sess);
+
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-front (B2F) message queue have been successfully
+ * sent via the shared memory TX queue. Such sessions should be detached from the B2F active queue.
+ */
+            if(BACKEND_PROXY_PROCESS_OK == ret){
+                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
+                cur_sess->state_b2f &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+            }
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_ERROR, an error occurred while attempting to send data via the session's socket. Such sessions need to 
+ * be both detached from the B2F active queue and removed from the session pool.
+ */
+            if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
+                sess_pool_ops->delete_sess(sess_pool, cur_sess);
+            }
+/*
+ * If data_process_b2f returns BACKEND_PROXY_PROCESS_AGAIN, the shared-memory TX queue is full (not all data sent, no errors). Sending to the TX queue should 
+ * stop, and ownership of the shared-memory TX queue should be transferred to the front-end. The front-end will then read this data from its RX queue, which
+ * maps to the local TX queue (queue mapping: local TX <---> front-end RX).
+ */
+            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+                break;
+            }
+        } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess)
+/*
+ * Go back to STEP 1.
+ */
+    }while(1);
+}
 
 /**
  * @brief Destroys all resources associated with high-speed network devices managed by the backend engine

@@ -111,6 +111,7 @@ extern BackendEngine *p_g_bk_eng;
 
 void engine_init();
 void engine_run();
+void engine_run_hyperamp();
 void engine_destory();
 
 BackendEngine *get_global_backend_engine();
