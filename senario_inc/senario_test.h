@@ -121,4 +121,8 @@ void test_proxy_scenario_process_read_from_poller(BackendEngine *engine);
 
 int test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine);
 
+
+int device_msg_inject_backend_hyperamp(BackendEngine *engine);
+
+
 #endif

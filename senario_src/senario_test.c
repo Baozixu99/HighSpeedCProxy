@@ -674,3 +674,52 @@ int test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine){
   */
     return BACKEND_PROXY_PROCESS_OK;
 }
+
+
+/**
+ * @brief Inject a device message into the backend engine via the HyperAMP queue
+ *
+ * @details This function injects a device-related message into the BackendEngine instance, 
+ *          typically by enqueuing it into the HyperAMP RX queue (i.e., the channel where the 
+ *          backend consumes messages from the frontend or external sources). 
+ *          The message is expected to be formatted according to the HyperAMP protocol and will be 
+ *          processed by the backend engine during its next polling or event loop cycle.
+ *          This function simulates or facilitates the arrival of a message from the HyperAMP 
+ *          shared-memory interface into the backend's internal processing logic.
+ *
+ * @param engine Pointer to the BackendEngine instance that owns or manages the HyperAMP interface
+ * @return int Return code indicating the result of the injection attempt:
+ *         - BACKEND_PROXY_PROCESS_OK: Message successfully injected/enqueued into the BackendEngine
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed to inject the message (e.g., queue full, 
+ *                                        uninitialized HyperAMP context, invalid engine state, 
+ *                                        or NULL pointer provided)
+ *
+ * @note This function does not wait for the backend to fully process the message logic; it only 
+ *       ensures the message is placed in the target queue or handoff buffer within the BackendEngine. 
+ *       Processing is asynchronous.
+ *       The actual message content and layout must conform to the agreed-upon HyperAMP device 
+ *       message schema between the source (e.g., seL4 frontend) and Linux (backend).
+ */
+int device_msg_inject_backend_hyperamp(BackendEngine *engine){
+    GeneralProxyMsgHeader *dev_msg_hdr;
+    DevMsgReport           dev_msg_resp;
+    int                   ret, desc_len = 100;
+    uint8_t               **res_string;
+    char                  *desc_string;
+    uint8_t               *res_buf[100] = {NULL};
+    char                  desc_buf[100] = {0};
+
+    dev_msg_hdr          = &dev_enable_msg_hdr;
+
+    dev_msg_resp.status  = SESS_OP_STATUS_SUCCESS;
+    dev_msg_resp.error   = SESS_OP_CODE_SUCCESS;
+    dev_msg_resp.data    = 0xFF;
+
+
+    res_string           = res_buf;
+    desc_string          = desc_buf;
+
+    utils_print("In %s, before enter scenario_msg_inject\n", __func__);
+
+    ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_resp, sizeof(dev_msg_resp), MEMORY_ALLOC_AMPQUEUE, res_string, desc_string, desc_len);    
+}
