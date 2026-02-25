@@ -1141,7 +1141,6 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
  * Fill the proxy message header.
  */
 
-
     proxy_msg_hdr                       = (ProxyMsgHeader *)msg_buf;
     proxy_msg_hdr->version              = header->outer_header.version;
     proxy_msg_hdr->proxy_msg_type       = outer_msg_type = header->outer_header.proxy_msg_type;
