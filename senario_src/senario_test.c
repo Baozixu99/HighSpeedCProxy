@@ -206,7 +206,7 @@ int scenario_msg_inject(BackendEngine *engine,
     }
 
     // 7. Check if MemoryAllocMode is valid (covers undefined modes, aligns with document's "shared memory/caller-allocated dual mode")
-    if (alloc_mode != MEMORY_ALLOC_SHARED && alloc_mode != MEMORY_ALLOC_CALLER)
+    if (alloc_mode != MEMORY_ALLOC_SHARED && alloc_mode != MEMORY_ALLOC_CALLER && alloc_mode != MEMORY_ALLOC_AMPQUEUE)
     {
         error_print("scenario_msg_inject failed: invalid MemoryAllocMode, only MEMORY_ALLOC_SHARED and MEMORY_ALLOC_CALLER are supported");
         return BACKEND_PROXY_PROCESS_ERROR;

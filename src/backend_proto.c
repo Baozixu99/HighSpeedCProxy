@@ -1416,7 +1416,9 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
 
     payload_data                            = (uint8_t *)op_resp;
 
-    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
+//    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
+    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_AMPQUEUE, NULL);
+
 //    ret = build_proxy_sess_message(&header, payload_data, sizeof(SessOpRespData), msg);
     return ret;
 }

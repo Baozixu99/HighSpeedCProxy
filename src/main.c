@@ -15,8 +15,9 @@
 
 int main(int argc, char** argv)
 {
-    BackendEngine *eng;
-    int           ret, proto_msg_len; 
+    BackendEngine   *eng;
+    ProxyMsgHeader  *proxy_msg_hdr;
+    int             ret, proto_msg_len; 
 
     engine_init();
     
@@ -41,6 +42,9 @@ int main(int argc, char** argv)
         size_t actual_len = 0;
         ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &actual_len);
         utils_print("In loop after backend_engine_hyperamp_rx_queue_get, ret = %d, actual_len = %u\n", ret, actual_len);
+
+        proxy_msg_hdr = (ProxyMsgHeader *)msg_buf;
+
         sleep(1);
     }
 

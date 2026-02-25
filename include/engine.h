@@ -276,6 +276,44 @@ int backend_engine_tx_queue_send(struct SharedMemoryPoolQueue *queue, const void
 int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len, 
                                         uint8_t *data, size_t *out_len);
 
+
+/**
+ * @brief Sends a message to the HyperAMP transmit queue managed by the BackendEngine.
+ *
+ * @details This function pushes message data from the provided buffer pointed to by @p data
+ *          into the HyperAMP TX queue associated with the given BackendEngine instance.
+ *          It returns an integer status code to indicate the operation result.
+ *          The caller must check the returned status code to determine if the message was 
+ *          successfully queued for transmission.
+ *
+ * @param[in] eng        Pointer to the BackendEngine instance, cannot be NULL
+ * @param[in] data       Pointer to a uint8_t buffer containing the message data to be sent;
+ *                       cannot be NULL
+ * @param[in] msg_len    Length of the message data in bytes to be sent;
+ *                       must be greater than 0 and within the protocol's maximum limit
+ *
+ * @return Integer status code indicating the result of the operation:
+ *         - BACKEND_PROXY_PROCESS_OK: Operation succeeded (message queued)
+ *         - BACKEND_PROXY_PROCESS_ERROR: System-level error occurred
+ *         - BACKEND_PROXY_PROCESS_AGAIN: Queue temporarily full or resource unavailable
+ *
+ * @retval BACKEND_PROXY_PROCESS_OK
+ *         Message data is successfully copied to the TX queue and scheduled for transmission.
+ * @retval BACKEND_PROXY_PROCESS_ERROR
+ *         A system-level error occurred (e.g., engine is NULL, internal queue not initialized, 
+ *         @p data is NULL, @p msg_len is invalid), the message is NOT sent.
+ * @retval BACKEND_PROXY_PROCESS_AGAIN
+ *         The TX queue is currently full or back-pressure is applied (e.g., remote peer not ready),
+ *         the caller should retry later. The message is NOT sent.
+ *
+ * @note The message data from @p data is copied into shared memory (e.g., @c g_ctx.data_region) 
+ *       managed by the HyperAMP queue protocol. The caller retains ownership of the @p data buffer 
+ *       and is responsible for its lifecycle, but the buffer content must remain valid until this 
+ *       function returns.
+ *       Refer to HyperAMP documentation for detailed memory and lifecycle management rules.
+ */
+int backend_engine_hyperamp_tx_queue_put(BackendEngine *eng, const uint8_t *data, size_t msg_len);
+
 struct BackendEngOps *get_hs_backend_engine_ops();
 
 

@@ -816,7 +816,8 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
     sess_ipv4_paras.transport_layer_proto       = para->trans_proto;
     memcpy(&sess_ipv4_paras.dest_endpoint, &para->ip_port_tuple.ipv4_port_tuple, sizeof(IPv4PortTuple));
 
-    ret = build_proxy_general_message(engine, &msg_header, &sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_SHARED, engine->tx_queue);
+//    ret = build_proxy_general_message(engine, &msg_header, &sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_SHARED, engine->tx_queue);
+    ret = build_proxy_general_message(engine, &msg_header, &sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_AMPQUEUE, NULL);
 
     return ret;
 create_sess_passive_error:
@@ -1131,7 +1132,8 @@ int high_speed_data_process_b2f(struct BackendSession *sess){
      */
     TAILQ_FOREACH_SAFE(cur_seg, &sess->msg_b2f, entry, next_seg){
         DUMP_BUFFER_CONTENT(cur_seg->data + sizeof(ProxyMsgHeader), 8, "%c");
-        ret = shared_mem_pool_queue_send_oc(tx_queue, cur_seg->data, cur_seg->len);
+//        ret = shared_mem_pool_queue_send_oc(tx_queue, cur_seg->data, cur_seg->len);
+        ret = backend_engine_hyperamp_tx_queue_put(eng, cur_seg->data, cur_seg->len);
 /*
  * The TX queue is full. The high_speed_data_process_b2f should return and notice that the sending procedure from backend to front end continue next time.
  */
