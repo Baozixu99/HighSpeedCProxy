@@ -48,6 +48,8 @@ int main(int argc, char** argv)
             proxy_msg_hdr = (ProxyMsgHeader *)msg_buf;
             utils_print("version = %d, msg type = %d, frontend ID = %d, backend ID = %d, msg len = %d\n", 
                          proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id, proxy_msg_hdr->payload_len);
+            
+            backend_proxy_msg_process(msg_buf);
         }        
 
 
