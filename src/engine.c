@@ -1175,27 +1175,27 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
     int ret;
 
     if(NULL == eng){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: eng is NULL!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: eng is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     if(NULL == eng->hyper_rx_queue){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: eng->hyper_rx_queue is NULL!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: eng->hyper_rx_queue is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     if(NULL == eng->hyper_amp_data_region){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: eng->hyper_amp_data_region is NULL!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: eng->hyper_amp_data_region is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
     
     if(NULL == data){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: data is NULL!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: data is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     if(NULL == out_len){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: out_len is NULL!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: out_len is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
     
@@ -1204,10 +1204,10 @@ int backend_engine_hyperamp_rx_queue_get(BackendEngine *eng, size_t max_msg_len,
     ret = hyperamp_queue_dequeue(eng->hyper_rx_queue, HYPERAMP_ZONE_ID_Linux, data, max_msg_len, out_len, eng->hyper_amp_data_region);
 
     if(HYPERAMP_ERROR == ret){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: hyperamp_queue_dequeue execution failed!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: hyperamp_queue_dequeue execution failed!\n");
         return BACKEND_PROXY_PROCESS_ERROR;  
     }else if(HYPERAMP_AGAIN == ret){
-        error_print("frontend_engine_hyperamp_rx_queue_get failed: queue is empty!\n");
+        error_print("backend_engine_hyperamp_rx_queue_get failed: queue is empty!\n");
         return BACKEND_PROXY_PROCESS_AGAIN;
     }else{
 /* 
@@ -1260,12 +1260,12 @@ int backend_engine_hyperamp_tx_queue_put(BackendEngine *eng, const uint8_t *data
     int ret;
 
     if(NULL == eng){
-        error_print("frontend_engine_hyperamp_tx_queue_put failed: eng is NULL!\n");
+        error_print("backend_engine_hyperamp_tx_queue_put failed: eng is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     if(NULL == eng->hyper_tx_queue){
-        error_print("frontend_engine_hyperamp_tx_queue_put failed:  eng->hyper_tx_queue is NULL!\n");
+        error_print("backend_engine_hyperamp_tx_queue_put failed:  eng->hyper_tx_queue is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -1275,12 +1275,12 @@ int backend_engine_hyperamp_tx_queue_put(BackendEngine *eng, const uint8_t *data
     }
 
     if(NULL == eng->hyper_amp_data_region){
-        error_print("frontend_engine_hyperamp_tx_queue_put failed: eng->hyper_amp_data_region is NULL!\n");
+        error_print("backend_engine_hyperamp_tx_queue_put failed: eng->hyper_amp_data_region is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
     
     if(NULL == data){
-        error_print("frontend_engine_hyperamp_tx_queue_put failed: data is NULL!\n");
+        error_print("backend_engine_hyperamp_tx_queue_put failed: data is NULL!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 

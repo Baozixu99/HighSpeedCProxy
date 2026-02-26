@@ -41,9 +41,15 @@ int main(int argc, char** argv)
         uint8_t msg_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
         size_t actual_len = 0;
         ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &actual_len);
-        utils_print("In loop after backend_engine_hyperamp_rx_queue_get, ret = %d, actual_len = %u\n", ret, actual_len);
 
-        proxy_msg_hdr = (ProxyMsgHeader *)msg_buf;
+
+        if(BACKEND_PROXY_PROCESS_OK == ret){
+            utils_print("In loop after backend_engine_hyperamp_rx_queue_get, ret = %d, actual_len = %u\n", ret, actual_len);
+            proxy_msg_hdr = (ProxyMsgHeader *)msg_buf;
+            utils_print("version = %d, msg type = %d, frontend ID = %d, backend ID = %d, msg len = %d\n", 
+                         proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id, proxy_msg_hdr->payload_len);
+        }        
+
 
         sleep(1);
     }
