@@ -50,9 +50,11 @@ int main(int argc, char** argv)
                          proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id, proxy_msg_hdr->payload_len);
             
             backend_proxy_msg_process(msg_buf);
-        }        
-
-
+        }else if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            utils_print("HyperAMP RX queue is empty!\n");
+        }else{
+            utils_print("Failed to get message in HyperAMP RX queue!\n");
+        }
         sleep(1);
     }
 
