@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 {
     BackendEngine   *eng;
     ProxyMsgHeader  *proxy_msg_hdr;
-    int             ret, proto_msg_len; 
+    int             ret, proto_msg_len, cnt = 0; 
 
     engine_init();
     
@@ -51,11 +51,16 @@ int main(int argc, char** argv)
             
             backend_proxy_msg_process(msg_buf);
         }else if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-            utils_print("HyperAMP RX queue is empty!\n");
+            utils_print("In backend, HyperAMP RX queue is empty!\n");
         }else{
             utils_print("Failed to get message in HyperAMP RX queue!\n");
         }
         sleep(1);
+
+        cnt++;
+        if(cnt > 200){
+            break;
+        }
     }
 
     engine_destory();

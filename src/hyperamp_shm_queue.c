@@ -623,6 +623,7 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
     hyperamp_spinlock_lock(&queue->queue_lock, zone_id);
     
     // Calculate new header
+    printf("In %s, tail = %d, header = %d\n", __func__, queue->tail, queue->header);
     uint16_t new_header = queue->header + 1;
     if (new_header >= queue->capacity) {
         new_header -= queue->capacity;
