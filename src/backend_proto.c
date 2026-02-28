@@ -1378,6 +1378,7 @@ int backend_proxy_generate_dev_msg_query_response(struct BackendEngine_ *eng, ui
  * @return int Execution result: BACKEND_PROXY_PROCESS_OK on success, or BACKEND_PROXY_PROCESS_ERROR on failure
  */
 int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession *sess, int sess_msg_type, SessOpRespData *op_resp, uint8_t **msg){
+    utils_print("In %s\n", __func__);
     struct BackendEngine_   *eng;
     GeneralProxyMsgHeader   header;
     SessMsgHeader           *sess_hdr;
@@ -1416,6 +1417,10 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
     payload_data                            = (uint8_t *)op_resp;
 
 //    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
+    utils_print("version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d\n", 
+                header.outer_header.version, header.outer_header.proxy_msg_type, header.outer_header.frontend_sess_id, header.outer_header.backend_sess_id);
+    utils_print("sess msg version = %d, sess msg type = %d, sess action type = %d, sess ip version = %d\n", 
+                sess_hdr->version, sess_hdr->msg_type, sess_hdr->action_type, sess_hdr->ip_version);
     ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_AMPQUEUE, NULL);
 
 //    ret = build_proxy_sess_message(&header, payload_data, sizeof(SessOpRespData), msg);
@@ -1486,7 +1491,8 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
 
     payload_data                            = (uint8_t *)op_resp;
 
-    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
+//    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
+    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_AMPQUEUE, NULL);
 
     return ret;
 }
@@ -1515,6 +1521,8 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
  */
 int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendEngine_ *eng, uint16_t frontend_sess_id, uint16_t backend_sess_id,
                                                                  int ip_version, int sess_msg_type, SessOpRespData *op_resp){
+    utils_print("In %s, frontend_sess_id = %d, backend_sess_id = %d\n", __func__, frontend_sess_id, backend_sess_id);
+
     int             ret;
     uint8_t         *msg;
     ProxyMsgHeader  *msg_header;

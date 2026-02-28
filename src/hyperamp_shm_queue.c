@@ -9,6 +9,8 @@
 #include <time.h>
 #include <errno.h>
 #include "hyperamp_shm_queue.h"
+#include "common_utils.h"
+#include "message.h"
 
 /**
  * @defgroup Memory_Barriers Memory Barrier and Cache Management
@@ -635,7 +637,14 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
         hyperamp_spinlock_unlock(&queue->queue_lock);
         return HYPERAMP_AGAIN;  // Queue full
     }
-    
+ #if 1
+    ProxyMsgHeader *proxy_msg_hdr_tmp;
+    proxy_msg_hdr_tmp = (ProxyMsgHeader *)data;
+    printf("frontend ID = %d, backend ID = %d, proxy msg type = %d, payload len = %d\n", 
+            proxy_msg_hdr_tmp->frontend_sess_id, proxy_msg_hdr_tmp->backend_sess_id, proxy_msg_hdr_tmp->proxy_msg_type, proxy_msg_hdr_tmp->payload_len);
+    DUMP_BUFFER_CONTENT(data, data_len, "%d");
+ #endif
+
     // Calculate write address: header+1 position
     uint64_t write_addr = (uint64_t)virt_base + (uint64_t)(queue->header + 1) * queue->block_size;
     
