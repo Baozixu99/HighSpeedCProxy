@@ -1160,12 +1160,13 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
         case PROXY_MSG_TYPE_STRGY:
             strgy_hdr             = &header->inner_header.strgy_hdr;
             proxy_msg_payload_len = sizeof(StrgyMsgHeader);
+            utils_print("In %s, before enter build_proxy_strgy_message\n", __func__);
             ret = build_proxy_strgy_message(strgy_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_SESS:
             sess_hdr              = &header->inner_header.sess_hdr;
             proxy_msg_payload_len = sizeof(SessMsgHeader);
-            utils_print("In %s, ip version = %d\n",  __func__, sess_hdr->ip_version);
+            utils_print("In %s, before enter build_proxy_sess_message, ip version = %d\n",  __func__, sess_hdr->ip_version);
             ret = build_proxy_sess_message(sess_hdr, payload, payload_len, &msg_buf);
             break;
         case PROXY_MSG_TYPE_DATA:
@@ -1231,7 +1232,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
  * In MEMORY_ALLOC_AMPQUEUE mode, the created message should be pushed into the HyperAMP shared queue.
  */
     if(MEMORY_ALLOC_AMPQUEUE == alloc_mode){
-        msg_buf -= sizeof(ProxyMsgHeader);
+        msg_buf -= sizeof(ProxyMsgHeader);         
         ret = hyperamp_queue_enqueue(engine->hyper_tx_queue, HYPERAMP_ZONE_ID_Linux, msg_buf, payload_len + proxy_msg_payload_len + sizeof(ProxyMsgHeader), engine->hyper_amp_data_region);
 
         if(HYPERAMP_OK == ret){
@@ -1458,6 +1459,9 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
     uint8_t                 *payload_data;
     int                     ret;
 
+
+    utils_print("In %s\n", __func__);
+
     if(NULL == eng || NULL == op_resp){
         error_print("backend_proxy_generate_sess_msg_create_close_response_standalone failed: input(s) for generating the session create/close-response message is/are NULL, \
                      or the session is not initialized correctly!");
@@ -1492,6 +1496,9 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
     payload_data                            = (uint8_t *)op_resp;
 
 //    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
+    utils_print("Before build message, version = %d, proxy msg type = %d, frontend ID = %d, backend ID = %d, sub msg type = %d, action type = %d, peaload length = %d\n",
+                header.outer_header.version, header.outer_header.proxy_msg_type, header.outer_header.frontend_sess_id, header.outer_header.backend_sess_id,
+                sess_hdr->msg_type, sess_hdr->action_type, sess_hdr->payload_len);
     ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_AMPQUEUE, NULL);
 
     return ret;

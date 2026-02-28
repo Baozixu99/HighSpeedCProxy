@@ -55,10 +55,11 @@ int main(int argc, char** argv)
         }else{
             utils_print("Failed to get message in HyperAMP RX queue!\n");
         }
-        sleep(1);
+        
+        sleep(2);
 
         cnt++;
-        if(cnt > 200){
+        if(cnt > 50){
             break;
         }
     }

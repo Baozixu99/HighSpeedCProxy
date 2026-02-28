@@ -293,7 +293,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * We have not developed the failed-reason function; it is reserved for future development.
  */
         resp_dat.status = SESS_OP_STATUS_FAIL;
-        resp_dat.status = SESS_OP_CODE_NETWORK_UNREACHABLE;
+        resp_dat.code   = SESS_OP_CODE_NETWORK_UNREACHABLE;
 
         goto create_sess_error;
     }

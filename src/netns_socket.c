@@ -140,11 +140,12 @@ int connect_socket_netns(int fd, struct SessMsgPara *sess_para){
         uni_addr.sa_addr_len               = sizeof(struct sockaddr_in6);
         COPY_IPV6_TO_IN6(&uni_addr.addr.ipv6_addr.sin6_addr, &ipv6_port_tuple->ipv6_addr);
     }else{
-        error_print("connect_socket_netns returns an error because the IP version is not valid!");
+        error_print("connect_socket_netns failed: the IP version is not valid!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     if(0 != connect(fd, &uni_addr.addr.sa_addr, uni_addr.sa_addr_len)){
+        error_print("connect_socket_netns failed: failed to connect target IP:Port!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
