@@ -642,7 +642,8 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
     proxy_msg_hdr_tmp = (ProxyMsgHeader *)data;
     printf("frontend ID = %d, backend ID = %d, proxy msg type = %d, payload len = %d\n", 
             proxy_msg_hdr_tmp->frontend_sess_id, proxy_msg_hdr_tmp->backend_sess_id, proxy_msg_hdr_tmp->proxy_msg_type, proxy_msg_hdr_tmp->payload_len);
-    DUMP_BUFFER_CONTENT(data, data_len, "%0x2 ");
+//    DUMP_BUFFER_CONTENT(data, data_len, "%0x2 ");
+    DUMP_PROXY_MSG_HEADER(data);
  #endif
 
     // Calculate write address: header+1 position

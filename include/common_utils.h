@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "message.h"
 
 #define UTILS_ENABLE_DEBUG                        1
 
@@ -46,6 +47,54 @@ int debug_print(const char *format, ...);
     } \
     /* Add a newline after output to distinguish between different buffer outputs */ \
     printf("\n"); \
+} while (0)
+
+
+/**
+ * @def DUMP_PROXY_MSG_HEADER(BUF_PTR)
+ * @brief Parse and print ProxyMsgHeader from raw uint8_t buffer
+ * 
+ * This macro converts a uint8_t* raw memory pointer to ProxyMsgHeader structure,
+ * then prints all fields with human-readable format (decimal + hexadecimal),
+ * including semantic explanation for message type and range check for payload length.
+ * 
+ * @param BUF_PTR Input buffer pointer (uint8_t*), points to the start of ProxyMsgHeader in raw memory
+ * 
+ * @note 1. The buffer must have at least sizeof(ProxyMsgHeader) valid bytes
+ * @note 2. uint16_t fields are converted from network byte order to host byte order via ntohs()
+ * @note 3. Null pointer check is included to avoid segmentation fault
+ * @warning The input buffer must use packed memory layout (match __attribute__((packed)))
+ */
+#define DUMP_PROXY_MSG_HEADER(BUF_PTR) do { \
+    /* 1. Null pointer check to avoid segmentation fault */ \
+    if ((BUF_PTR) == NULL) { \
+        printf("[ProxyMsgHeader] Error: Input buffer pointer is NULL!\n"); \
+        break; \
+    } \
+    /* 2. Cast uint8_t* to ProxyMsgHeader* to parse bytes as structured data */ \
+    const ProxyMsgHeader* header = (const ProxyMsgHeader*)(BUF_PTR); \
+    /* 3. Print all fields (convert uint16_t from network byte order to host byte order) */ \
+    printf("============= ProxyMsgHeader =============\n"); \
+    printf("version:          %u (0x%02X)\n", header->version, header->version); \
+    /* Semantic explanation for proxy_msg_type for better readability */ \
+    printf("proxy_msg_type:   %u (0x%02X) -> ", header->proxy_msg_type, header->proxy_msg_type); \
+    switch (header->proxy_msg_type) { \
+        case 0: printf("device message\n"); break; \
+        case 1: printf("strategy message\n"); break; \
+        case 2: printf("session message\n"); break; \
+        case 3: printf("data message\n"); break; \
+        default: printf("unknown message type\n"); break; \
+    } \
+    /* Convert uint16_t fields with ntohs() to handle endianness issues */ \
+    printf("frontend_sess_id: %u (0x%04X)\n", ntohs(header->frontend_sess_id), ntohs(header->frontend_sess_id)); \
+    printf("backend_sess_id:  %u (0x%04X)\n", ntohs(header->backend_sess_id), ntohs(header->backend_sess_id)); \
+    printf("payload_len:      %u (0x%04X) bytes\n", ntohs(header->payload_len), ntohs(header->payload_len)); \
+    /* Validate payload_len against valid range (1~4088) */ \
+    uint16_t payload_len = ntohs(header->payload_len); \
+    if (payload_len < 1 || payload_len > 4088) { \
+        printf("⚠️  Warning: payload_len (%u) is out of valid range (1~4088)!\n", payload_len); \
+    } \
+    printf("===========================================\n"); \
 } while (0)
 
 #endif
