@@ -1193,6 +1193,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
 /*
  * Compute the payload length and fill it into the corresponding field of the proxy message header.
  */
+    
     proxy_msg_hdr->payload_len = payload_len + proxy_msg_payload_len;
 
 /*
@@ -1406,6 +1407,7 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
     header.outer_header.proxy_msg_type      = PROXY_MSG_TYPE_SESS;
     header.outer_header.frontend_sess_id    = sess->frontend_sess_id;
     header.outer_header.backend_sess_id     = sess->backend_sess_id;
+    header.outer_header.payload_len         = sizeof(SessMsgHeader) + sizeof(SessOpRespData);
 
 //    header.outer_header.payload_len;
     sess_hdr                                = &header.inner_header.sess_hdr;
@@ -1418,8 +1420,8 @@ int backend_proxy_generate_sess_msg_create_close_response(struct BackendSession 
     payload_data                            = (uint8_t *)op_resp;
 
 //    ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_SHARED, eng->tx_queue);
-    utils_print("version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d\n", 
-                header.outer_header.version, header.outer_header.proxy_msg_type, header.outer_header.frontend_sess_id, header.outer_header.backend_sess_id);
+    utils_print("version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d, outer header payload_len = %d\n", 
+                header.outer_header.version, header.outer_header.proxy_msg_type, header.outer_header.frontend_sess_id, header.outer_header.backend_sess_id, header.outer_header.payload_len);
     utils_print("sess msg version = %d, sess msg type = %d, sess action type = %d, sess ip version = %d\n", 
                 sess_hdr->version, sess_hdr->msg_type, sess_hdr->action_type, sess_hdr->ip_version);
     ret = build_proxy_general_message(eng, &header, payload_data, sizeof(SessOpRespData), msg, MEMORY_ALLOC_AMPQUEUE, NULL);
@@ -1484,6 +1486,7 @@ int backend_proxy_generate_sess_msg_create_close_response_standalone(struct Back
     header.outer_header.proxy_msg_type      = PROXY_MSG_TYPE_SESS;
     header.outer_header.frontend_sess_id    = frontend_sess_id;
     header.outer_header.backend_sess_id     = backend_sess_id;
+    header.outer_header.payload_len         = sizeof(SessMsgHeader) + sizeof(SessOpRespData);
 
 //    header.outer_header.payload_len;
     sess_hdr                                = &header.inner_header.sess_hdr;
@@ -1536,8 +1539,8 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
     struct SharedMemoryPoolQueue *tx_queue;
 
 
-    if (NULL == eng || NULL == eng->tx_queue || NULL == eng->mem_pool || NULL == op_resp) {
-        error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: invalid parameters - eng, eng->tx_queue, eng->mem_pool, or op_resp are NULL!");
+    if (NULL == eng || NULL == eng->mem_pool || NULL == op_resp) {
+        error_print("backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem failed: invalid parameters - eng, eng->mem_pool, or op_resp are NULL!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -1591,9 +1594,9 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
 
     struct SharedMemoryPoolQueue    *tx_queue;
 
-    if (NULL == sess || NULL == sess->eng || NULL == sess->eng->tx_queue || NULL == sess->eng->mem_pool || NULL == op_resp) {
+    if (NULL == sess || NULL == sess->eng || NULL == sess->eng->mem_pool || NULL == op_resp) {
         error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: invalid parameters - sess, sess->eng, \
-                     sess->eng->tx_queue, sess->eng->mem_pool, or op_resp are NULL!");
+                     sess->eng->mem_pool, or op_resp are NULL!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 

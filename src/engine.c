@@ -1035,6 +1035,7 @@ void engine_init()
 
     utils_print("engine_init_shared_mem_pool_lock() succeeded!\n");
 
+#if 0
     ret = engine_init_shared_mem_queue(p_g_bk_eng);
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
@@ -1043,6 +1044,7 @@ void engine_init()
     }
 
     utils_print("engine_init_shared_mem_queue() succeeded!\n");
+#endif
 
     ret = engine_init_poller(p_g_bk_eng);
 

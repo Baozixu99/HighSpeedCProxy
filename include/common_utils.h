@@ -66,17 +66,17 @@ int debug_print(const char *format, ...);
  * @warning The input buffer must use packed memory layout (match __attribute__((packed)))
  */
 #define DUMP_PROXY_MSG_HEADER(BUF_PTR) do { \
-    /* 1. Null pointer check to avoid segmentation fault */ \
+    /* 1. Null pointer check to prevent segmentation fault */ \
     if ((BUF_PTR) == NULL) { \
         printf("[ProxyMsgHeader] Error: Input buffer pointer is NULL!\n"); \
         break; \
     } \
-    /* 2. Cast uint8_t* to ProxyMsgHeader* to parse bytes as structured data */ \
+    /* 2. Cast uint8_t* to ProxyMsgHeader* to parse byte stream as structured data */ \
     const ProxyMsgHeader* header = (const ProxyMsgHeader*)(BUF_PTR); \
-    /* 3. Print all fields (convert uint16_t from network byte order to host byte order) */ \
+    /* 3. Print all header fields (no endianness conversion required) */ \
     printf("============= ProxyMsgHeader =============\n"); \
     printf("version:          %u (0x%02X)\n", header->version, header->version); \
-    /* Semantic explanation for proxy_msg_type for better readability */ \
+    /* Print proxy message type with semantic explanation for readability */ \
     printf("proxy_msg_type:   %u (0x%02X) -> ", header->proxy_msg_type, header->proxy_msg_type); \
     switch (header->proxy_msg_type) { \
         case 0: printf("device message\n"); break; \
@@ -85,12 +85,12 @@ int debug_print(const char *format, ...);
         case 3: printf("data message\n"); break; \
         default: printf("unknown message type\n"); break; \
     } \
-    /* Convert uint16_t fields with ntohs() to handle endianness issues */ \
-    printf("frontend_sess_id: %u (0x%04X)\n", ntohs(header->frontend_sess_id), ntohs(header->frontend_sess_id)); \
-    printf("backend_sess_id:  %u (0x%04X)\n", ntohs(header->backend_sess_id), ntohs(header->backend_sess_id)); \
-    printf("payload_len:      %u (0x%04X) bytes\n", ntohs(header->payload_len), ntohs(header->payload_len)); \
-    /* Validate payload_len against valid range (1~4088) */ \
-    uint16_t payload_len = ntohs(header->payload_len); \
+    /* Directly print uint16_t fields (no ntohs() for endianness conversion) */ \
+    printf("frontend_sess_id: %u (0x%04X)\n", header->frontend_sess_id, header->frontend_sess_id); \
+    printf("backend_sess_id:  %u (0x%04X)\n", header->backend_sess_id, header->backend_sess_id); \
+    printf("payload_len:      %u (0x%04X) bytes\n", header->payload_len, header->payload_len); \
+    /* Validate payload length against valid range (1~4088) */ \
+    uint16_t payload_len = header->payload_len; \
     if (payload_len < 1 || payload_len > 4088) { \
         printf("⚠️  Warning: payload_len (%u) is out of valid range (1~4088)!\n", payload_len); \
     } \
