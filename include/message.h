@@ -13,17 +13,24 @@
 // #define PROXY_MSG_TYPE_DATA                              3
 
 
+/**
+ * @brief Proxy message type enumeration (including IoT message extension)
+ * @note 0-3: Reserved for original IP network messages; 4: Added for IoT messages
+ */
 typedef enum {
-    PROXY_MSG_TYPE_DEV = 0,    // Device message
-    PROXY_MSG_TYPE_STRGY,      // Strategy message
-    PROXY_MSG_TYPE_SESS,       // Session message
-    PROXY_MSG_TYPE_DATA        // Data message
+    PROXY_MSG_TYPE_DEV = 0,        // Device message (IP network)
+    PROXY_MSG_TYPE_STRGY,          // Strategy message (IP network)
+    PROXY_MSG_TYPE_SESS,           // Session message (IP network)
+    PROXY_MSG_TYPE_DATA,           // Data message (IP network)
+    PROXY_MSG_TYPE_IOT             // IoT message (supports Bluetooth/Zigbee/CAN/LoRa)
 } ProxyMsgType;
+
 
 
 #define PROXY_PROTO_DEV_VERSION_1                        1
 #define PROXY_PROTO_STRGY_VERSION_1                      1
 #define PROXY_PROTO_SESS_VERSION_1                       1
+#define PROXY_PROTO_IOT_VERSION                          1
 
 
 
@@ -581,13 +588,56 @@ typedef struct {
 } __attribute__((packed)) SessIPv6Params;
 
 
+/**
+ * @brief IoT protocol type enumeration for IoT message sub-header
+ * @note Used to distinguish different IoT protocols in PROXY_MSG_TYPE_IOT payload
+ */
+typedef enum {
+    IOT_PROTO_TYPE_BLUETOOTH = 1,  // Bluetooth protocol (BLE/Classic Bluetooth)
+    IOT_PROTO_TYPE_ZIGBEE,         // Zigbee protocol (802.15.4)
+    IOT_PROTO_TYPE_CAN,            // CAN bus protocol (CAN 2.0/CAN FD)
+    IOT_PROTO_TYPE_LORA            // LoRa/LoRaWAN protocol
+} IotProtoType;
+
+
+/**
+ * @brief IoT message operation code enumeration
+ * @note Defines universal operation semantics for IoT message interaction
+ */
+typedef enum {
+    IOT_OPCODE_DATA_REPORT = 0,    // Device actively reports data (receive)
+    IOT_OPCODE_CMD_DOWNLINK,       // Backend sends control command (send)
+    IOT_OPCODE_DEVICE_DISCOVER,    // Discover IoT devices in the network
+    IOT_OPCODE_DEVICE_REGISTER,    // Device network access/registration
+    IOT_OPCODE_STATUS_QUERY,       // Query device status (connection/signal/power)
+    IOT_OPCODE_PROTO_CONFIG,       // Configure IoT protocol parameters
+    IOT_OPCODE_EXCEPTION_NOTIFY    // Report protocol/device exception
+} IotOpcode;
+
+
+/**
+ * @brief IoT message header (for PROXY_MSG_TYPE_IOT payload)
+ * @note Fixed length: 9 bytes (increased from 8 bytes for version expansion)
+ * @note Field order: proto_ver -> proto_type -> opcode -> dev_port_id -> proto_data_len -> reserve
+ */
+typedef struct IotMsgHeader_{
+    uint16_t    proto_ver;              // IoT sub-protocol version (fixed: 0x01 for now)
+    uint16_t    proto_type;             // IoT protocol type (Bluetooth/Zigbee/CAN/LoRa)
+    uint16_t    opcode;                 // IoT message operation code
+    uint16_t    dev_port_id;            // Device/port ID (distinguish multi-port/device)
+    uint16_t    payload_len;            // Length of IoT protocol raw data
+    uint16_t    reserve;                // Reserved field (fixed: 0x0000)
+} __attribute__((packed)) IotMsgHeader;
+
+
 typedef struct{
     ProxyMsgHeader  outer_header;
 //    ProxyMsgType    msg_type;
     union {        // Nested union to reduce memory usage (avoids redundant space)
-        DevMsgHeader    dev_hdr;    // Device message header member
-        StrgyMsgHeader  strgy_hdr;  // Strategy message header member
-        SessMsgHeader   sess_hdr;   // Session message header member
+        DevMsgHeader        dev_hdr;    // Device message header member
+        StrgyMsgHeader      strgy_hdr;  // Strategy message header member
+        SessMsgHeader       sess_hdr;   // Session message header member
+        IotMsgHeader        iot_hdr;    // IoT message header member
     } inner_header; // Nested union alias for easy access to specific headers
 } GeneralProxyMsgHeader;
 
@@ -606,6 +656,8 @@ int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t
 int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+int build_proxy_iot_message(IotMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+
 
 
 #endif

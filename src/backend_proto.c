@@ -954,9 +954,9 @@ int build_proxy_strgy_message(StrgyMsgHeader *strgy_hdr, const uint8_t *payload,
  * mismatched lengths) or memory allocation fails.
  */
 int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
-    SessMsgHeader *header;
-    size_t corr_len;
-    uint8_t *sess_msg;
+    SessMsgHeader   *header;
+    size_t          corr_len;
+    uint8_t         *sess_msg;
 
     corr_len = SESS_MSG_HEADER_PAYLOAD_LEN(sess_hdr);
 
@@ -970,12 +970,12 @@ int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, si
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    sess_msg = *result_msg;
-    header = (SessMsgHeader *)sess_msg;
-    header->version = sess_hdr->version;
-    header->msg_type = sess_hdr->msg_type;
+    sess_msg            = *result_msg;
+    header              = (SessMsgHeader *)sess_msg;
+    header->version     = sess_hdr->version;
+    header->msg_type    = sess_hdr->msg_type;
     header->action_type = sess_hdr->action_type;
-    header->ip_version = sess_hdr->ip_version;
+    header->ip_version  = sess_hdr->ip_version;
     header->payload_len = sess_hdr->payload_len;
 
     utils_print("In %s, version = %d, msg_type = %d, action_type = %d, ip_version = %d, payload_len = %d, address = %p\n", 
@@ -1021,6 +1021,52 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
 
     data_msg = *result_msg;
     memcpy(data_msg, payload, payload_len);
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Builds a complete proxy IoT message by combining the IoT message sub-header and payload.
+ * Builds a complete proxy IoT message by combining the IoT message sub-header and payload.
+ * The function will allocate memory for the output message (caller is responsible for freeing it).
+ * @param[in] iot_header Pointer to a IotMsgHeader structure specifying the IoT message sub-header.
+ * Must not be NULL.
+ * @param[in] payload Pointer to the const uint8_t buffer containing the IoT message payload.
+ * Can be NULL only if payload_len is 0.
+ * @param[in] payload_len Length of the payload in bytes. Must be non-negative and match
+ * header->payload_len (if sub-header contains payload length field) for consistency.
+ * @param[out] result_msg Double pointer to receive the address of the constructed proxy IoT message.
+ * On success, points to a newly allocated buffer containing the complete IoT message.
+ * Caller must free this memory with appropriate function when done.
+ * Must not be NULL.
+ * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
+ * Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
+ * mismatched lengths) or memory allocation fails.
+ */
+int build_proxy_iot_message(IotMsgHeader *iot_header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
+    IotMsgHeader    *header;
+    uint8_t         *iot_msg;
+
+    if(payload_len != iot_header->payload_len){
+        error_print("build_proxy_sess_message failed: payload length does not match the payload_len field in IotMsgHeader!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    iot_msg             = *result_msg;
+    header              = (IotMsgHeader *)iot_msg;
+    header->proto_ver   = iot_header->proto_ver;
+    header->opcode      = iot_header->opcode;
+    header->dev_port_id = iot_header->dev_port_id;
+    header->proto_type  = iot_header->proto_type;
+    header->payload_len = iot_header->payload_len;
+    header->reserve     = iot_header->reserve;    
+
+    utils_print("In %s, version = %d, opcode = %d, dev_port_id = %d, proto_type = %d, payload_len = %d, address = %p\n", 
+                __func__, header->proto_ver, header->opcode, header->dev_port_id, header->proto_type, header->payload_len, &header);
+    
+    iot_msg += sizeof(IotMsgHeader);
+    memcpy(iot_msg, payload, payload_len);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -1075,6 +1121,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
     DevMsgHeader    *dev_hdr;
     StrgyMsgHeader  *strgy_hdr;
     SessMsgHeader   *sess_hdr;
+    IotMsgHeader    *iot_hdr;
     int             ret, alloc_size;
 
 /*
@@ -1173,6 +1220,12 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             proxy_msg_payload_len = 0;
             ret = build_proxy_data_message(proxy_msg_hdr, payload, payload_len, &msg_buf);
             utils_print("In %s, after build_proxy_data_message, the return value is %d\n", __func__, ret);
+            break;
+        case PROXY_MSG_TYPE_IOT:
+            proxy_msg_payload_len = sizeof(IotMsgHeader);
+            iot_hdr               = &header->inner_header.iot_hdr;
+            ret = build_proxy_iot_message(iot_hdr, payload, payload_len, &msg_buf);
+            utils_print("In %s, after build_proxy_iot_message, the return value is %d\n", __func__, ret);
             break;
         default:
 /*
