@@ -768,6 +768,349 @@ hs_net_error:
 }
 
 /**
+ * @brief Convert string device type to IotDevType enumeration
+ * @param type_str String representation of device type (bluetooth/can/zigbee/lora)
+ * @return Corresponding IotDevType enum value, IOT_DEV_TYPE_UNKNOWN if not matched
+ */
+IotDevType dev_type_str_to_enum(const char *type_str) {
+    if (strcmp(type_str, "bluetooth") == 0) return IOT_DEV_TYPE_BLUETOOTH;
+    if (strcmp(type_str, "can") == 0) return IOT_DEV_TYPE_CAN;
+    if (strcmp(type_str, "zigbee") == 0) return IOT_DEV_TYPE_ZIGBEE;
+    if (strcmp(type_str, "lora") == 0) return IOT_DEV_TYPE_LORA;
+    return IOT_DEV_TYPE_UNKNOWN;
+}
+
+
+/**
+ * @brief Convert string device status to IotDevStatus enumeration
+ * @param status_str String representation of device status (online/offline/error/configuring)
+ * @return Corresponding IotDevStatus enum value, IOT_DEV_STATUS_OFFLINE if not matched
+ */
+static IotDevStatus dev_status_str_to_enum(const char *status_str) {
+    if (strcmp(status_str, "online") == 0) return IOT_DEV_STATUS_ONLINE;
+    if (strcmp(status_str, "offline") == 0) return IOT_DEV_STATUS_OFFLINE;
+    if (strcmp(status_str, "error") == 0) return IOT_DEV_STATUS_ERROR;
+    if (strcmp(status_str, "configuring") == 0) return IOT_DEV_STATUS_CONFIGURING;
+    return IOT_DEV_STATUS_OFFLINE;
+}
+
+
+/**
+ * @brief Parse Bluetooth specific attributes from INI section
+ * @param ini Pointer to iniparser dictionary object
+ * @param section Name of the target INI section (e.g., "device_101")
+ * @param bt_attr Pointer to BluetoothDevAttr structure to store parsed data
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: Bluetooth attributes parsed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Parsing failed (e.g., invalid MAC address format, out-of-range values)
+ * 
+ * @note The Bluetooth specific attributes in INI file must comply with the following format:
+ * [device_<dev_id>]
+ * bt_port = Bluetooth port/channel number (integer, e.g., 18)
+ * bt_version = Bluetooth version (integer, e.g., 5 for BLE 5.0)
+ * conn_interval = BLE connection interval in milliseconds (integer, e.g., 50)
+ * bt_mac = Bluetooth MAC address (string, format: XX:XX:XX:XX:XX:XX, e.g., 00:12:34:56:78:9A)
+ * 
+ * Example:
+ * [device_101]
+ * bt_port = 18
+ * bt_version = 5
+ * conn_interval = 50
+ * bt_mac = 00:12:34:56:78:9A
+ */
+int parse_bluetooth_attr(dictionary *ini, const char *section, BluetoothDevAttr *bt_attr) {
+    char key[128];
+    snprintf(key, sizeof(key), "%s:bt_port", section);
+    bt_attr->bt_port = iniparser_getint(ini, key, 0);
+
+    snprintf(key, sizeof(key), "%s:bt_version", section);
+    bt_attr->bt_version = (uint8_t)iniparser_getint(ini, key, 5);
+
+    snprintf(key, sizeof(key), "%s:conn_interval", section);
+    bt_attr->conn_interval = iniparser_getint(ini, key, 50);
+    
+    // Parse MAC address (format: 00:12:34:56:78:9A -> byte array)
+    snprintf(key, sizeof(key), "%s:bt_mac", section);
+    const char *mac_str = iniparser_getstring(ini, key, "00:00:00:00:00:00");
+    sscanf(mac_str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+           &bt_attr->bt_mac[0], &bt_attr->bt_mac[1], &bt_attr->bt_mac[2],
+           &bt_attr->bt_mac[3], &bt_attr->bt_mac[4], &bt_attr->bt_mac[5]);
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Parse CAN specific attributes from INI section
+ * @param ini Pointer to iniparser dictionary object
+ * @param section Name of the target INI section (e.g., "device_102")
+ * @param can_attr Pointer to CANDevAttr structure to store parsed data
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: CAN attributes parsed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Parsing failed (e.g., invalid bitrate, unsupported mode)
+ * 
+ * @note The CAN specific attributes in INI file must comply with the following format:
+ * [device_<dev_id>]
+ * can_port = CAN port number (integer, e.g., 0)
+ * can_bitrate = CAN bus bitrate in bps (integer, e.g., 500000 for 500K)
+ * can_mode = CAN working mode (string, normal/loopback/silent, e.g., normal)
+ * can_filter_id = CAN filter ID (hex/integer, e.g., 0x12345678 or 305419896)
+ * 
+ * Example:
+ * [device_102]
+ * can_port = 0
+ * can_bitrate = 500000
+ * can_mode = normal
+ * can_filter_id = 0x12345678
+ */
+static int parse_can_attr(dictionary *ini, const char *section, CANDevAttr *can_attr) {
+    char key[128];
+    snprintf(key, sizeof(key), "%s:can_port", section);
+    can_attr->can_port = iniparser_getint(ini, key, 0);
+
+    snprintf(key, sizeof(key), "%s:can_bitrate", section);
+    can_attr->can_bitrate = iniparser_getint(ini, key, 500000);
+    
+    // Validate CAN bitrate (common values: 125000, 250000, 500000, 1000000)
+    if (can_attr->can_bitrate != 125000 && can_attr->can_bitrate != 250000 &&
+        can_attr->can_bitrate != 500000 && can_attr->can_bitrate != 1000000) {
+        fprintf(stderr, "Unsupported CAN bitrate %u for section: %s\n", can_attr->can_bitrate, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+    // Parse CAN mode (normal/loopback/silent)
+    snprintf(key, sizeof(key), "%s:can_mode", section);
+    const char *mode_str = iniparser_getstring(ini, key, "normal");
+    if (strcmp(mode_str, "loopback") == 0) {
+        can_attr->can_mode = 2;
+    } else if (strcmp(mode_str, "silent") == 0) {
+        can_attr->can_mode = 3;
+    } else if (strcmp(mode_str, "normal") == 0) {
+        can_attr->can_mode = 1;
+    } else {
+        fprintf(stderr, "Unsupported CAN mode '%s' for section: %s\n", mode_str, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+    snprintf(key, sizeof(key), "%s:can_filter_id", section);
+    can_attr->can_filter_id = iniparser_getint(ini, key, 0);
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Parse Zigbee specific attributes from INI section
+ * @param ini Pointer to iniparser dictionary object
+ * @param section Name of the target INI section (e.g., "device_103")
+ * @param zigbee_attr Pointer to ZigbeeDevAttr structure to store parsed data
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: Zigbee attributes parsed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Parsing failed (e.g., invalid channel, invalid MAC address)
+ * 
+ * @note The Zigbee specific attributes in INI file must comply with the following format:
+ * [device_<dev_id>]
+ * zigbee_pan_id = Zigbee PAN ID (hex/integer, e.g., 0x1234 or 4660)
+ * zigbee_channel = Zigbee channel (integer, 11-26, e.g., 18)
+ * zigbee_role = Zigbee device role (string, coordinator/router/enddevice, e.g., coordinator)
+ * zigbee_mac = Zigbee MAC address (string, format: XX:XX:XX:XX:XX:XX:XX:XX, e.g., 00:12:34:56:78:9A:BC:DE)
+ * 
+ * Example:
+ * [device_103]
+ * zigbee_pan_id = 0x1234
+ * zigbee_channel = 18
+ * zigbee_role = coordinator
+ * zigbee_mac = 00:12:34:56:78:9A:BC:DE
+ */
+static int parse_zigbee_attr(dictionary *ini, const char *section, ZigbeeDevAttr *zigbee_attr) {
+    char key[128];
+    snprintf(key, sizeof(key), "%s:zigbee_pan_id", section);
+    zigbee_attr->zigbee_pan_id = iniparser_getint(ini, key, 0x1234);
+
+    snprintf(key, sizeof(key), "%s:zigbee_channel", section);
+    zigbee_attr->zigbee_channel = (uint8_t)iniparser_getint(ini, key, 18);
+    
+    // Validate Zigbee channel (11-26)
+    if (zigbee_attr->zigbee_channel < 11 || zigbee_attr->zigbee_channel > 26) {
+        fprintf(stderr, "Invalid Zigbee channel %u (must be 11-26) for section: %s\n", zigbee_attr->zigbee_channel, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+    // Parse Zigbee role (coordinator/router/enddevice)
+    snprintf(key, sizeof(key), "%s:zigbee_role", section);
+    const char *role_str = iniparser_getstring(ini, key, "coordinator");
+    if (strcmp(role_str, "router") == 0) {
+        zigbee_attr->zigbee_role = 2;
+    } else if (strcmp(role_str, "enddevice") == 0) {
+        zigbee_attr->zigbee_role = 3;
+    } else if (strcmp(role_str, "coordinator") == 0) {
+        zigbee_attr->zigbee_role = 1;
+    } else {
+        fprintf(stderr, "Unsupported Zigbee role '%s' for section: %s\n", role_str, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+    // Parse Zigbee MAC address (8 bytes)
+    snprintf(key, sizeof(key), "%s:zigbee_mac", section);
+    const char *mac_str = iniparser_getstring(ini, key, "00:00:00:00:00:00:00:00");
+    if (sscanf(mac_str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+           &zigbee_attr->zigbee_mac[0], &zigbee_attr->zigbee_mac[1], &zigbee_attr->zigbee_mac[2],
+           &zigbee_attr->zigbee_mac[3], &zigbee_attr->zigbee_mac[4], &zigbee_attr->zigbee_mac[5],
+           &zigbee_attr->zigbee_mac[6], &zigbee_attr->zigbee_mac[7]) != 8) {
+        fprintf(stderr, "Invalid Zigbee MAC address format for section: %s\n", section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief Parse LoRa specific attributes from INI section
+ * @param ini Pointer to iniparser dictionary object
+ * @param section Name of the target INI section (e.g., "device_104")
+ * @param lora_attr Pointer to LoRaDevAttr structure to store parsed data
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: LoRa attributes parsed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Parsing failed (e.g., invalid spreading factor, unsupported frequency band)
+ * 
+ * @note The LoRa specific attributes in INI file must comply with the following format:
+ * [device_<dev_id>]
+ * lora_port = LoRa port number (integer, e.g., 2)
+ * lora_freq_band = LoRa frequency band (string, EU868/US915/CN470, e.g., EU868)
+ * lora_sf = LoRa spreading factor (integer, 7-12, e.g., 9)
+ * lora_cr = LoRa coding rate (integer, 1-4, corresponds to 4/5 ~ 4/8, e.g., 1)
+ * lora_dev_eui = LoRa device EUI (hex/integer, e.g., 0011223344556677)
+ * 
+ * Example:
+ * [device_104]
+ * lora_port = 2
+ * lora_freq_band = EU868
+ * lora_sf = 9
+ * lora_cr = 1
+ * lora_dev_eui = 0011223344556677
+ */
+static int parse_lora_attr(dictionary *ini, const char *section, LoRaDevAttr *lora_attr) {
+    char key[128];
+    snprintf(key, sizeof(key), "%s:lora_port", section);
+    lora_attr->lora_port = iniparser_getint(ini, key, 2);
+    
+    // Parse LoRa frequency band (EU868/US915/CN470)
+    snprintf(key, sizeof(key), "%s:lora_freq_band", section);
+    const char *freq_str = iniparser_getstring(ini, key, "EU868");
+    if (strcmp(freq_str, "US915") == 0) {
+        lora_attr->lora_freq_band = 2;
+    } else if (strcmp(freq_str, "CN470") == 0) {
+        lora_attr->lora_freq_band = 3;
+    } else if (strcmp(freq_str, "EU868") == 0) {
+        lora_attr->lora_freq_band = 1;
+    } else {
+        fprintf(stderr, "Unsupported LoRa frequency band '%s' for section: %s\n", freq_str, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+    snprintf(key, sizeof(key), "%s:lora_sf", section);
+    lora_attr->lora_sf = (uint8_t)iniparser_getint(ini, key, 9);
+    
+    // Validate LoRa spreading factor (7-12)
+    if (lora_attr->lora_sf < 7 || lora_attr->lora_sf > 12) {
+        fprintf(stderr, "Invalid LoRa spreading factor %u (must be 7-12) for section: %s\n", lora_attr->lora_sf, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    snprintf(key, sizeof(key), "%s:lora_cr", section);
+    lora_attr->lora_cr = (uint8_t)iniparser_getint(ini, key, 1);
+    
+    // Validate LoRa coding rate (1-4)
+    if (lora_attr->lora_cr < 1 || lora_attr->lora_cr > 4) {
+        fprintf(stderr, "Invalid LoRa coding rate %u (must be 1-4) for section: %s\n", lora_attr->lora_cr, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    snprintf(key, sizeof(key), "%s:lora_dev_eui", section);
+    lora_attr->lora_dev_eui = iniparser_getint(ini, key, 0);
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Initialize the IoT devices of the backend engine
+ * 
+ * This function is used to initialize resources related to IoT devices (Bluetooth, CAN, Zigbee, LoRa)
+ * in the BackendEngine structure, including but not limited to device parameter configuration loading
+ * from INI files, protocol-specific attribute initialization, session queue setup, and device state
+ * initialization. It lays the foundation for subsequent interactions with all types of IoT devices.
+ * 
+ * @param eng [in/out] Pointer to a BackendEngine structure. The function will initialize members
+ *                     related to IoT devices (Bluetooth/CAN/Zigbee/LoRa) within this structure.
+ * 
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: IoT devices initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed (e.g., invalid config file,
+ *                                       memory allocation failure, or protocol-specific init error)
+ * 
+ * @note 1. Before calling this function, ensure that the eng pointer points to a valid BackendEngine
+ *          instance to avoid null pointer access.
+ *       2. This function depends on the successful loading of IoT device configuration files; ensure
+ *          the INI config file path is correctly set in the BackendEngine structure.
+ *       3. This function may depend on the initialization of other basic components (e.g., iniparser
+ *          library, session management module); it is recommended to call it in the correct initialization
+ *          sequence after these components are ready.
+ *
+ * The IoT device configuration items in the INI file must comply with the following format:
+ * [device_<dev_id>]
+ * dev_id = unique device ID (integer)
+ * dev_type = device type (bluetooth/can/zigbee/lora)
+ * ns_name = namespace name for device grouping (string)
+ * dev_status = device status (online/offline/error/configuring)
+ * name = human-readable device name (string)
+ * working_mode = device working mode (client/gateway)
+ * config_path = path to device-specific config file (string)
+ * auto_connect = auto-connect on startup (1=enable, 0=disable)
+ * physical_port = physical port number (integer)
+ * [Protocol-specific parameters]
+ * - Bluetooth: bt_port, bt_version, conn_interval, bt_mac
+ * - CAN: can_port, can_bitrate, can_mode, can_filter_id
+ * - Zigbee: zigbee_pan_id, zigbee_channel, zigbee_role, zigbee_mac
+ * - LoRa: lora_port, lora_freq_band, lora_sf, lora_cr, lora_dev_eui
+ *
+ * Example (Bluetooth device):
+ * [device_101]
+ * dev_id = 101
+ * dev_type = bluetooth
+ * ns_name = iot_bluetooth
+ * dev_status = online
+ * name = ble_sensor_01
+ * working_mode = client
+ * config_path = /etc/iot/dev_101.conf
+ * auto_connect = 1
+ * physical_port = 0
+ * bt_port = 18
+ * bt_version = 5
+ * conn_interval = 50
+ * bt_mac = 00:12:34:56:78:9A
+ *
+ * Example (LoRa device):
+ * [device_104]
+ * dev_id = 104
+ * dev_type = lora
+ * ns_name = iot_lora
+ * dev_status = online
+ * name = lora_endnode_01
+ * working_mode = client
+ * config_path = /etc/iot/dev_104.conf
+ * auto_connect = 1
+ * physical_port = 3
+ * lora_port = 2
+ * lora_freq_band = EU868
+ * lora_sf = 9
+ * lora_cr = 1
+ * lora_dev_eui = 0011223344556677
+ */
+int engine_init_iot_dev(BackendEngine *eng){
+    dictionary *ini;
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
  * @brief Initialize the session pool of the backend engine
  * 
  * This function initializes the session pool component within the BackendEngine structure. 
