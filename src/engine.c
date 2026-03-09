@@ -2186,6 +2186,7 @@ eng_run_step1:
     /*
      * Retrieve data from the Hyper AMP RX queue.
      */
+            sleep(1);
             utils_print("In %s, engine run step1\n");
             ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &block_size);
 
