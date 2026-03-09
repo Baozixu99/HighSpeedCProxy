@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include "message.h"
 
-#define UTILS_ENABLE_DEBUG                        1
+#define UTILS_ENABLE_DEBUG                        0
 
 void error_print(char *error);
 
@@ -15,7 +15,7 @@ int debug_print(const char *format, ...);
 #if UTILS_ENABLE_DEBUG
 #define utils_print(...) printf(__VA_ARGS__)
 #else
-#define utils_print(...) do {} while(0)
+#define utils_print(...) (void)(0)
 #endif
 
 
