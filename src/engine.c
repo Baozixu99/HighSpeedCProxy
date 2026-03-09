@@ -2186,6 +2186,7 @@ eng_run_step1:
     /*
      * Retrieve data from the Hyper AMP RX queue.
      */
+            utils_print("In %s, engine run step1\n");
             ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &block_size);
 
     /*
@@ -2223,6 +2224,7 @@ eng_run_step2:
 /*
  * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
  */
+        utils_print("In %s, engine run step2\n");
         BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
 
         TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
@@ -2268,6 +2270,7 @@ eng_run_step3:
  * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
  * (2) Mark the sessions that have received data as active back-to-front active sessions.
  */
+        utils_print("In %s, engine run step3\n");
         poller_run(eng, net_poller);
 
 
@@ -2276,7 +2279,11 @@ eng_run_step4:
 /*
  * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
  */
+
+        utils_print("In %s, engine run step4\n");
         BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
+
+        utils_print("The address of active_queue_b2f = %p, the address of eng->sess_pool-> = %p\n", active_queue_b2f, &eng->sess_pool->queue_b2f);
 
         TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
 /*
@@ -2288,8 +2295,9 @@ eng_run_step4:
  * - BACKEND_PROXY_PROCESS_AGAIN: Not all data was sent, and no errors occurred.
  * - BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
  */
+            utils_print("Before enter data_process_b2f\n");
             ret = sess_pool_ops->data_process_b2f(cur_sess);
-
+            utils_print("After enter data_process_b2f\n");
 /*
  * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-front (B2F) message queue have been successfully
  * sent via the shared memory TX queue. Such sessions should be detached from the B2F active queue.
