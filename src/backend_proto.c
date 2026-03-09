@@ -521,6 +521,7 @@ int __backend_proxy_sess_msg_process_active_create_ver1(uint16_t frontend_sess_i
 
         utils_print("The content of the ipv4_port_tuple->ipv4_addr is: \n");
         DUMP_BUFFER_CONTENT(&ipv4_port_tuple->ipv4_addr, sizeof(struct IPv4Address), "%d");
+        utils_print("In sess_para,ip_version = %d\n", sess_para.ip_version);
         
         utils_print("In sess_para, the dev_id = %d, trans_proto = %d,ip_version = %d\n", sess_para.dev_id, sess_para.trans_proto, sess_para.ip_version);
     }else if(SESS_IPV6_PROTO == ip_version){
