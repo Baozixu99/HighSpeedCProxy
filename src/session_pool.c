@@ -574,7 +574,7 @@ create_sess_error:
     new_sess->sess_node             = sess_node;
     ret = HIGH_SPEED_NET_DEV_INSERT_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
 
-    utils_print("In %s, the sess_dev_link_state is %d\n",  __func__, new_sess->sess_dev_link_state);
+    utils_print("In %s, the sess_dev_link_state is %d, ret = %d\n",  __func__, new_sess->sess_dev_link_state, ret);
 
 //    HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE(hs_dev, sess_node, sess_node->sess->proto_type);
 //    utils_print("After HIGH_SPEED_NET_DEV_REMOVE_SESSION_NODE, the sess_dev_link_state is %d\n",  new_sess->sess_dev_link_state);
