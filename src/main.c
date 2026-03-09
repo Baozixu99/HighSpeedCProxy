@@ -27,6 +27,8 @@ int main(int argc, char** argv)
 
 
 #if 0
+
+#if 0
     test_proxy_scenario_multi_type_msg_build(eng);
     test_proxy_scenario_msg_read_from_rx_queue(eng);
     test_proxy_scenario_process_active_f2b_sess_queue(eng);
@@ -35,6 +37,7 @@ int main(int argc, char** argv)
     test_proxy_scenario_process_active_b2f_sess_queue(eng);
 #endif
 //    engine_run();
+
 
 
     while(1){
@@ -63,7 +66,10 @@ int main(int argc, char** argv)
             break;
         }
     }
+#endif
 
+    engine_run_hyperamp();
+    
     engine_destory();
     
     return 0;
