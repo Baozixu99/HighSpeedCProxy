@@ -5,6 +5,7 @@
 uint8_t global_amp_tx_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
 
 int backend_proxy_msg_process(uint8_t *msg){
+    printf("In %s-0\n", __func__);
     ProxyMsgHeader *proxy_msg_hdr;
     int proxy_proto_ver, msg_len, ret;
     ProxyMsgType msg_type;
@@ -12,7 +13,7 @@ int backend_proxy_msg_process(uint8_t *msg){
     uint8_t *msg_ptr;
 
 //    struct BackendSession* sess;
-
+    printf("In %s-1\n", __func__);
     proxy_msg_hdr = (ProxyMsgHeader *)msg;
 
 /*
@@ -24,6 +25,7 @@ int backend_proxy_msg_process(uint8_t *msg){
     msg_type            = proxy_msg_hdr->proxy_msg_type;
     msg_len             = proxy_msg_hdr->payload_len;
 
+    printf("In %s-2\n", __func__);
     (void)proxy_proto_ver;
     utils_print("In %s, version = %d, frontend sess id = %d, backend sess id = %d, msg_type = %d, msg_len = %d\n", 
                 __func__, proxy_proto_ver, frontend_sess_id, backend_sess_id, msg_type, msg_len);
@@ -42,26 +44,30 @@ int backend_proxy_msg_process(uint8_t *msg){
         error_print("Message length error!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }// Unsupported message type.
-
+    printf("In %s-3\n", __func__);
     msg_ptr = (uint8_t *)proxy_msg_hdr;
     msg_ptr += PROXY_MSG_HDR_SIZE;
     if(PROXY_MSG_TYPE_DEV == msg_type){
     /* 
      * The frontend proxy delivers device messages from the frontend admin session to the backend proxy for the backend admin session.
      */
+        printf("In %s-4\n", __func__);
         if (frontend_sess_id != FRONTEND_ADMIN_SESSION_ID || backend_sess_id != BACKEND_ADMIN_SESSION_ID){
             error_print("Only admin sessions can deliver and process device messages!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = backend_proxy_dev_msg_process(msg_ptr);
+        printf("In %s-5\n", __func__);
     }else if(PROXY_MSG_TYPE_STRGY == msg_type){
     /* 
      * The frontend proxy delivers strategy messages from the frontend admin session to the backend proxy for the backend admin session.
      */
+        printf("In %s-6\n", __func__);
         if (frontend_sess_id != FRONTEND_ADMIN_SESSION_ID || backend_sess_id != BACKEND_ADMIN_SESSION_ID){
             error_print("Only admin sessions can deliver and process strategy messages!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
+        printf("In %s-7\n", __func__);
         ret = backend_proxy_strgy_msg_process(msg_ptr);
     }else if(PROXY_MSG_TYPE_SESS == msg_type){
 #if 0
@@ -74,17 +80,21 @@ int backend_proxy_msg_process(uint8_t *msg){
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 #endif
+        printf("In %s-8\n", __func__);
         ret = backend_proxy_sess_msg_process(frontend_sess_id, backend_sess_id, msg_ptr);
+        printf("In %s-9\n", __func__);
     }else{
 /*
  * When msg_type is PROXY_MSG_TYPE_DATA, the frontend_sess_id and backend_sess_id should be checked to determine whether the session (if it exists) 
  * is an application session.
  */
-         if (!APP_SESSION_ID_VALID(frontend_sess_id) || !APP_SESSION_ID_VALID(backend_sess_id)){
+        printf("In %s-10\n", __func__);
+        if (!APP_SESSION_ID_VALID(frontend_sess_id) || !APP_SESSION_ID_VALID(backend_sess_id)){
             error_print("Both the frontend session ID and backend session ID in the proxy data message must pass the application session ID validation!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
         ret = backend_proxy_data_msg_process(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
+        printf("In %s-11\n", __func__);
     }
 
     return ret;
@@ -765,7 +775,7 @@ int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     struct SharedMemoryPool         *mem_pool;
     struct SessMsgSeg               *msg_seg;
 
-    utils_print("In %s\n", __func__);
+    printf("In %s-0\n", __func__);
 
     eng = get_global_backend_engine();
 
@@ -782,18 +792,18 @@ int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
         error_print("backend_proxy_data_msg_process failed: ops->search_sess (session searching function) is not initialized!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
-
+    printf("In %s-1\n", __func__);
     sess = ops->search_sess(s_pool, backend_sess_id);
-
+    printf("In %s-2\n", __func__);
     if(NULL == sess){
         error_print("backend_proxy_data_msg_process failed: no backend session found for the specified backend_sess_id!");
         return BACKEND_PROXY_PROCESS_ERROR;   
     }
 
-    utils_print("frontend id = %d, backend id = %d\n", sess->frontend_sess_id, sess->backend_sess_id);
-
+    printf("frontend id = %d, backend id = %d\n", sess->frontend_sess_id, sess->backend_sess_id);
+    printf("In %s-3\n", __func__);
     msg_seg = sess_msg_seg_alloc(data_len, SESS_MSG_SEG_SHARED_MEM, msg, mem_pool);
-
+    printf("In %s-4\n", __func__);
     if(NULL == msg_seg){
         error_print("backend_proxy_data_msg_process failed: insurficient memory resource for allocing message segment!");
         return BACKEND_PROXY_PROCESS_ERROR;   
@@ -803,9 +813,9 @@ int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
  * Insert the message segment into the front-to-end message queue.
  */
 
-    utils_print("Before SESS_MSG_SEG_INSERT_QUEUE, TAILQ_EMPTY returns %d\n", TAILQ_EMPTY(&sess->msg_f2b));
+    printf("Before SESS_MSG_SEG_INSERT_QUEUE, TAILQ_EMPTY returns %d\n", TAILQ_EMPTY(&sess->msg_f2b));
     SESS_MSG_SEG_INSERT_QUEUE(sess, msg_seg, f2b);
-    utils_print("After SESS_MSG_SEG_INSERT_QUEUE, TAILQ_EMPTY returns %d\n", TAILQ_EMPTY(&sess->msg_f2b));
+    printf("After SESS_MSG_SEG_INSERT_QUEUE, TAILQ_EMPTY returns %d\n", TAILQ_EMPTY(&sess->msg_f2b));
 
 /*
  * Insert the session into the front-end to back-end active session queue. The backend proxy protocol will process all sessions in the active session queue,
@@ -813,9 +823,9 @@ int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
  */
 //    s_pool->queue_f2b;
 
-    utils_print("Before BACKEND_SESS_LINK_TO_QUEUE, state_f2b is %d, TAILQ_EMPTY returns %d\n", sess->state_f2b, TAILQ_EMPTY(&s_pool->queue_f2b));
+    printf("Before BACKEND_SESS_LINK_TO_QUEUE, state_f2b is %d, TAILQ_EMPTY returns %d\n", sess->state_f2b, TAILQ_EMPTY(&s_pool->queue_f2b));
     BACKEND_SESS_LINK_TO_QUEUE(sess, f2b);
-    utils_print("After BACKEND_SESS_LINK_TO_QUEUE, state_f2b is %d, TAILQ_EMPTY returns %d\n", sess->state_f2b, TAILQ_EMPTY(&s_pool->queue_f2b));
+    printf("After BACKEND_SESS_LINK_TO_QUEUE, state_f2b is %d, TAILQ_EMPTY returns %d\n", sess->state_f2b, TAILQ_EMPTY(&s_pool->queue_f2b));
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -865,7 +875,7 @@ int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg){
 
     
     corr_len = DEV_MSG_HEADER_PAYLOAD_LEN(dev_hdr);
-    utils_print("corr_len = %d, payload_len = %d\n", corr_len, payload_len);
+    utils_print("corr_len = %ld, payload_len = %ld\n", corr_len, payload_len);
 
     if(payload_len != corr_len){
         error_print("build_proxy_dev_message failed: payload length does not match expected value based on message type and action type!");
@@ -1016,7 +1026,7 @@ int build_proxy_sess_message(SessMsgHeader *sess_hdr, const uint8_t *payload, si
 */
 int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
     uint8_t *data_msg;
-    utils_print("In %s, payload_len = %d, proxy_msg_hdr->payload_len = %d\n", __func__, payload_len, proxy_msg_hdr->payload_len);
+    utils_print("In %s, payload_len = %ld, proxy_msg_hdr->payload_len = %d\n", __func__, payload_len, proxy_msg_hdr->payload_len);
     utils_print("frontend_sess_id = %d, frontend_sess_id =%d\n", proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id);
 
 #if 0
@@ -1026,7 +1036,7 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
     }
 #endif
 
-    utils_print("Address of proxy data header = %p, content  =%p, size of ProxyMsgHeader = %d\n", proxy_msg_hdr, *result_msg, sizeof(ProxyMsgHeader));
+    utils_print("Address of proxy data header = %p, content  =%p, size of ProxyMsgHeader = %ld\n", proxy_msg_hdr, *result_msg, sizeof(ProxyMsgHeader));
 
     data_msg = *result_msg;
     memcpy(data_msg, payload, payload_len);
@@ -1155,9 +1165,9 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
-        utils_print("before SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, virt addr = %lld\n", ring_buf->header, ring_buf->tail, ring_buf->virt_addr1);
+        utils_print("before SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, virt addr = %ld\n", ring_buf->header, ring_buf->tail, ring_buf->virt_addr1);
         SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
-        utils_print("after SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, memaddr = %lld\n", ring_buf->header, ring_buf->tail, mem_addr);
+        utils_print("after SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, memaddr = %ld\n", ring_buf->header, ring_buf->tail, mem_addr);
 
         if(ERROR_SHARED_MEM_ADDR == mem_addr){
             error_print("build_proxy_general_message failed: shared memory FIFO queue is full, cannot allocate new block!");

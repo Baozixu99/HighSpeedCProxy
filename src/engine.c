@@ -573,7 +573,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
 
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
         snprintf(dev_pro_item, dev_name_len + strlen("ip_addr") + 2, "%s:ip_addr", dev_name);
-        utils_print("dev_pro_item = %s, dev_name_len+ strlen(ip_addr) = %d\n", dev_pro_item, dev_name_len + strlen("ip_addr"));
+        utils_print("dev_pro_item = %s, dev_name_len+ strlen(ip_addr) = %ld\n", dev_pro_item, dev_name_len + strlen("ip_addr"));
 
         ip_addr = iniparser_getstring(ini, dev_pro_item, NULL);
 
@@ -2233,8 +2233,9 @@ eng_run_step1:
 
     /*
      * Process the proxy message.
-     */
+     */     printf("In %s-0\n", __func__);
             backend_proxy_msg_process(msg_buf);
+            printf("In %s-1\n", __func__);
 
         }while(BACKEND_PROXY_PROCESS_OK == ret);
 
@@ -2259,24 +2260,30 @@ eng_run_step2:
  * Returns BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
  * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been sent, and no errors occurred.
  * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
- */
+ */         
+            printf("In %s, engine run step2-1\n", __func__);
             ret = sess_pool_ops->data_process_f2b(cur_sess);
-
+            printf("In %s, engine run step2-2\n", __func__);
 /*
  * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the front-to-back (F2B) message queue have been sent via the session's socket. 
  * Such sessions should be detached from the F2B active queue, and their "linked to queue" state flag should be cleared.
  */
             if(BACKEND_PROXY_PROCESS_OK == ret){
+                printf("In %s, engine run step2-3\n", __func__);
                 TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
                 cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
+                printf("In %s, engine run step2-4\n", __func__);
             }
 /*
  * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
  * detached from the front-to-end active queue, but also be removed from the session pool.
  */
             if(BACKEND_PROXY_PROCESS_ERROR == ret){
+                printf("In %s, engine run step2-5\n", __func__);
                 TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
+                printf("In %s, engine run step2-6\n", __func__);
                 sess_pool_ops->delete_sess(sess_pool, cur_sess);
+                printf("In %s, engine run step2-7\n", __func__);
             }
  /*
   * Nothing to do when not all data has been sent and there are no errors.

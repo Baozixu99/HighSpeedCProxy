@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include "message.h"
 
-#define UTILS_ENABLE_DEBUG                        0
+#define UTILS_ENABLE_DEBUG                        1
 
 void error_print(char *error);
 

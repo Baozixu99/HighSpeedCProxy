@@ -228,7 +228,7 @@ int scenario_msg_inject(BackendEngine *engine,
 
     // ... (call build_proxy_general_message, handle queue injection, etc.)
 
-    utils_print("In %s, before enter build_proxy_general_message, build message type = %d, msg_payload_len = %d\n", __func__, msg_header->outer_header.proxy_msg_type, msg_payload_len);
+    utils_print("In %s, before enter build_proxy_general_message, build message type = %d, msg_payload_len = %ld\n", __func__, msg_header->outer_header.proxy_msg_type, msg_payload_len);
     ret = build_proxy_general_message(engine, msg_header, msg_payload, msg_payload_len, result_msg, alloc_mode, engine->rx_queue);
 
     return ret;
@@ -363,7 +363,7 @@ int data_msg_inject(BackendEngine *engine){
     memset(data_buf, 0, sizeof(data_buf));
     snprintf(data_buf, sizeof(data_buf), "test msg");
 
-    utils_print("strlen(test msg) = %d\n", strlen("test msg"));
+    utils_print("strlen(test msg) = %ld\n", strlen("test msg"));
     utils_print("content of data_buf = %s\n", data_buf);
 
     data_msg_hdr         = &proxy_data_msg_hdr;
@@ -463,7 +463,7 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
 //    struct BackendSession           *cur_sess, *next_sess;
 //    struct BackendSessionPool       *sess_pool;
 //    struct BackendSessionPoolOps    *sess_pool_ops;
-    uint8_t                         *proxy_msg;
+    uint8_t                         *proxy_msg = NULL;
     ProxyMsgHeader                  *proxy_msg_hdr;
     size_t                          msg_size;
     int                             ret;
