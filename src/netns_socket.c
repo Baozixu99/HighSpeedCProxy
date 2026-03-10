@@ -10,6 +10,96 @@
 #include "netns_socket.h"
 #include "session_pool.h"
 
+#define ENABLE_UDP_TEST 1 
+
+/**
+ * @brief Connectivity test function specifically for UDP sockets.
+ * 
+ * This function sends a test message to a fixed IP/Port, waits for a reply 
+ * with a 1-second timeout, and logs success or warning messages.
+ * 
+ * @param fd The already created UDP socket file descriptor.
+ * @return 0 indicates the test flow completed (regardless of success/failure). 
+ *         -1 indicates a critical error (e.g., invalid parameters).
+ */
+static int test_udp_connectivity(int fd) {
+    struct sockaddr_in server_addr;
+    struct timeval timeout;
+    char send_buf[] = "test msg";
+    char recv_buf[1024];
+    socklen_t addr_len;
+    int ret;
+    const char *target_ip = "192.168.1.101";
+    int target_port = 8888;
+
+    utils_print("[UDP TEST] Starting connectivity test to %s:%d...\n", target_ip, target_port);
+
+    // 1. Prepare the destination address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(target_port);
+    
+    if (inet_pton(AF_INET, target_ip, &server_addr.sin_addr) <= 0) {
+        utils_print("[UDP TEST] Invalid IP address format: %s\n", target_ip);
+        return -1;
+    }
+
+    // 2. Send test data "test msg"
+    // UDP uses sendto; no prior connect() is required.
+    ret = sendto(fd, send_buf, strlen(send_buf), 0, 
+                 (struct sockaddr *)&server_addr, sizeof(server_addr));
+    
+    if (ret < 0) {
+        utils_print("[UDP TEST] Send failed! (errno: %d, %s)\n", errno, strerror(errno));
+        return -1;
+    }
+    utils_print("[UDP TEST] Sent '%s' (%d bytes) to %s:%d\n", send_buf, ret, target_ip, target_port);
+
+    // 3. Set receive timeout to 1 second
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        utils_print("[UDP TEST] Failed to set SO_RCVTIMEO! (errno: %d, %s)\n", errno, strerror(errno));
+        return -1;
+    }
+
+    // 4. Block and wait for a reply
+    memset(recv_buf, 0, sizeof(recv_buf));
+    addr_len = sizeof(server_addr); // Reset length before call
+    
+    // Note: UDP is connectionless. recvfrom waits for a packet from any source, 
+    // but we expect a reply from the target we just sent to.
+    ret = recvfrom(fd, recv_buf, sizeof(recv_buf) - 1, 0, 
+                   (struct sockaddr *)&server_addr, &addr_len);
+
+    if (ret < 0) {
+        // Check if the failure was due to a timeout
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // === Core Requirement: Print warning if timeout occurs ===
+            utils_print("[UDP TEST] WARNING: Receive timeout! No message received from %s:%d within 1 second.\n", 
+                        target_ip, target_port);
+        } else {
+            // Other errors
+            utils_print("[UDP TEST] Recv failed! (errno: %d, %s)\n", errno, strerror(errno));
+        }
+        // Note: Timeout is not necessarily a fatal error for UDP (packets may be lost).
+        // Return 0 to indicate the test flow completed.
+        return 0; 
+    } else {
+        // Successfully received data
+        recv_buf[ret] = '\0'; // Ensure null-termination
+        
+        // Optional: Print the sender's address
+        char ip_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &server_addr.sin_addr, ip_str, INET_ADDRSTRLEN);
+        
+        utils_print("[UDP TEST] Success! Received %d bytes from %s:%d: '%s'\n", 
+                    ret, ip_str, ntohs(server_addr.sin_port), recv_buf);
+        return 0;
+    }
+}
+
 
 int create_socket_fastpath(int ns_id, struct SessMsgPara *para, int *fd){
 //    int new_fd;
@@ -50,7 +140,19 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol)
         close(orig_netns);
         return ERROR_SOCKET_FD;
     }
-    
+
+#if ENABLE_UDP_TEST
+    // Perform test only for UDP Sockets (SOCK_DGRAM)
+    if (domain == AF_INET && type == SOCK_DGRAM) {
+        utils_print("[UDP TEST] Label 1\n");
+        test_udp_connectivity(newfd);
+        
+        // After the test, the socket remains usable (UDP is connectionless).
+        // We return the valid FD to the caller for further use.
+        utils_print("[UDP TEST] Test finished. Returning valid socket fd %d.\n", newfd);
+    }
+#endif    
+
     //back to origin netns
     if(setns(orig_netns, CLONE_NEWNET) == -1)
     {
@@ -60,6 +162,20 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol)
         return ERROR_SOCKET_FD;
     }
     close(orig_netns);
+
+    // ================= UDP Test Logic =================
+#if ENABLE_UDP_TEST
+    // Perform test only for UDP Sockets (SOCK_DGRAM)
+    if (domain == AF_INET && type == SOCK_DGRAM) {
+        utils_print("[UDP TEST] Label 2\n");
+        test_udp_connectivity(newfd);
+        
+        // After the test, the socket remains usable (UDP is connectionless).
+        // We return the valid FD to the caller for further use.
+        utils_print("[UDP TEST] Test finished. Returning valid socket fd %d.\n", newfd);
+    }
+#endif
+
     return newfd;
 }
 
