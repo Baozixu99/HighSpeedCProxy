@@ -556,6 +556,6 @@ int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
  *       Must be paired with SHARED_MEM_QUEUE_LOCK using the same queue to prevent deadlocks;
  *       Does not return BACKEND_PROXY_PROCESS_AGAIN - release operation either succeeds or fails
  */
-#define SHARED_MEM_QUEUE_UNLOCK(queue)  (release_shared_mem_pool_lock((queue)->pool->lock))
+#define SHARED_MEM_QUEUE_UNLOCK(queue)  (release_shared_mem_pool_lock(&(queue)->pool->lock))
 
 #endif
