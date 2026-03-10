@@ -344,6 +344,12 @@ typedef struct {
     uint16_t        strgy_para;    // Strategy parameter. Possible values: 0 (Round Robin), 1 (Select device with highest current available bandwidth), 2 (Select device with lowest current latency)
 } __attribute__((packed)) StrgyCMDEnableMessage;
 
+// --- Strategy Parameters ---
+typedef enum {
+    STRGY_PARAM_ROUND_ROBIN = 0,
+    STRGY_PARAM_MAX_BANDWIDTH = 1,
+    STRGY_PARAM_MIN_LATENCY = 2
+} StrgyParamType;
 
 /**
  * @brief Strategy message report structure

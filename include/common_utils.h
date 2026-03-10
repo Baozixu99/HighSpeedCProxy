@@ -97,4 +97,11 @@ int debug_print(const char *format, ...);
     printf("===========================================\n"); \
 } while (0)
 
+
+void proxy_msg_content_dump(const uint8_t* header);
+void proxy_dev_msg_content_dump(const uint8_t* header);
+void proxy_strgy_msg_content_dump(const uint8_t* header);
+void proxy_sess_msg_content_dump(const uint8_t* header);
+void proxy_data_msg_content_dump(const uint8_t* header);
+
 #endif
