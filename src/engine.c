@@ -94,8 +94,8 @@ SharedMemoryPoolQueueConfig high_speed_net_tx_queue_config =    {
   */
 
 int enable_hs_net_dev(BackendEngine *eng, uint16_t mask){
-    struct HighSpeedNetDeviceSet *set;
-    uint32_t cnt;
+//    struct HighSpeedNetDeviceSet *set;
+//    uint32_t cnt;
     uint8_t bit_pos;
 
     if(NULL == eng || 0 == eng->dev_num){
@@ -119,8 +119,8 @@ int enable_hs_net_dev(BackendEngine *eng, uint16_t mask){
 
 
 int disable_hs_net_dev(BackendEngine *eng, uint16_t mask){
-    struct HighSpeedNetDeviceSet *set;
-    uint32_t cnt;
+//    struct HighSpeedNetDeviceSet *set;
+//    uint32_t cnt;
 
     if(NULL == eng){
         error_print("disable_hs_net_dev() returns an error because the engine pointer is NULL!\n");
@@ -132,8 +132,8 @@ int disable_hs_net_dev(BackendEngine *eng, uint16_t mask){
 
 
 int query_hs_net_dev(BackendEngine *eng, uint16_t *mask){
-    struct HighSpeedNetDeviceSet *set;
-    uint32_t cnt;
+//    struct HighSpeedNetDeviceSet *set;
+//    uint32_t cnt;
 
     if(NULL == eng || NULL == mask){
         error_print("query_hs_net_dev() returns an error because the engine or mask pointer is NULL!\n");
@@ -145,7 +145,7 @@ int query_hs_net_dev(BackendEngine *eng, uint16_t *mask){
 
 
 int choose_hs_net_dev(BackendEngine *eng, uint16_t *dev_id){
-    struct HighSpeedNetDeviceSet *set;
+//    struct HighSpeedNetDeviceSet *set;
     HSDevSelector *sel;
     int selector_id, ret;
     // uint16_t target_id;
@@ -405,7 +405,8 @@ int open_named_netns(const char* name) {
  *          the socket creation may fail.
  */
 int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice *hs_dev, int ip_version){
-    int                 listen_fd, orig_netns;
+    int                 listen_fd;
+//    int                 orig_netns;
     struct sockaddr_in  dev_ip_addr;
     struct in_addr      in4_addr;
     struct IPv4Address  *ipv4_addr;
@@ -514,8 +515,9 @@ int engine_init_hs_net_dev(BackendEngine *eng){
     dictionary *ini;
     int dev_num, dev_name_len, cnt = 0, cnt_node;
     const char *dev_name, *ip_addr;
-    int ip_type, dev_id, dev_type, dev_status, ns_id, tcp_port, listenning_socket;
-    char *ns_name;
+    int ip_type, dev_id, dev_type, dev_status, ns_id, tcp_port;
+//    int listenning_socket;
+    const char *ns_name;
     struct in_addr in4_addr;
     struct in6_addr in6_addr;
     union IPAddress *ip_data;
@@ -663,7 +665,7 @@ int engine_init_hs_net_dev(BackendEngine *eng){
  */     
         memset(dev_pro_item, 0, sizeof(dev_pro_item));
         snprintf(dev_pro_item, dev_name_len + strlen("ns_name") + 2, "%s:ns_name", dev_name);
-        ns_name = iniparser_getstring(ini, dev_pro_item, -1);
+        ns_name = iniparser_getstring((const dictionary*)ini, (const char*)dev_pro_item, NULL);
         if(NULL == ns_name){
             error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device for which the ns_name is either incorrectly configured \
             or not configured in the INI file.\n");
@@ -1104,7 +1106,7 @@ static int parse_lora_attr(dictionary *ini, const char *section, LoRaDevAttr *lo
  * lora_dev_eui = 0011223344556677
  */
 int engine_init_iot_dev(BackendEngine *eng){
-    dictionary *ini;
+//    dictionary *ini;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -2126,7 +2128,8 @@ void engine_run_hyperamp(){
     NetPoller                       *net_poller;
     uint8_t                         *proxy_msg;
     uint32_t                        msg_size;
-    int                             ret, block_size;
+    size_t                          block_size;
+    int                             ret;
     uint8_t                         msg_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
 
     eng = get_global_backend_engine();
@@ -2187,7 +2190,7 @@ eng_run_step1:
      * Retrieve data from the Hyper AMP RX queue.
      */
             sleep(1);
-            utils_print("In %s, engine run step1\n");
+            printf("In %s, engine run step1\n");
             ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &block_size);
 
     /*
@@ -2205,6 +2208,7 @@ eng_run_step1:
      * No error reporting needed; jump to eng_run_step2 to execute the next process.
      */
             if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+                error_print("engine_run_hyperamp failed: HyperAMP RX queue is empty!\n");
                 goto eng_run_step2;
             }
 
@@ -2225,7 +2229,7 @@ eng_run_step2:
 /*
  * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
  */
-        utils_print("In %s, engine run step2\n");
+        printf("In %s, engine run step2\n");
         BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
 
         TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
@@ -2271,7 +2275,7 @@ eng_run_step3:
  * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
  * (2) Mark the sessions that have received data as active back-to-front active sessions.
  */
-        utils_print("In %s, engine run step3\n");
+        printf("In %s, engine run step3\n");
         poller_run(eng, net_poller);
 
 
@@ -2281,10 +2285,10 @@ eng_run_step4:
  * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
  */
 
-        utils_print("In %s, engine run step4\n");
+        printf("In %s, engine run step4\n");
         BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
 
-        utils_print("The address of active_queue_b2f = %p, the address of eng->sess_pool-> = %p\n", active_queue_b2f, &eng->sess_pool->queue_b2f);
+        printf("The address of active_queue_b2f = %p, the address of eng->sess_pool-> = %p\n", active_queue_b2f, &eng->sess_pool->queue_b2f);
 
         TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
 /*
@@ -2296,9 +2300,9 @@ eng_run_step4:
  * - BACKEND_PROXY_PROCESS_AGAIN: Not all data was sent, and no errors occurred.
  * - BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
  */
-            utils_print("Before enter data_process_b2f\n");
+            printf("Before enter data_process_b2f\n");
             ret = sess_pool_ops->data_process_b2f(cur_sess);
-            utils_print("After enter data_process_b2f\n");
+            printf("After enter data_process_b2f\n");
 /*
  * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-front (B2F) message queue have been successfully
  * sent via the shared memory TX queue. Such sessions should be detached from the B2F active queue.

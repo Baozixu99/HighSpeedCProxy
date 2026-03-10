@@ -546,7 +546,8 @@ int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
  *       Must be paired with SHARED_MEM_QUEUE_UNLOCK using the same queue to prevent deadlocks;
  *       BACKEND_PROXY_PROCESS_AGAIN indicates temporary unavailability - callers should retry later
  */
-#define SHARED_MEM_QUEUE_LOCK(queue)  (fetch_shared_mem_pool_lock((queue)->pool))
+#define SHARED_MEM_QUEUE_LOCK(queue)  (fetch_shared_mem_pool_lock(&((queue)->(pool)->(lock)))
+
 
 /**
  * @brief Release access right to the shared memory queue by releasing the shared memory pool lock

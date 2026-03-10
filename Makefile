@@ -10,7 +10,7 @@ LIBS    :=
 LDFLAGS :=
 DEFINES :=
 INCLUDE := -I./include -I./senario_inc
-CFLAGS  := -g -Wall -O0 $(DEFINES) $(INCLUDE)
+CFLAGS  := -g -Wall -Werror -O0 $(DEFINES) $(INCLUDE)
 CXXFLAGS:= $(CFLAGS)
 
 ifeq ($(ARCH), arm64)
