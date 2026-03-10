@@ -76,7 +76,7 @@ TAILQ_HEAD(SessMsgQueue, SessMsgSeg);
 
 
 struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uint8_t *shared_data, struct SharedMemoryPool *mem_pool);
-void sess_msg_seg_free(struct SessMsgSeg **seg_ptr);
+void sess_msg_seg_free(struct SessMsgSeg *seg_ptr);
 
 void sess_msg_queue_free_all(struct SessMsgQueue *queue);
 

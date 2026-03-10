@@ -45,7 +45,7 @@ struct SessMsgSeg *sess_msg_seg_alloc(size_t len, SessMsgSegType type, const uin
                 goto msg_alloc_error;
             }
 
-            msg_seg->data       = shared_data;
+            msg_seg->data       = (uint8_t *)shared_data;
             msg_seg->mem_pool   = mem_pool;
             break;
 
@@ -75,15 +75,15 @@ msg_alloc_error:
  *       - If type is SESS_MSG_SEG_SHARED_MEM: does not free data (managed by shared memory system)
  *       - Safely handles NULL input (no operation performed)
  */
-void sess_msg_seg_free(struct SessMsgSeg **seg_ptr){
+void sess_msg_seg_free(struct SessMsgSeg *seg_ptr){
     struct SessMsgSeg *msg_seg;
 
-    if(NULL == seg_ptr || NULL == *seg_ptr){
+    if(NULL == seg_ptr){
         error_print("sess_msg_seg_free failed: input pointer is invalid!");
         return;
     }
 
-    msg_seg = *seg_ptr;
+    msg_seg = seg_ptr;
 
 
     switch(msg_seg->type) {

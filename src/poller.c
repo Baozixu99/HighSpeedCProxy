@@ -173,11 +173,11 @@ int event_add(int ep_fd, int events, NetChannel *ch)
 
 int event_del(int ep_fd, NetChannel *ch) 
 {
-    struct epoll_event ep_ev = {0, {0}};
+//    struct epoll_event ep_ev = {0, {0}};
     if (ch->status != 1) {
         return -1;
     }
-    ep_ev.data.ptr = ch;
+//    ep_ev.data.ptr = ch;
     ch->status = 0;
     epoll_ctl(ep_fd, EPOLL_CTL_DEL, ch->sock_fd, NULL);
     // free(ch);
@@ -230,8 +230,8 @@ int recv_cb(int fd, int events, void *arg)
 }
 
 int send_cb(int fd, int events, void *arg) {
-    NetChannel *ch = (NetChannel *) arg;
-    NetPoller *reactor = (NetPoller *)(ch->arg);
+//    NetChannel *ch = (NetChannel *) arg;
+//    NetPoller *reactor = (NetPoller *)(ch->arg);
 
     int len = -1;
     // todo, send data

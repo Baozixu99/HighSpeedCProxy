@@ -61,7 +61,7 @@ int __backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_
 int __backend_proxy_sess_msg_process_close_ver1(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t payload_len, uint8_t *msg_payload);
 
 
-int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t data_len, uint8_t *msg);
+int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t data_len, uint8_t *msg);
 int backend_proxy_data_msg_recv(struct BackendSession *sess, uint8_t *msg);
 int backend_proxy_data_msg_send(struct BackendSession *sess, uint8_t *msg);
 

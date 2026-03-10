@@ -172,7 +172,7 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
     struct BackendSession           *new_sess = NULL;
     NetChannel              *net_channel;
     uint16_t frontend_sess_id, new_sess_id, dev_id;
-    int fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id, ret;
+    int fd = ERROR_SOCKET_FD, ns_id, ret;
     SessOpRespData resp_dat;
 
     engine          = s_pool->engine;
@@ -248,7 +248,8 @@ void high_speed_delete_all_sess(struct BackendSessionPool *s_pool)
  * Get the namespace ID to which the selected high-speed network device is set.
  */
     struct HighSpeedNetDevice *hs_dev;
-    hs_dev = &engine->dev_set[dev_id];
+    hs_dev = &(engine->dev_set->hs_net_dev[dev_id]);
+    (void)hs_dev;
     ns_id = GET_NS_ID(engine->dev_set, dev_id);
     if(ERROR_NAMESPACE_ID == ns_id){
         error_print("high_speed_create_sess failed: failed to obtain the namespace ID that the selected high-speed network device belongs to!");
@@ -405,7 +406,7 @@ create_sess_error:
     struct BackendSession           *new_sess = NULL;
     NetChannel                      *net_channel;
     uint16_t                        frontend_sess_id, new_sess_id, dev_id;
-    int                             fd = ERROR_SOCKET_FD, domain, type, protocol, ns_id, ret;
+    int                             fd = ERROR_SOCKET_FD, ns_id, ret;
     SessOpRespData                  resp_dat;
     struct HighSpeedNetDevice       *hs_dev;
     struct SessionNode              *sess_node;
@@ -558,7 +559,8 @@ create_sess_error:
 /*
  * Allocate a SessionNode from the specified HighSpeedNetDevice. If the allocation succeeds, bind the node to either the udp_node or tcp_node queue of the device according to the proto_type.
  */
-    hs_dev      = &engine->dev_set[dev_id];
+//    hs_dev      = &engine->dev_set[dev_id];
+    hs_dev = &(engine->dev_set->hs_net_dev[dev_id]);
     sess_node   = HIGH_SPEED_NET_DEV_POP_FREE_SESSION_NODE(hs_dev);
 
     utils_print("In %s, the address of the sess_node is %p\n",  __func__, sess_node);
@@ -695,8 +697,9 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
     BackendEngine                   *engine;
     struct BackendSessionPoolOps    *sess_pool_ops;
     struct BackendSession           *new_sess = NULL;
-    NetChannel                      *net_channel;
-    uint16_t                        frontend_sess_id, backend_sess_id, new_sess_id, dev_id;
+//    NetChannel                      *net_channel;
+//    uint16_t                        frontend_sess_id, backend_sess_id;
+    uint16_t                        new_sess_id, dev_id;
     int                             ret;
     struct HighSpeedNetDevice       *hs_dev;
     struct SessionNode              *sess_node = NULL;
@@ -762,7 +765,8 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
         goto create_sess_passive_error;
     }
 
-    hs_dev      = &engine->dev_set[dev_id];
+//    hs_dev      = &engine->dev_set[dev_id];
+    hs_dev      = &(engine->dev_set->hs_net_dev[dev_id]);
     sess_node   = HIGH_SPEED_NET_DEV_POP_FREE_SESSION_NODE(hs_dev);
 
     if(NULL == sess_node){
@@ -817,7 +821,7 @@ int high_speed_create_sess_passive(struct BackendSessionPool *s_pool, struct Bac
     memcpy(&sess_ipv4_paras.dest_endpoint, &para->ip_port_tuple.ipv4_port_tuple, sizeof(IPv4PortTuple));
 
 //    ret = build_proxy_general_message(engine, &msg_header, &sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_SHARED, engine->tx_queue);
-    ret = build_proxy_general_message(engine, &msg_header, &sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_AMPQUEUE, NULL);
+    ret = build_proxy_general_message(engine, &msg_header, (const uint8_t*)&sess_ipv4_paras, sizeof(sess_ipv4_paras), res_buf, MEMORY_ALLOC_AMPQUEUE, NULL);
 
     return ret;
 create_sess_passive_error:
@@ -960,7 +964,8 @@ int high_speed_delete_sess(struct BackendSessionPool *s_pool, struct BackendSess
  * Device ID is valid.
  */
         if(sess->sess_dev_link_state & BACKEND_SESS_LINKED_TO_DEV_NODE){
-            hs_dev = &eng->dev_set[dev_id];
+//            hs_dev = &eng->dev_set[dev_id];
+            hs_dev = &(eng->dev_set->hs_net_dev[dev_id]);
             sess_node = sess->sess_node;
 /*
  * Recycle the session node. 
@@ -1122,9 +1127,10 @@ int high_speed_data_process_b2f(struct BackendSession *sess){
     struct SharedMemoryPoolQueue    *tx_queue;
     struct SessMsgSeg               *cur_seg, *next_seg;
     int                             ret;
-    uint64_t                        addr;
+//    uint64_t                        addr;
 
     eng         = sess->eng;
+    (void)tx_queue;
     tx_queue    = eng->tx_queue;
 
     /*

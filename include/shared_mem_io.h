@@ -246,8 +246,6 @@ typedef struct SharedMemoryPoolQueueConfig_{
     } else { \
         /* Initialize result to success status */ \
         (result) = BACKEND_PROXY_PROCESS_OK; \
-        /* Save original tail for rollback in case of exception */ \
-        uint16_t original_tail = (queue)->tail; \
         \
         /* Update tail: increment by 1 */ \
         (queue)->tail++; \
@@ -546,7 +544,8 @@ int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
  *       Must be paired with SHARED_MEM_QUEUE_UNLOCK using the same queue to prevent deadlocks;
  *       BACKEND_PROXY_PROCESS_AGAIN indicates temporary unavailability - callers should retry later
  */
-#define SHARED_MEM_QUEUE_LOCK(queue)  (fetch_shared_mem_pool_lock(&((queue)->(pool)->(lock)))
+//#define SHARED_MEM_QUEUE_LOCK(queue)  (fetch_shared_mem_pool_lock(&((queue)->(pool)->(lock)))
+#define SHARED_MEM_QUEUE_LOCK(queue)  (fetch_shared_mem_pool_lock(&((queue)->pool->lock)))
 
 
 /**
@@ -558,6 +557,8 @@ int shared_mem_pool_queue_recv_zc(struct SharedMemoryPoolQueue *queue,
  *       Must be paired with SHARED_MEM_QUEUE_LOCK using the same queue to prevent deadlocks;
  *       Does not return BACKEND_PROXY_PROCESS_AGAIN - release operation either succeeds or fails
  */
-#define SHARED_MEM_QUEUE_UNLOCK(queue)  (release_shared_mem_pool_lock((queue)->pool))
+//#define SHARED_MEM_QUEUE_UNLOCK(queue)  (release_shared_mem_pool_lock((queue)->pool))
+#define SHARED_MEM_QUEUE_UNLOCK(queue)  (release_shared_mem_pool_lock(&((queue)->pool->lock)))
+
 
 #endif

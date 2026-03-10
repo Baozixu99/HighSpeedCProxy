@@ -1107,7 +1107,10 @@ static int parse_lora_attr(dictionary *ini, const char *section, LoRaDevAttr *lo
  */
 int engine_init_iot_dev(BackendEngine *eng){
 //    dictionary *ini;
-
+    parse_can_attr(NULL, NULL, NULL);
+    parse_zigbee_attr(NULL, NULL, NULL);
+    parse_lora_attr(NULL, NULL, NULL);
+    dev_status_str_to_enum(NULL);
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -1828,7 +1831,7 @@ void engine_run()
     struct BackendSessionPoolOps    *sess_pool_ops;
     NetPoller                       *net_poller;
     uint8_t                         *proxy_msg;
-    uint32_t                        msg_size;
+    size_t                          msg_size;
     int                             ret;
 
     eng = get_global_backend_engine();
@@ -1873,7 +1876,8 @@ void engine_run()
 
     hyper_rx_queue = eng->hyper_rx_queue;
     hyper_tx_queue = eng->hyper_tx_queue;
-
+    (void)hyper_rx_queue;
+    (void)hyper_tx_queue;
 
     BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
     BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
@@ -1901,6 +1905,10 @@ eng_run_step1:
 /* 
  * Acquire access lock for the RX queue.
  */
+
+        if(0)
+            goto eng_run_step1;
+
         ret = SHARED_MEM_QUEUE_LOCK(rx_queue);
 
 /* 
@@ -1924,7 +1932,7 @@ eng_run_step1:
     /*
      * Retrieve data from the RX queue.
      */
-            ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+            ret = backend_engine_rx_queue_get(rx_queue, (void **)&proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
 
     /*
      * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid queue handle, shared memory access exception, etc.)
@@ -2008,6 +2016,9 @@ eng_run_step3:
  * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
  * (2) Mark the sessions that have received data as active back-to-front active sessions.
  */
+        if(0)
+            goto eng_run_step3;
+
         poller_run(eng, net_poller);
 
 /*
@@ -2017,7 +2028,8 @@ eng_run_step4:
 /*
  * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
  */
-
+        if(0)
+            goto eng_run_step4;
 /* 
  * Acquire access lock for the TX queue.
  */
@@ -2126,8 +2138,8 @@ void engine_run_hyperamp(){
     struct BackendSessionPool       *sess_pool;
     struct BackendSessionPoolOps    *sess_pool_ops;
     NetPoller                       *net_poller;
-    uint8_t                         *proxy_msg;
-    uint32_t                        msg_size;
+//    uint8_t                         *proxy_msg;
+//    uint32_t                        msg_size;
     size_t                          block_size;
     int                             ret;
     uint8_t                         msg_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
@@ -2160,6 +2172,8 @@ void engine_run_hyperamp(){
 
     hyper_rx_queue = eng->hyper_rx_queue;
     hyper_tx_queue = eng->hyper_tx_queue;
+    (void)hyper_rx_queue;
+    (void)hyper_tx_queue;
 
 
     BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
@@ -2189,8 +2203,12 @@ eng_run_step1:
     /*
      * Retrieve data from the Hyper AMP RX queue.
      */
+
+            if(0)
+                goto eng_run_step1;
+
             sleep(1);
-            printf("In %s, engine run step1\n");
+            printf("In %s, engine run step1\n", __func__);
             ret = backend_engine_hyperamp_rx_queue_get(eng, HYPERAMP_MSG_HDR_PLUS_MAX_SIZE, msg_buf, &block_size);
 
     /*
@@ -2229,7 +2247,7 @@ eng_run_step2:
 /*
  * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
  */
-        printf("In %s, engine run step2\n");
+        printf("In %s, engine run step2\n", __func__);
         BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
 
         TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
@@ -2275,7 +2293,10 @@ eng_run_step3:
  * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
  * (2) Mark the sessions that have received data as active back-to-front active sessions.
  */
-        printf("In %s, engine run step3\n");
+            if(0)
+                goto eng_run_step3;
+
+        printf("In %s, engine run step3\n", __func__);
         poller_run(eng, net_poller);
 
 
@@ -2285,7 +2306,10 @@ eng_run_step4:
  * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
  */
 
-        printf("In %s, engine run step4\n");
+            if(0)
+                goto eng_run_step4;
+
+        printf("In %s, engine run step4\n", __func__);
         BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
 
         printf("The address of active_queue_b2f = %p, the address of eng->sess_pool-> = %p\n", active_queue_b2f, &eng->sess_pool->queue_b2f);
@@ -2368,12 +2392,13 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
     int                             dev_num, cnt = 0;
     struct BackendSession           *tcp_sess, *udp_sess;
     struct SessionNode              *tmp_node, *next_tcp_node, *next_udp_node, *next_free_node;
-    const char *dev_name, *ip_addr;
-    int ip_type, dev_id, dev_type, dev_status, ns_id;
-    char *ns_name;
-    struct in_addr in4_addr;
-    struct in6_addr in6_addr;
-    union IPAddress *ip_data;
+//    const char *dev_name, *ip_addr;
+//    int ip_type, dev_id, dev_type, dev_status;
+//    int ns_id;
+//    char *ns_name;
+//    struct in_addr in4_addr;
+//    struct in6_addr in6_addr;
+//    union IPAddress *ip_data;
 
     if(NULL == eng || NULL == eng->dev_set || NULL == eng->sess_pool || NULL == eng->sess_pool->ops || NULL == eng->sess_pool->ops->delete_sess){
         return;
@@ -2446,7 +2471,7 @@ void engine_destory_hs_net_dev(BackendEngine *eng){
 
 
 void engine_destory_sess_pool(BackendEngine *eng){
-    struct BackendSessionPool       *sess_pool;
+//    struct BackendSessionPool       *sess_pool;
 
     if(NULL == eng || NULL == eng->sess_pool){
         return;
@@ -2459,7 +2484,7 @@ void engine_destory_mem_pool(BackendEngine *eng);
 void engine_destory_mem_pool_lock(BackendEngine *eng);
 
 void engine_destory(){
-    int ret;
+//    int ret;
 
     p_g_bk_eng = &g_bk_eng;
 

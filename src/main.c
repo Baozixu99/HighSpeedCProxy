@@ -16,14 +16,16 @@
 int main(int argc, char** argv)
 {
     BackendEngine   *eng;
-    ProxyMsgHeader  *proxy_msg_hdr;
-    int             ret, proto_msg_len, cnt = 0; 
+//    ProxyMsgHeader  *proxy_msg_hdr;
+//    int             ret, proto_msg_len;
+//    int             cnt = 0; 
 
     engine_init();
     
     sleep(2);
 
     eng = get_global_backend_engine();
+    (void)eng;
 
 
 #if 0

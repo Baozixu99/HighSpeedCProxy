@@ -617,7 +617,7 @@ int hyperamp_queue_enqueue(volatile HyperampShmQueue *queue,
                                   volatile void *virt_base)
 {
     if (!queue || !data || data_len == 0) {
-        printf("hyperamp_queue_enqueue failed: queue =%p, data = %p, data_len = %d\n", queue, data, data_len);
+        printf("hyperamp_queue_enqueue failed: queue =%p, data = %p, data_len = %zu\n", queue, data, data_len);
         return HYPERAMP_ERROR;}
     if (data_len > queue->block_size) return HYPERAMP_ERROR;
     
@@ -695,7 +695,7 @@ int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
                                   volatile void *virt_base)
 {
     if (!queue || !data || max_len == 0) {
-        printf("hyperamp_queue_dequeue failed: queue =%p, data = %p, max_len = %d\n", queue, data, max_len);
+        printf("hyperamp_queue_dequeue failed: queue =%p, data = %p, max_len = %zu\n", queue, data, max_len);
         return HYPERAMP_ERROR;
     }
     

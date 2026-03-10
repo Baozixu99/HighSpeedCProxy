@@ -11,7 +11,7 @@ int backend_proxy_msg_process(uint8_t *msg){
     uint16_t frontend_sess_id, backend_sess_id;
     uint8_t *msg_ptr;
 
-    struct BackendSession* sess;
+//    struct BackendSession* sess;
 
     proxy_msg_hdr = (ProxyMsgHeader *)msg;
 
@@ -24,6 +24,7 @@ int backend_proxy_msg_process(uint8_t *msg){
     msg_type            = proxy_msg_hdr->proxy_msg_type;
     msg_len             = proxy_msg_hdr->payload_len;
 
+    (void)proxy_proto_ver;
     utils_print("In %s, version = %d, frontend sess id = %d, backend sess id = %d, msg_type = %d, msg_len = %d\n", 
                 __func__, proxy_proto_ver, frontend_sess_id, backend_sess_id, msg_type, msg_len);
 /*
@@ -83,10 +84,10 @@ int backend_proxy_msg_process(uint8_t *msg){
             error_print("Both the frontend session ID and backend session ID in the proxy data message must pass the application session ID validation!");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
-        ret = backend_proxy_data_msg_prosess(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
+        ret = backend_proxy_data_msg_process(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
     }
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 
@@ -383,6 +384,9 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     
     SessParaIPv4 *debug_hdr = (SessParaIPv4 *)msg_data;
     SessIPv4Params *debug_hdr2 = (SessIPv4Params *)msg_data;
+
+    (void)debug_hdr;
+    (void)debug_hdr2;
     utils_print("In %s, type is SessParaIPv4, dev_id = %d, trans_proto = %d, port = %d\n", __func__, debug_hdr->dev_id, debug_hdr->trans_proto, debug_hdr->port);
     utils_print("In %s, type is SessIPv4Params, devive_selection = %d, transport_layer_proto = %d\n", 
                 __func__, debug_hdr2->device_selection, debug_hdr2->transport_layer_proto);
@@ -391,7 +395,7 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
         ret = backend_proxy_sess_msg_process_ver1(frontend_sess_id, backend_sess_id, msg_type, action_type, ip_version, payload_len, msg_data);
     } 
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 
@@ -423,8 +427,8 @@ int backend_proxy_sess_msg_process_ver1(uint16_t frontend_sess_id, uint16_t back
  * Passive session creation procedure.
  */
                 if(action_type != ACTION_TYPE_RESPONSE){
-                    error_print("backend_proxy_sess_msg_process_ver1 failed: If the backend_sess_id in a SESS_MSG_CREATE message has been previously allocated \ 
-                                 (passive session creation), the action_type must be ACTION_TYPE_RESPONSE!\n");
+                    error_print("backend_proxy_sess_msg_process_ver1 failed: If the backend_sess_id in a SESS_MSG_CREATE message has been previously allocated \
+                    (passive session creation), the action_type must be ACTION_TYPE_RESPONSE!\n");
                     ret = BACKEND_PROXY_PROCESS_ERROR;
                 }else{
                     ret = backend_proxy_sess_msg_process_passive_create_ver1(frontend_sess_id, backend_sess_id, ip_version, payload_len, msg_payload);
@@ -609,6 +613,8 @@ int __backend_proxy_sess_msg_process_passive_create_ver1(uint16_t frontend_sess_
 
     s_pool      = eng->sess_pool;
     ops         = eng->sess_pool->ops;
+
+    (void)mem_pool;
     mem_pool    = eng->mem_pool;
 
     if(NULL == ops->search_sess){
@@ -739,7 +745,7 @@ int backend_proxy_sess_msg_response(uint8_t *msg){
  * This function does not take ownership of the msg buffer; the caller is responsible for
  * managing its lifecycle.
  */
-int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t data_len, uint8_t *msg){
+int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t data_len, uint8_t *msg){
  /*
   * STEP 1. Search for the destination backend session instance in the session pool using backend_sess_id. If it fails to find
   *         the appropriate session instance, backend_proxy_data_msg_process shall return BACKEND_PROXY_PROCESS_ERROR;
@@ -758,7 +764,6 @@ int backend_proxy_data_msg_prosess(uint16_t frontend_sess_id, uint16_t backend_s
     struct BackendSession           *sess;
     struct SharedMemoryPool         *mem_pool;
     struct SessMsgSeg               *msg_seg;
-    int ret;
 
     utils_print("In %s\n", __func__);
 
@@ -1592,8 +1597,8 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
 
     int             ret;
     uint8_t         *msg;
-    ProxyMsgHeader  *msg_header;
-    struct SharedMemoryPoolQueue *tx_queue;
+//    ProxyMsgHeader  *msg_header;
+//    struct SharedMemoryPoolQueue *tx_queue;
 
 
     if (NULL == eng || NULL == eng->mem_pool || NULL == op_resp) {
@@ -1646,10 +1651,10 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
 int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *sess, int sess_msg_type, SessOpRespData *op_resp){
     int                             ret;
     uint8_t                         *msg;
-    ProxyMsgHeader                  *msg_header;
-    BackendEngine                   *eng;
+//    ProxyMsgHeader                  *msg_header;
+//    BackendEngine                   *eng;
 
-    struct SharedMemoryPoolQueue    *tx_queue;
+//    struct SharedMemoryPoolQueue    *tx_queue;
 
     if (NULL == sess || NULL == sess->eng || NULL == sess->eng->mem_pool || NULL == op_resp) {
         error_print("backend_proxy_send_sess_msg_to_frontend_via_shmem failed: invalid parameters - sess, sess->eng, \

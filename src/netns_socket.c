@@ -12,10 +12,14 @@
 
 
 int create_socket_fastpath(int ns_id, struct SessMsgPara *para, int *fd){
-    int new_fd, ret;
+//    int new_fd;
+    int ret;
 /* 
  * to do.
  */
+
+    ret = 0;
+
     return ret;
 }
 
@@ -61,7 +65,7 @@ int __create_socket_netns(int ns_id, int domain, int type, int protocol)
 
 
 int create_socket_netns(int ns_id, struct SessMsgPara *para, int *fd){
-    int domain, type, protocol, new_fd, ret;
+    int domain, type, protocol, new_fd;
 
     if(NULL == para || NULL == fd){
 
@@ -121,7 +125,7 @@ void set_nonblocking(int sockfd) {
 
 int connect_socket_netns(int fd, struct SessMsgPara *sess_para){
     UniSockAddr uni_addr;
-    size_t      addr_len;
+//    size_t      addr_len;
     IPv4PortTuple *ipv4_port_tuple;
     IPv6PortTuple *ipv6_port_tuple;
 

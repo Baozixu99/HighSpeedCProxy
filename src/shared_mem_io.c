@@ -58,7 +58,7 @@ int release_shared_mem_pool_lock(struct SharedMemoryPoolLock *mem_pool){
  */
 struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedMemoryPoolQueueConfig *config){
     struct SharedMemoryPoolQueue *queue;
-    int fd;
+    int fd = -1;
     void *virt_addr;
 
     if(!IS_VALID_SHM_CONF_MAP_MODE(config)){
@@ -96,9 +96,8 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
 #endif
     // Calculate page-aligned physical address (mmap requires the offset to be a multiple of the page size)
     off_t phys_page_off = queue->phy_addr & ~(sysconf(_SC_PAGESIZE) - 1);
-    size_t page_offset  = queue->phy_addr - phys_page_off;
-
-    utils_print("phys_page_off = %d, page_offset = %d\n", phys_page_off, page_offset);
+    (void)phys_page_off;
+    utils_print("phys_page_off = %d, page_offset = %d\n", phys_page_off, queue->phy_addr - phys_page_off);
 
     // Map physical memory to user space
 #if 0
@@ -128,12 +127,14 @@ struct SharedMemoryPoolQueue *shared_mem_pool_queue_create_backend(const SharedM
 
     if(NULL == virt_addr){
         error_print("shared_mem_pool_queue_create_backend failed: failed to allocate memory for the queue!");
-        close(fd);
+
+        if(-1 != fd)
+            close(fd);
         free(queue);
         return NULL;
     }
 
-    queue->virt_addr1 = virt_addr;
+    queue->virt_addr1 = (uint64_t)(uintptr_t)virt_addr;
 
     utils_print("queue->virt_addr1 = %lld\n", queue->virt_addr1);
 
