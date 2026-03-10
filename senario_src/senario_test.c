@@ -231,7 +231,7 @@ int scenario_msg_inject(BackendEngine *engine,
     utils_print("In %s, before enter build_proxy_general_message, build message type = %d, msg_payload_len = %d\n", __func__, msg_header->outer_header.proxy_msg_type, msg_payload_len);
     ret = build_proxy_general_message(engine, msg_header, msg_payload, msg_payload_len, result_msg, alloc_mode, engine->rx_queue);
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 
@@ -263,7 +263,7 @@ int device_msg_inject(BackendEngine *engine){
     desc_string          = desc_buf;
 
     utils_print("In %s, before enter scenario_msg_inject\n", __func__);
-    ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_mask, sizeof(dev_msg_mask), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+    ret = scenario_msg_inject(engine, dev_msg_hdr, (const uint8_t *)&dev_msg_mask, sizeof(dev_msg_mask), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
 
     return ret;
@@ -296,7 +296,7 @@ int strategy_msg_inject(BackendEngine *engine){
     res_string           = res_buf;
     desc_string          = desc_buf;
 
-    ret = scenario_msg_inject(engine, strgy_msg_hdr, &strgy, sizeof(strgy), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+    ret = scenario_msg_inject(engine, strgy_msg_hdr, (const uint8_t *)&strgy, sizeof(strgy), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
     return ret;
 }
@@ -333,7 +333,7 @@ int session_msg_inject(BackendEngine *engine){
 
     utils_print("In %s, version = %d, type = %d\n", __func__, sess_msg_hdr->outer_header.version, sess_msg_hdr->outer_header.proxy_msg_type);
 
-    ret = scenario_msg_inject(engine, sess_msg_hdr, &sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+    ret = scenario_msg_inject(engine, sess_msg_hdr, (const uint8_t *)&sess_ipv4_paras, sizeof(sess_ipv4_paras), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
     return ret;
 }
@@ -378,9 +378,9 @@ int data_msg_inject(BackendEngine *engine){
 
     DUMP_BUFFER_CONTENT(data_buf, 8, "%c");
 
-    ret = scenario_msg_inject(engine, data_msg_hdr, data_buf, strlen(data_buf), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
+    ret = scenario_msg_inject(engine, data_msg_hdr, (const uint8_t *)data_buf, strlen(data_buf), MEMORY_ALLOC_SHARED, res_string, desc_string, desc_len);
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 
@@ -458,14 +458,14 @@ int test_proxy_scenario_multi_type_msg_build(BackendEngine *engine){
  */
 
 int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
-    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
-    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
-    struct BackendSession           *cur_sess, *next_sess;
-    struct BackendSessionPool       *sess_pool;
-    struct BackendSessionPoolOps    *sess_pool_ops;
+    struct SharedMemoryPoolQueue    *rx_queue;
+//    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+//    struct BackendSession           *cur_sess, *next_sess;
+//    struct BackendSessionPool       *sess_pool;
+//    struct BackendSessionPoolOps    *sess_pool_ops;
     uint8_t                         *proxy_msg;
     ProxyMsgHeader                  *proxy_msg_hdr;
-    uint32_t                        msg_size;
+    size_t                          msg_size;
     int                             ret;
 
     rx_queue = engine->rx_queue;
@@ -476,30 +476,31 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
     }
 
     utils_print("In %s, before enter backend_engine_rx_queue_get, proxy_msg = %p\n", __func__, proxy_msg);
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    ret = backend_engine_rx_queue_get(rx_queue, (void **)&proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("In %s, after enter backend_engine_rx_queue_get\n", __func__);
     utils_print("rx queue header is %d, tail is %d, proxy_msg = %p\n", rx_queue->header, rx_queue->tail, proxy_msg);
 
     backend_proxy_msg_process(proxy_msg);
 
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    ret = backend_engine_rx_queue_get(rx_queue, (void **)&proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
 
     backend_proxy_msg_process(proxy_msg);
 
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    ret = backend_engine_rx_queue_get(rx_queue, (void **)&proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
 
     backend_proxy_msg_process(proxy_msg);
 
-    ret = backend_engine_rx_queue_get(rx_queue, &proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
+    ret = backend_engine_rx_queue_get(rx_queue, (void **)&proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
     utils_print("ret = %d, rx queue header is %d, tail is %d\n", ret, rx_queue->header, rx_queue->tail);
 
     proxy_msg_hdr = (ProxyMsgHeader *)proxy_msg;
+    (void)proxy_msg_hdr;
     utils_print("in data message, version = %d, message type = %d\n", proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type);
     backend_proxy_msg_process(proxy_msg);
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 
@@ -515,13 +516,13 @@ int test_proxy_scenario_msg_read_from_rx_queue(BackendEngine *engine){
  *                     BACKEND_PROXY_PROCESS_ERROR if any error occurs during processing
  */
 int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
-    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
-    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+//    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    struct BackendSessionQueue      *active_queue_f2b;
     struct BackendSession           *cur_sess, *next_sess;
     struct BackendSessionPool       *sess_pool;
     struct BackendSessionPoolOps    *sess_pool_ops;
-    uint8_t                         *proxy_msg;
-    uint32_t                        msg_size;
+//    uint8_t                         *proxy_msg;
+//    size_t                          msg_size;
     int                             ret;
 
     utils_print("In %s, the address of the engine is %p\n", __func__, engine);
@@ -580,7 +581,7 @@ int test_proxy_scenario_process_active_f2b_sess_queue(BackendEngine *engine){
 #endif
 
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 /**
@@ -627,13 +628,13 @@ void test_proxy_scenario_msg_read_from_poller(BackendEngine *engine){
  *                     BACKEND_PROXY_PROCESS_ERROR if any error occurs during processing
  */
 int test_proxy_scenario_process_active_b2f_sess_queue(BackendEngine *engine){
-    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
-    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
+//    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
+    struct BackendSessionQueue      *active_queue_b2f;
     struct BackendSession           *cur_sess, *next_sess;
     struct BackendSessionPool       *sess_pool;
     struct BackendSessionPoolOps    *sess_pool_ops;
-    uint8_t                         *proxy_msg;
-    uint32_t                        msg_size;
+//    uint8_t                         *proxy_msg;
+//    size_t                          msg_size;
     int                             ret;
 
     utils_print("In %s, the address of the engine is %p\n", __func__, engine);
@@ -721,5 +722,6 @@ int device_msg_inject_backend_hyperamp(BackendEngine *engine){
 
     utils_print("In %s, before enter scenario_msg_inject\n", __func__);
 
-    ret = scenario_msg_inject(engine, dev_msg_hdr, &dev_msg_resp, sizeof(dev_msg_resp), MEMORY_ALLOC_AMPQUEUE, res_string, desc_string, desc_len);    
+    ret = scenario_msg_inject(engine, dev_msg_hdr, (const uint8_t *)&dev_msg_resp, sizeof(dev_msg_resp), MEMORY_ALLOC_AMPQUEUE, res_string, desc_string, desc_len); 
+    return ret;   
 }
