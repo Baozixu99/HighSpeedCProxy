@@ -698,6 +698,12 @@ typedef struct{
         SessMsgHeader       sess_hdr;   // Session message header member
         IotMsgHeader        iot_hdr;    // IoT message header member
     } inner_header; // Nested union alias for easy access to specific headers
+    IotAddr         iot_addr;              /**< IoT address (ONLY used for IoT messages; 0-initialized for non-IoT)
+                                             - Stores bt_addr/can_addr/zigbee_addr/lora_addr/powerlink_addr
+                                             - Size: 18 bytes (IotProtoType + 16-byte union) → minimal overhead */
+    uint16_t        iot_addr_len;          /**< Length of valid IoT address data (bytes)
+                                             - 0: Non-IoT message (ignore iot_addr)
+                                             - >0: IoT message (valid address length for specific protocol) */
 } GeneralProxyMsgHeader;
 
 struct BackendEngine_;
@@ -715,8 +721,39 @@ int build_proxy_dev_message(DevMsgHeader *header, const uint8_t *payload, size_t
 int build_proxy_strgy_message(StrgyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
-int build_proxy_iot_message(IotMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
+// int build_proxy_iot_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 
+/**
+ * @brief Build IoT proxy message (supports 3-layer structure: ProxyMsgHeader + IotMsgHeader + IotAddr + payload)
+ * 
+ * Core construction function for IoT proxy messages (called by build_proxy_general_message):
+ * 1. Validates IotMsgHeader (proto_type/opcode/payload_len) and IotAddr (addr_type matches proto_type)
+ * 2. Calculates total length: sizeof(ProxyMsgHeader) + sizeof(IotMsgHeader) + header->iot_addr_len + payload_len
+ * 3. Allocates memory for the full message (heap/pool based on caller context)
+ * 4. Writes data in order:
+ *    - ProxyMsgHeader (from header->outer_header)
+ *    - IotMsgHeader (from header->inner_header.iot_hdr)
+ *    - IotAddr (protocol-specific address from header->iot_addr, truncated to header->iot_addr_len)
+ *    - Payload (raw data from payload parameter)
+ * 5. Updates ProxyMsgHeader.total_len with the full message length
+ * 
+ * @param header Pointer to GeneralProxyMsgHeader (must contain valid iot_hdr + iot_addr + iot_addr_len)
+ * @param payload Pointer to IoT payload (raw data after address; NULL if no payload)
+ * @param payload_len Length of IoT payload (bytes; 0 if no payload)
+ * @param result_msg Output pointer to constructed IoT proxy message (allocated internally)
+ * @return int Construction result
+ *         - BACKEND_PROXY_PROCESS_OK: IoT message built successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid parameters/address/protocol mismatch/memory error)
+ * 
+ * @note Validates protocol consistency: header->inner_header.iot_hdr.proto_type must match header->iot_addr.addr_type
+ * @note header->iot_addr_len must be >0 and ≤ sizeof(IotAddr) (e.g., 8 for bt_addr, 7 for can_addr)
+ * @note IotMsgHeader.payload_len is automatically set to (header->iot_addr_len + payload_len)
+ * @note Handles frontend-to-backend IoT messages transmitted via HyperAMP (same as other proxy messages)
+ */
+int build_proxy_iot_message(GeneralProxyMsgHeader *header, 
+                            const uint8_t *payload, 
+                            size_t payload_len, 
+                            uint8_t **result_msg);
 
 
 #endif

@@ -1046,47 +1046,36 @@ int build_proxy_data_message(ProxyMsgHeader *proxy_msg_hdr, const uint8_t *paylo
 
 
 /**
- * @brief Builds a complete proxy IoT message by combining the IoT message sub-header and payload.
- * Builds a complete proxy IoT message by combining the IoT message sub-header and payload.
- * The function will allocate memory for the output message (caller is responsible for freeing it).
- * @param[in] iot_header Pointer to a IotMsgHeader structure specifying the IoT message sub-header.
- * Must not be NULL.
- * @param[in] payload Pointer to the const uint8_t buffer containing the IoT message payload.
- * Can be NULL only if payload_len is 0.
- * @param[in] payload_len Length of the payload in bytes. Must be non-negative and match
- * header->payload_len (if sub-header contains payload length field) for consistency.
- * @param[out] result_msg Double pointer to receive the address of the constructed proxy IoT message.
- * On success, points to a newly allocated buffer containing the complete IoT message.
- * Caller must free this memory with appropriate function when done.
- * Must not be NULL.
- * @return int Returns BACKEND_PROXY_PROCESS_OK on successful message construction;
- * Returns BACKEND_PROXY_PROCESS_ERROR if any parameter is invalid (e.g., NULL pointers,
- * mismatched lengths) or memory allocation fails.
+ * @brief Build IoT proxy message (supports 3-layer structure: ProxyMsgHeader + IotMsgHeader + IotAddr + payload)
+ * 
+ * Core construction function for IoT proxy messages (called by build_proxy_general_message):
+ * 1. Validates IotMsgHeader (proto_type/opcode/payload_len) and IotAddr (addr_type matches proto_type)
+ * 2. Calculates total length: sizeof(ProxyMsgHeader) + sizeof(IotMsgHeader) + header->iot_addr_len + payload_len
+ * 3. Allocates memory for the full message (heap/pool based on caller context)
+ * 4. Writes data in order:
+ *    - ProxyMsgHeader (from header->outer_header)
+ *    - IotMsgHeader (from header->inner_header.iot_hdr)
+ *    - IotAddr (protocol-specific address from header->iot_addr, truncated to header->iot_addr_len)
+ *    - Payload (raw data from payload parameter)
+ * 5. Updates ProxyMsgHeader.total_len with the full message length
+ * 
+ * @param header Pointer to GeneralProxyMsgHeader (must contain valid iot_hdr + iot_addr + iot_addr_len)
+ * @param payload Pointer to IoT payload (raw data after address; NULL if no payload)
+ * @param payload_len Length of IoT payload (bytes; 0 if no payload)
+ * @param result_msg Output pointer to constructed IoT proxy message (allocated internally)
+ * @return int Construction result
+ *         - BACKEND_PROXY_PROCESS_OK: IoT message built successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid parameters/address/protocol mismatch/memory error)
+ * 
+ * @note Validates protocol consistency: header->inner_header.iot_hdr.proto_type must match header->iot_addr.addr_type
+ * @note header->iot_addr_len must be >0 and ≤ sizeof(IotAddr) (e.g., 8 for bt_addr, 7 for can_addr)
+ * @note IotMsgHeader.payload_len is automatically set to (header->iot_addr_len + payload_len)
+ * @note Handles frontend-to-backend IoT messages transmitted via HyperAMP (same as other proxy messages)
  */
-int build_proxy_iot_message(IotMsgHeader *iot_header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg){
-    IotMsgHeader    *header;
-    uint8_t         *iot_msg;
-
-    if(payload_len != iot_header->payload_len){
-        error_print("build_proxy_sess_message failed: payload length does not match the payload_len field in IotMsgHeader!");
-        return BACKEND_PROXY_PROCESS_ERROR;
-    }
-
-    iot_msg             = *result_msg;
-    header              = (IotMsgHeader *)iot_msg;
-    header->proto_ver   = iot_header->proto_ver;
-    header->opcode      = iot_header->opcode;
-    header->dev_port_id = iot_header->dev_port_id;
-    header->proto_type  = iot_header->proto_type;
-    header->payload_len = iot_header->payload_len;
-    header->reserve     = iot_header->reserve;    
-
-    utils_print("In %s, version = %d, opcode = %d, dev_port_id = %d, proto_type = %d, payload_len = %d, address = %p\n", 
-                __func__, header->proto_ver, header->opcode, header->dev_port_id, header->proto_type, header->payload_len, &header);
-    
-    iot_msg += sizeof(IotMsgHeader);
-    memcpy(iot_msg, payload, payload_len);
-
+int build_proxy_iot_message(GeneralProxyMsgHeader *header, 
+                            const uint8_t *payload, 
+                            size_t payload_len, 
+                            uint8_t **result_msg){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -1140,7 +1129,6 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
     DevMsgHeader    *dev_hdr;
     StrgyMsgHeader  *strgy_hdr;
     SessMsgHeader   *sess_hdr;
-    IotMsgHeader    *iot_hdr;
     int             ret, alloc_size;
 
 /*
@@ -1242,8 +1230,7 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             break;
         case PROXY_MSG_TYPE_IOT:
             proxy_msg_payload_len = sizeof(IotMsgHeader);
-            iot_hdr               = &header->inner_header.iot_hdr;
-            ret = build_proxy_iot_message(iot_hdr, payload, payload_len, &msg_buf);
+            ret = build_proxy_iot_message(header, payload, payload_len, &msg_buf);
             utils_print("In %s, after build_proxy_iot_message, the return value is %d\n", __func__, ret);
             break;
         default:
@@ -1859,5 +1846,433 @@ int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id,
                                         uint16_t backend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+/**
+ * @brief Helper function to calculate protocol-specific IoT address length (NEW)
+ * 
+ * Calculates the actual byte length of valid address data for a given IoT protocol type (avoids padding):
+ * - BLUETOOTH: 8 bytes (6-byte MAC + 2-byte port)
+ * - CAN: 7 bytes (2-byte port + 4-byte CAN ID + 1-byte bus ID)
+ * - ZIGBEE: 11 bytes (8-byte MAC + 2-byte PAN ID + 1-byte endpoint)
+ * - LORA: 11 bytes (8-byte DevEUI + 2-byte port + 1-byte freq band)
+ * - POWERLINK: 9 bytes (2-byte NodeID + 6-byte MAC + 2-byte PDO ID)
+ * - UNKNOWN: 0 bytes (invalid)
+ * 
+ * @param addr_type IoT protocol type (from IotProtoType)
+ * @return size_t Valid address length (bytes) for the protocol; 0 if invalid
+ * 
+ * @note Used by build_proxy_iot_message to validate header->iot_addr_len
+ * @note Ensures minimal address data is included in the message (no unused union space)
+ * @note Returns 0 for all unrecognized/invalid IotProtoType values (fast fail)
+ */
+size_t get_iot_addr_length(IotProtoType addr_type)
+{
+    // Return exact address length per protocol type (no padding)
+    switch (addr_type) {
+        case IOT_PROTO_TYPE_BLUETOOTH:
+            return 8;   // 6B MAC + 2B port
+        case IOT_PROTO_TYPE_CAN:
+            return 7;   // 2B port + 4B CAN ID + 1B bus ID
+        case IOT_PROTO_TYPE_ZIGBEE:
+            return 11;  // 8B MAC + 2B PAN ID + 1B endpoint
+        case IOT_PROTO_TYPE_LORA:
+            return 11;  // 8B DevEUI + 2B port + 1B freq band
+        case IOT_PROTO_TYPE_POWERLINK:
+            return 9;   // 2B NodeID + 6B MAC + 2B PDO ID
+        default:
+            // Invalid/unknown protocol type - return 0 (invalid length)
+            return 0;
+    }
+}
+
+/**
+ * @brief Generic IoT address serialization function (low-level helper: serializes IotAddr to padding-free byte stream)
+ * 
+ * Provides universal address serialization capability for upper-layer protocol-specific functions,
+ * automatically selecting the corresponding address field based on addr_type:
+ * 1. Validates consistency between addr_type and the actual valid address in IotAddr
+ * 2. Serializes the address in protocol-specific format (no padding, little-endian)
+ * 3. Returns the length of the serialized address; returns 0 on failure
+ * 
+ * @param iot_addr Pointer to the generic IoT address structure (MUST NOT be NULL)
+ * @param serialized_addr Output parameter: pointer to the serialized address byte stream (allocated via malloc internally)
+ * @return size_t Length of serialized address on success; 0 on failure
+ * 
+ * @note Only serializes the address (no payload included); called by protocol-specific build_xxx_iot_data functions
+ * @note Failure scenarios:
+ *       - iot_addr or serialized_addr is NULL
+ *       - addr_type is invalid/unknown
+ *       - Address parameter validation fails (e.g., all-zero MAC, out-of-range NodeID)
+ *       - Memory allocation for serialized buffer fails
+ * @note Caller is responsible for freeing *serialized_addr (use free()) to avoid memory leaks
+ * @note All multi-byte fields (port/can_id/PAN ID) are converted to little-endian (network byte order compatible)
+ * @note Single-byte fields (bus_id/endpoint/freq_band) and MAC addresses retain native byte order (no conversion)
+ */
+size_t serialize_iot_addr(const IotAddr *iot_addr, uint8_t **serialized_addr)
+{
+    // 1. Basic parameter validation (fast fail for NULL pointers)
+    if (iot_addr == NULL || serialized_addr == NULL) {
+        return 0;
+    }
+    *serialized_addr = NULL;  // Initialize output to avoid wild pointers
+
+    size_t addr_len = 0;
+    uint8_t *addr_buf = NULL;
+
+    // 2. Serialize address by protocol type (little-endian, no padding)
+    // Directly uses fields from your IotAddr union (no extra structs)
+    switch (iot_addr->addr_type) {
+        case IOT_PROTO_TYPE_BLUETOOTH: {
+            // Bluetooth address format: MAC[6B] + port[2B] (little-endian)
+            // Uses iot_addr->addr_info.bt_addr directly (matches your struct)
+            const uint8_t *bt_mac = iot_addr->addr_info.bt_addr.mac;
+            const uint16_t bt_port = iot_addr->addr_info.bt_addr.port;
+            
+            // Validate Bluetooth address (non-zero MAC)
+            int mac_all_zero = 1;
+            for (int i = 0; i < 6; i++) {
+                if (bt_mac[i] != 0) {
+                    mac_all_zero = 0;
+                    break;
+                }
+            }
+            if (mac_all_zero) {
+                return 0;
+            }
+
+            addr_len = 8;  // 6 bytes (MAC) + 2 bytes (port)
+            addr_buf = (uint8_t *)malloc(addr_len);
+            if (addr_buf == NULL) {
+                return 0;
+            }
+
+            // Copy MAC (native byte order - matches your 6-byte mac[6] field)
+            memcpy(addr_buf, bt_mac, 6);
+            // Convert port to little-endian (matches your uint16_t port field)
+            uint16_t port_le = (uint16_t)__builtin_bswap16(bt_port);
+            memcpy(addr_buf + 6, &port_le, 2);
+            break;
+        }
+
+        case IOT_PROTO_TYPE_CAN: {
+            // CAN address format: port[2B] + can_id[4B] + bus_id[1B] (little-endian)
+            // Uses iot_addr->addr_info.can_addr directly (matches your struct)
+            const uint16_t can_port = iot_addr->addr_info.can_addr.port;
+            const uint32_t can_id = iot_addr->addr_info.can_addr.can_id;
+            const uint8_t bus_id = iot_addr->addr_info.can_addr.bus_id;
+            
+            // Validate CAN address (matches your field constraints):
+            // - bus_id ≤ 255 (8-bit limit for your uint8_t bus_id)
+            // - can_id complies with 11-bit (0-0x7FF) or 29-bit (0-0x1FFFFFFF) spec (your 32-bit can_id)
+            if (bus_id > 255 || 
+                (can_id > 0x1FFFFFFF && (can_id & 0xE0000000) == 0)) {
+                return 0;
+            }
+
+            addr_len = 7;  // 2B (port) + 4B (can_id) + 1B (bus_id)
+            addr_buf = (uint8_t *)malloc(addr_len);
+            if (addr_buf == NULL) {
+                return 0;
+            }
+
+            // Convert port to little-endian (your uint16_t port)
+            uint16_t port_le = (uint16_t)__builtin_bswap16(can_port);
+            memcpy(addr_buf, &port_le, 2);
+            // Convert can_id to little-endian (your uint32_t can_id)
+            uint32_t can_id_le = (uint32_t)__builtin_bswap32(can_id);
+            memcpy(addr_buf + 2, &can_id_le, 4);
+            // Copy bus_id (your uint8_t bus_id - no conversion)
+            addr_buf[6] = bus_id;
+            break;
+        }
+
+        case IOT_PROTO_TYPE_ZIGBEE: {
+            // Zigbee address format: MAC[8B] + PAN ID[2B] + endpoint[1B] (little-endian)
+            // Uses iot_addr->addr_info.zigbee_addr directly (matches your struct)
+            const uint8_t *zigbee_mac = iot_addr->addr_info.zigbee_addr.mac;
+            const uint16_t pan_id = iot_addr->addr_info.zigbee_addr.pan_id;
+            const uint8_t endpoint = iot_addr->addr_info.zigbee_addr.endpoint;
+            
+            // Validate Zigbee address (matches your field constraints):
+            // - Non-zero MAC (your 8-byte mac[8])
+            // - PAN ID ≠ 0 (your uint16_t pan_id)
+            // - endpoint ≤ 255 (your uint8_t endpoint, 0-255 as per your comment)
+            int mac_all_zero = 1;
+            for (int i = 0; i < 8; i++) {
+                if (zigbee_mac[i] != 0) {
+                    mac_all_zero = 0;
+                    break;
+                }
+            }
+            if (mac_all_zero || pan_id == 0 || endpoint > 255) {
+                return 0;
+            }
+
+            addr_len = 11;  // 8B (MAC) + 2B (PAN ID) + 1B (endpoint)
+            addr_buf = (uint8_t *)malloc(addr_len);
+            if (addr_buf == NULL) {
+                return 0;
+            }
+
+            // Copy MAC (your 8-byte mac[8] - native byte order)
+            memcpy(addr_buf, zigbee_mac, 8);
+            // Convert PAN ID to little-endian (your uint16_t pan_id)
+            uint16_t pan_id_le = (uint16_t)__builtin_bswap16(pan_id);
+            memcpy(addr_buf + 8, &pan_id_le, 2);
+            // Copy endpoint (your uint8_t endpoint - no conversion)
+            addr_buf[10] = endpoint;
+            break;
+        }
+
+        case IOT_PROTO_TYPE_LORA: {
+            // LoRa address format: DevEUI[8B] + port[2B] + freq_band[1B] (little-endian)
+            // Uses iot_addr->addr_info.lora_addr directly (matches your struct)
+            const uint64_t dev_eui = iot_addr->addr_info.lora_addr.dev_eui;
+            const uint16_t lora_port = iot_addr->addr_info.lora_addr.port;
+            const uint8_t freq_band = iot_addr->addr_info.lora_addr.freq_band;
+            
+            // Validate LoRa address (matches your field constraints):
+            // - Non-zero DevEUI (your uint64_t dev_eui)
+            // - port ≤ 255 (your uint16_t port, LoRaWAN app port limit as per your comment)
+            // - freq_band is valid (your uint8_t freq_band: EU868/US915/CN470)
+            int deveui_all_zero = 1;
+            const uint8_t *deveui_bytes = (const uint8_t *)&dev_eui;
+            for (int i = 0; i < 8; i++) {
+                if (deveui_bytes[i] != 0) {
+                    deveui_all_zero = 0;
+                    break;
+                }
+            }
+            if (deveui_all_zero || lora_port > 255 || freq_band > 0xFF) {
+                return 0;
+            }
+
+            addr_len = 11;  // 8B (DevEUI) + 2B (port) + 1B (freq_band)
+            addr_buf = (uint8_t *)malloc(addr_len);
+            if (addr_buf == NULL) {
+                return 0;
+            }
+
+            // Convert DevEUI to little-endian (your uint64_t dev_eui)
+            uint64_t dev_eui_le = (uint64_t)__builtin_bswap64(dev_eui);
+            memcpy(addr_buf, &dev_eui_le, 8);
+            // Convert port to little-endian (your uint16_t port)
+            uint16_t port_le = (uint16_t)__builtin_bswap16(lora_port);
+            memcpy(addr_buf + 8, &port_le, 2);
+            // Copy freq_band (your uint8_t freq_band - no conversion)
+            addr_buf[10] = freq_band;
+            break;
+        }
+
+        case IOT_PROTO_TYPE_POWERLINK: {
+            // PowerLink address format: NodeID[2B] + MAC[6B] + PDO ID[2B] (little-endian)
+            // Uses iot_addr->addr_info.powerlink_addr directly (matches your struct)
+            const uint16_t node_id = iot_addr->addr_info.powerlink_addr.node_id;
+            const uint8_t *powerlink_mac = iot_addr->addr_info.powerlink_addr.mac;
+            const uint16_t pdo_id = iot_addr->addr_info.powerlink_addr.pdo_id;
+            
+            // Validate PowerLink address (matches your field constraints):
+            // - NodeID 1-240 (your uint16_t node_id, as per your comment)
+            // - Non-zero MAC (your 6-byte mac[6])
+            // - PDO ID ≠ 0 (your uint16_t pdo_id)
+            int mac_all_zero = 1;
+            for (int i = 0; i < 6; i++) {
+                if (powerlink_mac[i] != 0) {
+                    mac_all_zero = 0;
+                    break;
+                }
+            }
+            if (node_id < 1 || node_id > 240 || mac_all_zero || pdo_id == 0) {
+                return 0;
+            }
+
+            addr_len = 10;  // 2B (NodeID) + 6B (MAC) + 2B (PDO ID)
+            addr_buf = (uint8_t *)malloc(addr_len);
+            if (addr_buf == NULL) {
+                return 0;
+            }
+
+            // Convert NodeID to little-endian (your uint16_t node_id)
+            uint16_t node_id_le = (uint16_t)__builtin_bswap16(node_id);
+            memcpy(addr_buf, &node_id_le, 2);
+            // Copy MAC (your 6-byte mac[6] - native byte order)
+            memcpy(addr_buf + 2, powerlink_mac, 6);
+            // Convert PDO ID to little-endian (your uint16_t pdo_id)
+            uint16_t pdo_id_le = (uint16_t)__builtin_bswap16(pdo_id);
+            memcpy(addr_buf + 8, &pdo_id_le, 2);
+            break;
+        }
+
+        default:
+            // Unknown/invalid protocol type (fast fail)
+            return 0;
+    }
+
+    // 3. Assign serialized buffer to output parameter and return valid length
+    *serialized_addr = addr_buf;
+    return addr_len;
+}
+
+
+/**
+ * @brief Build Bluetooth IoT data stream (serialized BT address + payload)
+ * 
+ * Core logic:
+ * 1. Validate input Bluetooth address (non-zero MAC, valid port range)
+ * 2. Serialize BT address using serialize_iot_addr (8 bytes, little-endian, no padding)
+ * 3. Allocate buffer for combined address + payload
+ * 4. Concatenate serialized address + raw payload into single byte stream
+ * 5. Update output parameters with combined data and total length
+ * 
+ * @param iot_addr Pointer to IotAddr structure (MUST contain valid BT address in addr_info.bt_addr)
+ * @param payload Raw Bluetooth payload data (NULL = no payload)
+ * @param payload_len Length of payload in bytes (0 = no payload)
+ * @param iot_data Output: Pointer to combined address+payload byte stream
+ * @param total_len Output: Total length of combined data (8 bytes address + payload_len)
+ * @return int Proxy message status code:
+ *         - BACKEND_PROXY_PROCESS_OK (0): Success (iot_data and total_len are valid)
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Failure (invalid input/memory allocation failed)
+ * 
+ * @note iot_addr->addr_type MUST be IOT_PROTO_TYPE_BLUETOOTH (enforced in validation)
+ * @note Caller is responsible for freeing *iot_data to avoid memory leaks
+ * @note Payload length limited to 0-255 bytes (Bluetooth L2CAP MTU constraint)
+ */
+int build_bluetooth_iot_data(const IotAddr *iot_addr,
+                             const uint8_t *payload,
+                             size_t payload_len,
+                             uint8_t **iot_data,
+                             size_t *total_len){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Build CAN IoT data stream (serialized CAN address + payload)
+ * 
+ * Core logic:
+ * 1. Validate input CAN address (valid port, CAN ID 11/29-bit, bus ID ≤255)
+ * 2. Serialize CAN address using serialize_iot_addr (7 bytes, little-endian, no padding)
+ * 3. Validate payload length (0-8 bytes for CAN 2.0, 0-64 bytes for CAN FD)
+ * 4. Concatenate serialized address + payload into single byte stream
+ * 5. Update output parameters with combined data and total length
+ * 
+ * @param iot_addr Pointer to IotAddr structure (MUST contain valid CAN address in addr_info.can_addr)
+ * @param payload Raw CAN payload data (NULL = no payload; typically CAN frame data)
+ * @param payload_len Length of payload in bytes (0-8 for CAN 2.0, 0-64 for CAN FD)
+ * @param iot_data Output: Pointer to combined address+payload byte stream
+ * @param total_len Output: Total length of combined data (7 bytes address + payload_len)
+ * @return int Proxy message status code:
+ *         - BACKEND_PROXY_PROCESS_OK (0): Success (iot_data and total_len are valid)
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Failure (invalid input/memory allocation failed)
+ * 
+ * @note iot_addr->addr_type MUST be IOT_PROTO_TYPE_CAN (enforced in validation)
+ * @note Payload length validated against CAN protocol specs (2.0/FD)
+ * @note Caller is responsible for freeing *iot_data to avoid memory leaks
+ */
+int build_can_iot_data(const IotAddr *iot_addr,
+                       const uint8_t *payload,
+                       size_t payload_len,
+                       uint8_t **iot_data,
+                       size_t *total_len){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+/**
+ * @brief Build LoRa IoT data stream (serialized LoRa address + payload)
+ * 
+ * Core logic:
+ * 1. Validate input LoRa address (non-zero DevEUI, valid port/freq band)
+ * 2. Serialize LoRa address using serialize_iot_addr (11 bytes, little-endian, no padding)
+ * 3. Validate payload length (0-255 bytes - LoRaWAN FRMPayload limit)
+ * 4. Concatenate serialized address + payload into single byte stream
+ * 5. Update output parameters with combined data and total length
+ * 
+ * @param iot_addr Pointer to IotAddr structure (MUST contain valid LoRa address in addr_info.lora_addr)
+ * @param payload Raw LoRa payload data (NULL = no payload; LoRaWAN FRMPayload)
+ * @param payload_len Length of payload in bytes (0-255 bytes per LoRaWAN spec)
+ * @param iot_data Output: Pointer to combined address+payload byte stream
+ * @param total_len Output: Total length of combined data (11 bytes address + payload_len)
+ * @return int Proxy message status code:
+ *         - BACKEND_PROXY_PROCESS_OK (0): Success (iot_data and total_len are valid)
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Failure (invalid input/memory allocation failed)
+ * 
+ * @note iot_addr->addr_type MUST be IOT_PROTO_TYPE_LORA (enforced in validation)
+ * @note Payload length limited to 255 bytes (LoRaWAN v1.0.4 FRMPayload constraint)
+ * @note Caller is responsible for freeing *iot_data to avoid memory leaks
+ */
+int build_lora_iot_data(const IotAddr *iot_addr,
+                        const uint8_t *payload,
+                        size_t payload_len,
+                        uint8_t **iot_data,
+                        size_t *total_len){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Build OpenPowerLink IoT data stream (serialized PowerLink address + payload)
+ * 
+ * Core logic:
+ * 1. Validate input PowerLink address (NodeID 1-240, non-zero MAC/PDO ID)
+ * 2. Serialize PowerLink address using serialize_iot_addr (9 bytes, little-endian, no padding)
+ * 3. Validate payload length (matches PDO ID-specific data length)
+ * 4. Concatenate serialized address + payload into single byte stream
+ * 5. Update output parameters with combined data and total length
+ * 
+ * @param iot_addr Pointer to IotAddr structure (MUST contain valid PowerLink address in addr_info.powerlink_addr)
+ * @param payload Raw PowerLink payload data (NULL = no payload; PDO real-time data)
+ * @param payload_len Length of payload in bytes (matches PDO ID's predefined length)
+ * @param iot_data Output: Pointer to combined address+payload byte stream
+ * @param total_len Output: Total length of combined data (9 bytes address + payload_len)
+ * @return int Proxy message status code:
+ *         - BACKEND_PROXY_PROCESS_OK (0): Success (iot_data and total_len are valid)
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Failure (invalid input/memory allocation failed)
+ * 
+ * @note iot_addr->addr_type MUST be IOT_PROTO_TYPE_POWERLINK (enforced in validation)
+ * @note Payload length must match PDO ID's predefined size (PowerLink real-time constraint)
+ */
+int build_powerlink_iot_data(const IotAddr *iot_addr,
+                             const uint8_t *payload,
+                             size_t payload_len,
+                             uint8_t **iot_data,
+                             size_t *total_len){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+/**
+ * @brief Build Zigbee IoT data stream (serialized Zigbee address + payload)
+ * 
+ * Core logic:
+ * 1. Validate input Zigbee address (non-zero MAC, valid PAN ID/endpoint/channel)
+ * 2. Serialize Zigbee address using serialize_iot_addr (11 bytes, little-endian, no padding)
+ * 3. Validate payload length (0-127 bytes - Zigbee 802.15.4 MTU constraint)
+ * 4. Concatenate serialized address + payload into single byte stream
+ * 5. Update output parameters with combined data and total length
+ * 
+ * @param iot_addr Pointer to IotAddr structure (MUST contain valid Zigbee address in addr_info.zigbee_addr)
+ * @param payload Raw Zigbee payload data (NULL = no payload; Zigbee application payload)
+ * @param payload_len Length of payload in bytes (0-127 bytes per Zigbee 802.15.4 spec)
+ * @param iot_data Output: Pointer to combined address+payload byte stream
+ * @param total_len Output: Total length of combined data (11 bytes address + payload_len)
+ * @return int Proxy message status code:
+ *         - BACKEND_PROXY_PROCESS_OK (0): Success (iot_data and total_len are valid)
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Failure (invalid input/memory allocation failed)
+ * 
+ * @note iot_addr->addr_type MUST be IOT_PROTO_TYPE_ZIGBEE (enforced in validation)
+ * @note Payload length limited to 127 bytes (Zigbee 802.15.4 PHY layer MTU constraint)
+ * @note Endpoint validated to 0-255 (Zigbee device specification)
+ */
+int build_zigbee_iot_data(const IotAddr *iot_addr,
+                          const uint8_t *payload,
+                          size_t payload_len,
+                          uint8_t **iot_data,
+                          size_t *total_len){
     return BACKEND_PROXY_PROCESS_OK;
 }

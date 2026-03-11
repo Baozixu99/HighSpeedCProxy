@@ -129,4 +129,40 @@ int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data);
 
+
+size_t get_iot_addr_length(IotProtoType addr_type);
+
+
+size_t serialize_iot_addr(const IotAddr *iot_addr, uint8_t **serialized_addr);
+
+int build_bluetooth_iot_data(const IotAddr *iot_addr,
+                             const uint8_t *payload,
+                             size_t payload_len,
+                             uint8_t **iot_data,
+                             size_t *total_len);
+
+int build_can_iot_data(const IotAddr *iot_addr,
+                       const uint8_t *payload,
+                       size_t payload_len,
+                       uint8_t **iot_data,
+                       size_t *total_len);
+
+int build_lora_iot_data(const IotAddr *iot_addr,
+                        const uint8_t *payload,
+                        size_t payload_len,
+                        uint8_t **iot_data,
+                        size_t *total_len);
+
+int build_powerlink_iot_data(const IotAddr *iot_addr,
+                             const uint8_t *payload,
+                             size_t payload_len,
+                             uint8_t **iot_data,
+                             size_t *total_len);
+
+int build_zigbee_iot_data(const IotAddr *iot_addr,
+                          const uint8_t *payload,
+                          size_t payload_len,
+                          uint8_t **iot_data,
+                          size_t *total_len);
+
 #endif
