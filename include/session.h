@@ -401,8 +401,149 @@ struct name { \
 #endif
 
 
+/**
+ * @brief IoT session link state enumeration
+ */
+typedef enum {
+    IOT_SESS_STATE_UNINIT = 0,    // Session uninitialized
+    IOT_SESS_STATE_LINKED,        // Session linked to IoT device (active)
+    IOT_SESS_STATE_UNLINKED,      // Session unlinked from device (inactive)
+    IOT_SESS_STATE_ERROR          // Session in error state (need reconnection)
+} IotSessLinkState;
+
+/**
+ * @brief IoT session working mode (matches IoT device config)
+ */
+typedef enum {
+    IOT_SESS_MODE_CLIENT = 0,     // Client mode (initiates connection)
+    IOT_SESS_MODE_GATEWAY = 1     // Gateway/server mode (listens for connections)
+} IotSessMode;
+
+
+/**
+ * @brief IoT message queue structure (optimized for IoT small data packets)
+ * @note Simplified version of SessMsgQueue for IoT characteristics
+ */
+typedef struct IotSessMsgQueue_ {
+    void                *msg_buf;    // Message buffer (fixed size for IoT)
+    uint32_t            buf_size;    // Buffer size (e.g., 4096 bytes)
+    uint32_t            msg_count;   // Number of pending messages
+    int                 queue_fd;    // Event fd for queue notification
+} IotSessMsgQueue;
+
+
+
+struct IotMsgBuffer_;
+typedef struct IotMsgBuffer_ IotMsgBuffer;
+/**
+ * @brief IoT backend session object (for Bluetooth/CAN/Zigbee/LoRa/OpenPowerLink)
+ * @note Each IoT device has exactly one corresponding session (1:1 mapping)
+ * @note No session pool required - directly bound to IoT device instance
+ */
+typedef struct IoTBackendSession_ {
+    // 1. Session core identification (1:1 binding with IoT device)
+    int                 sess_type;           // IoT session type (matches protocol type， IotProtoType)
+    int                 dev_id;              // Associated IoT device ID (global unique)
+    int                 sess_id;             // IoT session ID (same as device's sess_id)
+    IotSessMode         working_mode;        // Session working mode (client/gateway)
+    
+    // 2. Link state management (simplified for IoT 1:1 mapping)
+    IotSessLinkState    sess_dev_link_state; // Session-device link state
+    uint64_t            last_link_ts;        // Last link state change timestamp (ms)
+    uint32_t            reconnect_count;     // Reconnection attempt count (for error recovery)
+    
+    // 3. Device association (direct pointer to IoT device object)
+    struct IotDevice_   *bound_dev;          // Pointer to bound IoT device (core association)
+    struct BackendEngine_ *eng;              // Pointer to parent backend engine
+    
+    // 4. Message queues (optimized for IoT small packets)
+    IotSessMsgQueue     msg_dev2eng;         // Device to engine message queue (data report/notify)
+    IotSessMsgQueue     msg_eng2dev;         // Engine to device message queue (control command)
+    
+    // 5. Protocol processing (IoT protocol-specific handler)
+    void                *proto_handler;      // Protocol-specific processing module (e.g., BLE handler)
+    void                *pri_data;           // Private data (protocol-specific context)
+    
+    // 6. Hardware/IO related (IoT device access)
+    int                 dev_fd;              // Bound device file descriptor (same as device's fd)
+    uint32_t            io_timeout;          // IO operation timeout (ms, e.g., 5000)
+    
+    // 7. Statistics (session-level performance metrics)
+    uint64_t            tx_packets;          // Total packets sent via session
+    uint64_t            rx_packets;          // Total packets received via session
+    uint64_t            tx_bytes;            // Total bytes sent
+    uint64_t            rx_bytes;            // Total bytes received
+    uint32_t            error_count;         // Total session errors
+        /**
+     * @brief Send data to remote IoT device/network (protocol-agnostic)
+     * @param sess Pointer to IoTBackendSession instance
+     * @param msg_buf Pointer to IotMsgBuffer (contains data + destination address)
+     * @return int BACKEND_PROXY_PROCESS_OK on success, BACKEND_PROXY_PROCESS_ERROR on failure
+     */
+    int (*send_to_remote)(struct IoTBackendSession_ *sess, const IotMsgBuffer *msg_buf);
+
+    /**
+     * @brief Receive data from remote IoT device/network (protocol-agnostic)
+     * @param sess Pointer to IoTBackendSession instance
+     * @param msg_buf Pointer to IotMsgBuffer (stores data + source address)
+     * @param timeout_ms Timeout in milliseconds (0 = non-blocking, -1 = blocking)
+     * @return int BACKEND_PROXY_PROCESS_OK on success, BACKEND_PROXY_PROCESS_ERROR on failure
+     */
+    int (*recv_from_remote)(struct IoTBackendSession_ *sess, IotMsgBuffer *msg_buf, int timeout_ms);
+    // 8. List linkage (for engine-level session management)
+    TAILQ_ENTRY(IoTBackendSession_) entries; // Linked list node for engine session list
+} IoTBackendSession;
+
+
+int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
+int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
+
+int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
+int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
+
+int zigbee_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
+int zigbee_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
+
+int lora_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
+int lora_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
+
+int powerlink_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
+int powerlink_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
+
+
 int session_send(struct BackendSession* sess, const uint8_t* data, uint32_t size);
 int session_recv(struct BackendSession* sess, uint8_t* data, uint32_t size);
 void delete_session(struct BackendSession* sess);
+
+
+
+struct IotDevice_;
+typedef struct IotDevice_ IotDevice;
+
+IoTBackendSession* iot_sess_init(IotDevice *dev);
+
+int bluetooth_sess_init(IotDevice *dev, IoTBackendSession *sess);
+
+int can_sess_init(IotDevice *dev, IoTBackendSession *sess);
+
+int zigbee_sess_init(IotDevice *dev, IoTBackendSession *sess);
+
+int lora_sess_init(IotDevice *dev, IoTBackendSession *sess);
+
+int powerlink_sess_init(IotDevice *dev, IoTBackendSession *sess);
+
+void iot_sess_destroy(IoTBackendSession *sess);
+
+void bluetooth_sess_cleanup(IoTBackendSession *sess);
+
+void can_sess_cleanup(IoTBackendSession *sess);
+
+void zigbee_sess_cleanup(IoTBackendSession *sess);
+
+void lora_sess_cleanup(IoTBackendSession *sess);
+
+void powerlink_sess_cleanup(IoTBackendSession *sess);
+
+void iot_sess_cleanup_common(IoTBackendSession *sess);
 
 #endif

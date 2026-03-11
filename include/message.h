@@ -635,6 +635,60 @@ typedef struct IotMsgHeader_{
 } __attribute__((packed)) IotMsgHeader;
 
 
+typedef struct IotAddr_ {
+    IotProtoType addr_type;  /**< Protocol type (matches session type) */
+    union {
+        // Bluetooth address (MAC + port/channel)
+        struct {
+            uint8_t mac[6];  /**< Bluetooth MAC address (6 bytes) */
+            uint16_t port;   /**< Bluetooth port/channel number */
+        } bt_addr;
+
+        // CAN address (port + filter ID + bus ID)
+        struct {
+            uint16_t port;   /**< CAN port number */
+            uint32_t can_id; /**< CAN frame ID (11/29-bit) */
+            uint8_t bus_id;  /**< CAN bus ID (for multi-bus systems) */
+        } can_addr;
+
+        // Zigbee address (MAC + PAN ID + endpoint)
+        struct {
+            uint8_t mac[8];  /**< Zigbee 64-bit MAC address */
+            uint16_t pan_id; /**< Zigbee PAN ID */
+            uint8_t endpoint;/**< Zigbee endpoint number (0-255) */
+        } zigbee_addr;
+
+        // LoRa address (DevEUI + port + frequency band)
+        struct {
+            uint64_t dev_eui;/**< LoRa DevEUI (unique device identifier) */
+            uint16_t port;   /**< LoRa application port */
+            uint8_t freq_band;/**< LoRa frequency band (EU868/US915/CN470) */
+        } lora_addr;
+
+        // OpenPowerLink address (NodeID + MAC + PDO ID)
+        struct {
+            uint16_t node_id;/**< PowerLink NodeID (1-240) */
+            uint8_t mac[6];  /**< PowerLink device MAC address */
+            uint16_t pdo_id; /**< PDO ID (Process Data Object identifier) */
+        } powerlink_addr;
+
+        // Raw bytes (fallback for unrecognized protocols)
+        uint8_t raw[16];     /**< Raw address bytes (max 16 bytes) */
+    } addr_info;             /**< Protocol-specific address details */
+} IotAddr;
+
+
+typedef struct IotMsgBuffer_ {
+    uint8_t     *data;           /**< Pointer to raw data buffer */
+    uint32_t    len;             /**< Length of data (bytes) */
+    uint32_t    msg_id;          /**< Unique message ID (for tracking) */
+    uint64_t    timestamp;       /**< Message timestamp (ms since epoch) */
+    IotAddr     addr;            /**< Address info: 
+                                  - Send: Destination address
+                                  - Receive: Source address */
+    void        *ext_info;       /**< Protocol-specific extended info (beyond address) */
+} IotMsgBuffer;
+
 typedef struct{
     ProxyMsgHeader  outer_header;
 //    ProxyMsgType    msg_type;
