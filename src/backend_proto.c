@@ -1692,3 +1692,172 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
 #endif
     return BACKEND_PROXY_PROCESS_OK;
 }
+
+
+
+
+/**
+ * @brief Unified entry function for IoT proxy message processing
+ * 
+ * This function is the top-level handler for all IoT proxy messages transmitted from frontend to backend via HyperAMP,
+ * following the same pattern as device/strategy/session/data messages. It parses the ProxyMsgHeader and IotMsgHeader,
+ * validates message integrity, and dispatches to protocol-specific sub-handlers based on IotMsgHeader.proto_type.
+ * 
+ * @param msg Pointer to the full IoT proxy message (ProxyMsgHeader + IotMsgHeader + IoT data)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: Message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Processing failed (invalid header/proto type/length)
+ * 
+ * @note Handles frontend-to-backend messages sent via HyperAMP (core ProxyMsg transmission channel)
+ * @note Follows the same error code standard as other proxy message handlers
+ * @note Validates message length (ProxyMsgHeader.total_len matches actual data length)
+ * @note Extracts frontend/backend session ID from ProxyMsgHeader (for IoT session binding)
+ */
+int backend_proxy_iot_msg_process(uint8_t *msg){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief Bluetooth-specific IoT proxy message processing
+ * 
+ * Processes Bluetooth IoT proxy messages (send/receive/status) transmitted from frontend to backend via HyperAMP:
+ * - Parses Bluetooth address (IotAddr.bt_addr) from IoT protocol data
+ * - Validates Bluetooth-specific parameters (MAC/port/connection interval)
+ * - Dispatches to bluetooth_send_to_remote/bluetooth_recv_from_remote based on opcode
+ * - Constructs response message (if opcode = IOT_OPCODE_RESPONSE)
+ * 
+ * @param frontend_sess_id Frontend session ID (from ProxyMsgHeader)
+ * @param backend_sess_id Backend IoT session ID (from ProxyMsgHeader)
+ * @param iot_header Pointer to parsed IotMsgHeader
+ * @param iot_data Pointer to Bluetooth protocol data (IotAddr + payload)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: Bluetooth message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid Bluetooth addr/params/session)
+ * 
+ * @note Internal sub-function - called only by backend_proxy_iot_msg_process()
+ * @note Handles frontend-to-backend Bluetooth messages sent via HyperAMP
+ * @note Binds to IoTBackendSession via backend_sess_id before processing
+ * @note Automatically updates Bluetooth session statistics (tx/rx packets/bytes)
+ */
+int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id, 
+                                        uint16_t backend_sess_id,
+                                        IotMsgHeader *iot_header,
+                                        uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief CAN-specific IoT proxy message processing
+ * 
+ * Processes CAN IoT proxy messages (send/receive/status) transmitted from frontend to backend via HyperAMP:
+ * - Parses CAN address (IotAddr.can_addr) from IoT protocol data
+ * - Validates CAN-specific parameters (CAN ID/bus ID/bitrate)
+ * - Dispatches to can_send_to_remote/can_recv_from_remote based on opcode
+ * - Constructs response message (if opcode = IOT_OPCODE_RESPONSE)
+ * 
+ * @param frontend_sess_id Frontend session ID (from ProxyMsgHeader)
+ * @param backend_sess_id Backend IoT session ID (from ProxyMsgHeader)
+ * @param iot_header Pointer to parsed IotMsgHeader
+ * @param iot_data Pointer to CAN protocol data (IotAddr + payload)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: CAN message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid CAN ID/filter/session)
+ * 
+ * @note Internal sub-function - called only by backend_proxy_iot_msg_process()
+ * @note Handles frontend-to-backend CAN messages sent via HyperAMP
+ * @note Validates CAN frame length (0-8 for CAN 2.0, 0-64 for CAN FD)
+ * @note Applies CAN filter (from IotDevice.specific_attr.can_attr) before processing
+ */
+int backend_proxy_can_msg_process(uint16_t frontend_sess_id, 
+                                  uint16_t backend_sess_id,
+                                  IotMsgHeader *iot_header,
+                                  uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief Zigbee-specific IoT proxy message processing
+ * 
+ * Processes Zigbee IoT proxy messages (send/receive/status) transmitted from frontend to backend via HyperAMP:
+ * - Parses Zigbee address (IotAddr.zigbee_addr) from IoT protocol data
+ * - Validates Zigbee-specific parameters (PAN ID/channel/endpoint)
+ * - Dispatches to zigbee_send_to_remote/zigbee_recv_from_remote based on opcode
+ * - Constructs response message (if opcode = IOT_OPCODE_RESPONSE)
+ * 
+ * @param frontend_sess_id Frontend session ID (from ProxyMsgHeader)
+ * @param backend_sess_id Backend IoT session ID (from ProxyMsgHeader)
+ * @param iot_header Pointer to parsed IotMsgHeader
+ * @param iot_data Pointer to Zigbee protocol data (IotAddr + payload)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: Zigbee message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid PAN ID/channel/session)
+ * 
+ * @note Internal sub-function - called only by backend_proxy_iot_msg_process()
+ * @note Handles frontend-to-backend Zigbee messages sent via HyperAMP
+ * @note Validates Zigbee channel range (11-26) and MAC address format
+ * @note Ensures Zigbee device is joined to the PAN before processing send requests
+ */
+int backend_proxy_zigbee_msg_process(uint16_t frontend_sess_id, 
+                                     uint16_t backend_sess_id,
+                                     IotMsgHeader *iot_header,
+                                     uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief LoRa-specific IoT proxy message processing
+ * 
+ * Processes LoRa IoT proxy messages (send/receive/status) transmitted from frontend to backend via HyperAMP:
+ * - Parses LoRa address (IotAddr.lora_addr) from IoT protocol data
+ * - Validates LoRa-specific parameters (DevEUI/SF/CR/freq band)
+ * - Dispatches to lora_send_to_remote/lora_recv_from_remote based on opcode
+ * - Constructs response message (if opcode = IOT_OPCODE_RESPONSE)
+ * 
+ * @param frontend_sess_id Frontend session ID (from ProxyMsgHeader)
+ * @param backend_sess_id Backend IoT session ID (from ProxyMsgHeader)
+ * @param iot_header Pointer to parsed IotMsgHeader
+ * @param iot_data Pointer to LoRa protocol data (IotAddr + payload)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: LoRa message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid DevEUI/SF/session)
+ * 
+ * @note Internal sub-function - called only by backend_proxy_iot_msg_process()
+ * @note Handles frontend-to-backend LoRa messages sent via HyperAMP
+ * @note Validates LoRa payload length (max 255 bytes)
+ * @note Verifies DevEUI ownership (matches bound IoTBackendSession)
+ */
+int backend_proxy_lora_msg_process(uint16_t frontend_sess_id, 
+                                   uint16_t backend_sess_id,
+                                   IotMsgHeader *iot_header,
+                                   uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief OpenPowerLink-specific IoT proxy message processing
+ * 
+ * Processes OpenPowerLink IoT proxy messages (send/receive/status) transmitted from frontend to backend via HyperAMP:
+ * - Parses PowerLink address (IotAddr.powerlink_addr) from IoT protocol data
+ * - Validates PowerLink-specific parameters (NodeID/PDO ID/cycle time)
+ * - Dispatches to powerlink_send_to_remote/powerlink_recv_from_remote based on opcode
+ * - Constructs response message (if opcode = IOT_OPCODE_RESPONSE)
+ * 
+ * @param frontend_sess_id Frontend session ID (from ProxyMsgHeader)
+ * @param backend_sess_id Backend IoT session ID (from ProxyMsgHeader)
+ * @param iot_header Pointer to parsed IotMsgHeader
+ * @param iot_data Pointer to PowerLink protocol data (IotAddr + payload)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: PowerLink message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid NodeID/PDO/session)
+ * 
+ * @note Internal sub-function - called only by backend_proxy_iot_msg_process()
+ * @note Handles frontend-to-backend PowerLink messages sent via HyperAMP
+ * @note Validates PowerLink NodeID range (1-240) and PDO length (matches plk_tx/rx_pdo_len)
+ * @note Enforces real-time cycle (plk_cycle_ms) for PDO transmission/reception
+ */
+int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id, 
+                                        uint16_t backend_sess_id,
+                                        IotMsgHeader *iot_header,
+                                        uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}

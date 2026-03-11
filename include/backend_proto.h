@@ -95,4 +95,38 @@ int backend_proxy_send_sess_standalone_msg_to_frontend_via_shmem(struct BackendE
 
 int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *sess, int sess_msg_type, SessOpRespData *op_resp);
 
+
+
+int backend_proxy_iot_msg_process(uint8_t *msg);
+
+
+int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id, 
+                                        uint16_t backend_sess_id,
+                                        IotMsgHeader *iot_header,
+                                        uint8_t *iot_data);
+
+
+int backend_proxy_can_msg_process(uint16_t frontend_sess_id, 
+                                  uint16_t backend_sess_id,
+                                  IotMsgHeader *iot_header,
+                                  uint8_t *iot_data);
+
+
+int backend_proxy_zigbee_msg_process(uint16_t frontend_sess_id, 
+                                     uint16_t backend_sess_id,
+                                     IotMsgHeader *iot_header,
+                                     uint8_t *iot_data);
+
+
+int backend_proxy_lora_msg_process(uint16_t frontend_sess_id, 
+                                   uint16_t backend_sess_id,
+                                   IotMsgHeader *iot_header,
+                                   uint8_t *iot_data);
+
+
+int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id, 
+                                        uint16_t backend_sess_id,
+                                        IotMsgHeader *iot_header,
+                                        uint8_t *iot_data);
+
 #endif
