@@ -602,36 +602,35 @@ typedef enum {
     IOT_PROTO_TYPE_BLUETOOTH = 1,  // Bluetooth protocol (BLE/Classic Bluetooth)
     IOT_PROTO_TYPE_ZIGBEE,         // Zigbee protocol (802.15.4)
     IOT_PROTO_TYPE_CAN,            // CAN bus protocol (CAN 2.0/CAN FD)
-    IOT_PROTO_TYPE_LORA            // LoRa/LoRaWAN protocol
+    IOT_PROTO_TYPE_LORA,           // LoRa/LoRaWAN protocol
+    IOT_PROTO_TYPE_POWERLINK       // OpenPowerLink (Ethernet POWERLINK) protocol
 } IotProtoType;
-
 
 /**
  * @brief IoT message operation code enumeration
  * @note Defines universal operation semantics for IoT message interaction
  */
 typedef enum {
-    IOT_OPCODE_DATA_REPORT = 0,    // Device actively reports data (receive)
-    IOT_OPCODE_CMD_DOWNLINK,       // Backend sends control command (send)
+    IOT_OPCODE_DATA_REPORT = 0,    // Device actively reports data (receive direction)
+    IOT_OPCODE_CMD_DOWNLINK,       // Backend sends control command (send direction)
     IOT_OPCODE_DEVICE_DISCOVER,    // Discover IoT devices in the network
     IOT_OPCODE_DEVICE_REGISTER,    // Device network access/registration
     IOT_OPCODE_STATUS_QUERY,       // Query device status (connection/signal/power)
     IOT_OPCODE_PROTO_CONFIG,       // Configure IoT protocol parameters
-    IOT_OPCODE_EXCEPTION_NOTIFY    // Report protocol/device exception
+    IOT_OPCODE_EXCEPTION_NOTIFY    // Report protocol/device exception events
 } IotOpcode;
-
 
 /**
  * @brief IoT message header (for PROXY_MSG_TYPE_IOT payload)
- * @note Fixed length: 9 bytes (increased from 8 bytes for version expansion)
- * @note Field order: proto_ver -> proto_type -> opcode -> dev_port_id -> proto_data_len -> reserve
+ * @note Fixed length: 10 bytes (packed structure)
+ * @note Field order: proto_ver -> proto_type -> opcode -> dev_port_id -> payload_len -> reserve
  */
 typedef struct IotMsgHeader_{
-    uint16_t    proto_ver;              // IoT sub-protocol version (fixed: 0x01 for now)
-    uint16_t    proto_type;             // IoT protocol type (Bluetooth/Zigbee/CAN/LoRa)
+    uint16_t    proto_ver;              // IoT sub-protocol version (fixed: 0x01 for current version)
+    uint16_t    proto_type;             // IoT protocol type (Bluetooth/Zigbee/CAN/LoRa/POWERLINK)
     uint16_t    opcode;                 // IoT message operation code
-    uint16_t    dev_port_id;            // Device/port ID (distinguish multi-port/device)
-    uint16_t    payload_len;            // Length of IoT protocol raw data
+    uint16_t    dev_port_id;            // Device/port ID (to distinguish multi-port/device)
+    uint16_t    payload_len;            // Length of IoT protocol raw data payload
     uint16_t    reserve;                // Reserved field (fixed: 0x0000)
 } __attribute__((packed)) IotMsgHeader;
 
