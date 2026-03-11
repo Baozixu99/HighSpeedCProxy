@@ -7,7 +7,7 @@ set -e  # 任何命令失败时立即退出脚本
 
 # 默认配置
 DEFAULT_NETNS="ns1"
-DEFAULT_INTERFACE="veth0"
+DEFAULT_INTERFACE="eth0"
 DEFAULT_IP_CIDR="192.168.1.100/24"
 DEFAULT_GATEWAY="192.168.1.1"
 
@@ -15,7 +15,6 @@ DEFAULT_GATEWAY="192.168.1.1"
 NETNS_NAME=${1:-$DEFAULT_NETNS}
 INTERFACE=${2:-$DEFAULT_INTERFACE}
 
-ip link add veth0 type veth peer name veth1
 
 echo "操作开始: 创建网络命名空间 [$NETNS_NAME] 并移动网卡 [$INTERFACE]"
 
@@ -39,7 +38,7 @@ ip link set "$INTERFACE" netns "$NETNS_NAME" || {
     echo "错误: 移动网卡失败"
     exit 3
 }
-
+sleep 3
 # 配置网络
 echo "3. 配置命名空间内网络"
 ip netns exec "$NETNS_NAME" ip link set lo up
@@ -52,7 +51,7 @@ echo "操作完成:"
 echo "命名空间列表:"
 ip netns list
 echo "网卡 [$INTERFACE] 配置:"
-ip netns exec "$NETNS_NAME" ip addr show dev "$INTERFACE" 
+ip netns exec "$NETNS_NAME" ip addr show dev "$INTERFACE"
 
 echo "使用说明:"
 echo "操作命令: ip netns exec $NETNS_NAME [command]"
