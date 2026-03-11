@@ -788,7 +788,7 @@ IotDevType dev_type_str_to_enum(const char *type_str) {
  * @param status_str String representation of device status (online/offline/error/configuring)
  * @return Corresponding IotDevStatus enum value, IOT_DEV_STATUS_OFFLINE if not matched
  */
-static IotDevStatus dev_status_str_to_enum(const char *status_str) {
+IotDevStatus dev_status_str_to_enum(const char *status_str) {
     if (strcmp(status_str, "online") == 0) return IOT_DEV_STATUS_ONLINE;
     if (strcmp(status_str, "offline") == 0) return IOT_DEV_STATUS_OFFLINE;
     if (strcmp(status_str, "error") == 0) return IOT_DEV_STATUS_ERROR;
@@ -864,7 +864,7 @@ int parse_bluetooth_attr(dictionary *ini, const char *section, BluetoothDevAttr 
  * can_mode = normal
  * can_filter_id = 0x12345678
  */
-static int parse_can_attr(dictionary *ini, const char *section, CANDevAttr *can_attr) {
+int parse_can_attr(dictionary *ini, const char *section, CANDevAttr *can_attr) {
     char key[128];
     snprintf(key, sizeof(key), "%s:can_port", section);
     can_attr->can_port = iniparser_getint(ini, key, 0);
@@ -922,7 +922,7 @@ static int parse_can_attr(dictionary *ini, const char *section, CANDevAttr *can_
  * zigbee_role = coordinator
  * zigbee_mac = 00:12:34:56:78:9A:BC:DE
  */
-static int parse_zigbee_attr(dictionary *ini, const char *section, ZigbeeDevAttr *zigbee_attr) {
+int parse_zigbee_attr(dictionary *ini, const char *section, ZigbeeDevAttr *zigbee_attr) {
     char key[128];
     snprintf(key, sizeof(key), "%s:zigbee_pan_id", section);
     zigbee_attr->zigbee_pan_id = iniparser_getint(ini, key, 0x1234);
@@ -988,7 +988,7 @@ static int parse_zigbee_attr(dictionary *ini, const char *section, ZigbeeDevAttr
  * lora_cr = 1
  * lora_dev_eui = 0011223344556677
  */
-static int parse_lora_attr(dictionary *ini, const char *section, LoRaDevAttr *lora_attr) {
+int parse_lora_attr(dictionary *ini, const char *section, LoRaDevAttr *lora_attr) {
     char key[128];
     snprintf(key, sizeof(key), "%s:lora_port", section);
     lora_attr->lora_port = iniparser_getint(ini, key, 2);
@@ -1032,88 +1032,345 @@ static int parse_lora_attr(dictionary *ini, const char *section, LoRaDevAttr *lo
 
 
 /**
- * @brief Initialize the IoT devices of the backend engine
- * 
- * This function is used to initialize resources related to IoT devices (Bluetooth, CAN, Zigbee, LoRa)
- * in the BackendEngine structure, including but not limited to device parameter configuration loading
- * from INI files, protocol-specific attribute initialization, session queue setup, and device state
- * initialization. It lays the foundation for subsequent interactions with all types of IoT devices.
- * 
- * @param eng [in/out] Pointer to a BackendEngine structure. The function will initialize members
- *                     related to IoT devices (Bluetooth/CAN/Zigbee/LoRa) within this structure.
- * 
+ * @brief Parse OpenPowerLink specific attributes from INI section
+ * @param ini Pointer to iniparser dictionary object
+ * @param section Name of the target INI section (e.g., "device_105")
+ * @param plk_attr Pointer to PowerLinkDevAttr structure to store parsed data
  * @return int Result of the function execution
- *         - BACKEND_PROXY_PROCESS_OK: IoT devices initialized successfully
- *         - BACKEND_PROXY_PROCESS_ERROR: Initialization failed (e.g., invalid config file,
- *                                       memory allocation failure, or protocol-specific init error)
+ *         - BACKEND_PROXY_PROCESS_OK: OpenPowerLink attributes parsed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Parsing failed (e.g., invalid NodeID, unsupported role, invalid MAC address)
  * 
- * @note 1. Before calling this function, ensure that the eng pointer points to a valid BackendEngine
- *          instance to avoid null pointer access.
- *       2. This function depends on the successful loading of IoT device configuration files; ensure
- *          the INI config file path is correctly set in the BackendEngine structure.
- *       3. This function may depend on the initialization of other basic components (e.g., iniparser
- *          library, session management module); it is recommended to call it in the correct initialization
- *          sequence after these components are ready.
- *
- * The IoT device configuration items in the INI file must comply with the following format:
+ * @note The OpenPowerLink specific attributes in INI file must comply with the following format:
  * [device_<dev_id>]
- * dev_id = unique device ID (integer)
- * dev_type = device type (bluetooth/can/zigbee/lora)
- * ns_name = namespace name for device grouping (string)
- * dev_status = device status (online/offline/error/configuring)
- * name = human-readable device name (string)
- * working_mode = device working mode (client/gateway)
- * config_path = path to device-specific config file (string)
- * auto_connect = auto-connect on startup (1=enable, 0=disable)
- * physical_port = physical port number (integer)
- * [Protocol-specific parameters]
- * - Bluetooth: bt_port, bt_version, conn_interval, bt_mac
- * - CAN: can_port, can_bitrate, can_mode, can_filter_id
- * - Zigbee: zigbee_pan_id, zigbee_channel, zigbee_role, zigbee_mac
- * - LoRa: lora_port, lora_freq_band, lora_sf, lora_cr, lora_dev_eui
- *
- * Example (Bluetooth device):
- * [device_101]
- * dev_id = 101
- * dev_type = bluetooth
- * ns_name = iot_bluetooth
- * dev_status = online
- * name = ble_sensor_01
- * working_mode = client
- * config_path = /etc/iot/dev_101.conf
- * auto_connect = 1
- * physical_port = 0
- * bt_port = 18
- * bt_version = 5
- * conn_interval = 50
- * bt_mac = 00:12:34:56:78:9A
- *
- * Example (LoRa device):
- * [device_104]
- * dev_id = 104
- * dev_type = lora
- * ns_name = iot_lora
- * dev_status = online
- * name = lora_endnode_01
- * working_mode = client
- * config_path = /etc/iot/dev_104.conf
- * auto_connect = 1
- * physical_port = 3
- * lora_port = 2
- * lora_freq_band = EU868
- * lora_sf = 9
- * lora_cr = 1
- * lora_dev_eui = 0011223344556677
+ * plk_port = POWERLINK port number (integer, e.g., 0)
+ * plk_node_id = POWERLINK NodeID (integer, 1-240, e.g., 1)
+ * plk_role = POWERLINK device role (string, mn/cn, e.g., mn)
+ * plk_cycle_ms = POWERLINK real-time cycle in milliseconds (integer, 1-10, e.g., 1)
+ * plk_rx_pdo_len = Length of received PDO (integer, e.g., 64)
+ * plk_tx_pdo_len = Length of transmitted PDO (integer, e.g., 64)
+ * plk_mac = POWERLINK device MAC address (string, format: XX:XX:XX:XX:XX:XX, e.g., 00:12:34:56:78:9B)
+ * 
+ * Example:
+ * [device_105]
+ * plk_port = 0
+ * plk_node_id = 1
+ * plk_role = mn
+ * plk_cycle_ms = 1
+ * plk_rx_pdo_len = 64
+ * plk_tx_pdo_len = 64
+ * plk_mac = 00:12:34:56:78:9B
  */
-int engine_init_iot_dev(BackendEngine *eng){
-//    dictionary *ini;
-    parse_can_attr(NULL, NULL, NULL);
-    parse_zigbee_attr(NULL, NULL, NULL);
-    parse_lora_attr(NULL, NULL, NULL);
-    dev_status_str_to_enum(NULL);
+int parse_powerlink_attr(dictionary *ini, const char *section, PowerLinkDevAttr *plk_attr) {
+    char key[128];
+    
+    // Parse plk_port (POWERLINK port number)
+    snprintf(key, sizeof(key), "%s:plk_port", section);
+    plk_attr->plk_port = (uint16_t)iniparser_getint(ini, key, 0);
+
+    // Parse plk_node_id with validation (1-240)
+    snprintf(key, sizeof(key), "%s:plk_node_id", section);
+    plk_attr->plk_node_id = (uint16_t)iniparser_getint(ini, key, 1);
+    if (plk_attr->plk_node_id < 1 || plk_attr->plk_node_id > 240) {
+        fprintf(stderr, "Invalid POWERLINK NodeID %u (must be 1-240) for section: %s\n", plk_attr->plk_node_id, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // Parse plk_role (mn/cn) with validation
+    snprintf(key, sizeof(key), "%s:plk_role", section);
+    const char *role_str = iniparser_getstring(ini, key, "mn");
+    if (strcmp(role_str, "mn") == 0) {
+        plk_attr->plk_role = 0; // MN (Managing Node)
+    } else if (strcmp(role_str, "cn") == 0) {
+        plk_attr->plk_role = 1; // CN (Controlled Node)
+    } else {
+        fprintf(stderr, "Unsupported POWERLINK role '%s' (must be mn/cn) for section: %s\n", role_str, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // Parse plk_cycle_ms with validation (1-10ms)
+    snprintf(key, sizeof(key), "%s:plk_cycle_ms", section);
+    plk_attr->plk_cycle_ms = (uint32_t)iniparser_getint(ini, key, 1);
+    if (plk_attr->plk_cycle_ms < 1 || plk_attr->plk_cycle_ms > 10) {
+        fprintf(stderr, "Invalid POWERLINK cycle %u ms (must be 1-10) for section: %s\n", plk_attr->plk_cycle_ms, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // Parse plk_rx_pdo_len (no strict validation, use common default 64)
+    snprintf(key, sizeof(key), "%s:plk_rx_pdo_len", section);
+    plk_attr->plk_rx_pdo_len = (uint16_t)iniparser_getint(ini, key, 64);
+
+    // Parse plk_tx_pdo_len (no strict validation, use common default 64)
+    snprintf(key, sizeof(key), "%s:plk_tx_pdo_len", section);
+    plk_attr->plk_tx_pdo_len = (uint16_t)iniparser_getint(ini, key, 64);
+
+    // Parse plk_mac with format validation (XX:XX:XX:XX:XX:XX)
+    snprintf(key, sizeof(key), "%s:plk_mac", section);
+    const char *mac_str = iniparser_getstring(ini, key, "00:00:00:00:00:00");
+    if (sscanf(mac_str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+           &plk_attr->plk_mac[0], &plk_attr->plk_mac[1], &plk_attr->plk_mac[2],
+           &plk_attr->plk_mac[3], &plk_attr->plk_mac[4], &plk_attr->plk_mac[5]) != 6) {
+        fprintf(stderr, "Invalid POWERLINK MAC address format for section: %s (expected XX:XX:XX:XX:XX:XX)\n", section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+/**
+ * @brief Initialize IoT devices from INI configuration file (iot_dev.ini)
+ * @param engine Pointer to BackendEngine instance (stores parsed IoT devices in iot_dev_set)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): All devices initialized successfully OR no devices to parse
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Critical error (invalid input/INI load failed/no devices parsed)
+ * 
+ * @note This function:
+ *       1. Allocates IoTDeviceSet memory if not initialized in the engine
+ *       2. Loads and parses all [device_xxx] sections from iot_dev.ini
+ *       3. Parses common device attributes (dev_id, dev_type, ns_name, etc.)
+ *       4. Invokes protocol-specific parse functions (parse_bluetooth_attr, etc.)
+ *       5. Stores parsed data in engine->iot_dev_set
+ *       6. Cleans up iniparser resources after completion
+ * 
+ * @warning Ensure MAX_IOT_DEV_NUM, MAX_DEV_NAME are defined before using this function
+ * @warning Call backend_engine_cleanup_iot_devices() to free allocated memory
+ */
+int backend_engine_init_iot_devices(BackendEngine *engine) {
+    // 1. Validate input parameters
+    if (engine == NULL) {
+        fprintf(stderr, "[ERROR] Invalid BackendEngine pointer (NULL)\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // 2. Initialize IoT device set (allocate memory if not exists)
+    if (engine->iot_dev_set == NULL) {
+        engine->iot_dev_set = (IoTDeviceSet *)calloc(1, sizeof(IoTDeviceSet));
+        if (engine->iot_dev_set == NULL) {
+            fprintf(stderr, "[ERROR] Failed to allocate memory for IoTDeviceSet\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        memset(engine->iot_dev_set, 0, sizeof(IoTDeviceSet));
+    }
+
+    // 3. Load and parse INI configuration file
+    dictionary *ini = iniparser_load("iot_dev.ini");
+    if (ini == NULL) {
+        fprintf(stderr, "[ERROR] Failed to load configuration file: iot_dev.ini\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // 4. Traverse all INI sections (filter [device_xxx] sections)
+    int parsed_dev_count = 0;    // Number of successfully parsed devices
+    int failed_dev_count = 0;    // Number of failed device parses
+    int total_sections = iniparser_getnsec(ini);
+    
+    for (int i = 0; i < total_sections && parsed_dev_count < MAX_IOT_DEV_NUM; i++) {
+        const char *section = iniparser_getsecname(ini, i);
+        if (section == NULL || strncmp(section, "device_", 7) != 0) {
+            continue;  // Skip non-device sections
+        }
+
+        // Initialize current device structure (clear memory)
+        IotDevice *dev = &engine->iot_dev_set->iot_dev[parsed_dev_count];
+        memset(dev, 0, sizeof(IotDevice));
+        dev->dev_type = IOT_DEV_TYPE_UNKNOWN;
+        dev->dev_status = IOT_DEV_STATUS_OFFLINE;
+        dev->sess_id = -1;
+        dev->fd = -1;
+        dev->physical_port = -1;
+        dev->ns_name = NULL;
+
+        // -------------------------- Parse Common Attributes --------------------------
+        char key[128];
+        int parse_successful = 1;
+
+        // 4.1 Parse dev_id (mandatory field)
+        snprintf(key, sizeof(key), "%s:dev_id", section);
+        dev->dev_id = iniparser_getint(ini, key, -1);
+        if (dev->dev_id == -1) {
+            fprintf(stderr, "[WARN] %s: Missing or invalid dev_id (skipping device)\n", section);
+            parse_successful = 0;
+            failed_dev_count++;
+            continue;
+        }
+
+        // 4.2 Parse dev_type (mandatory field)
+        snprintf(key, sizeof(key), "%s:dev_type", section);
+        const char *dev_type_str = iniparser_getstring(ini, key, "unknown");
+        if (strcasecmp(dev_type_str, "bluetooth") == 0) {
+            dev->dev_type = IOT_DEV_TYPE_BLUETOOTH;
+        } else if (strcasecmp(dev_type_str, "zigbee") == 0) {
+            dev->dev_type = IOT_DEV_TYPE_ZIGBEE;
+        } else if (strcasecmp(dev_type_str, "can") == 0) {
+            dev->dev_type = IOT_DEV_TYPE_CAN;
+        } else if (strcasecmp(dev_type_str, "lora") == 0) {
+            dev->dev_type = IOT_DEV_TYPE_LORA;
+        } else if (strcasecmp(dev_type_str, "powerlink") == 0) {
+            dev->dev_type = IOT_DEV_TYPE_POWERLINK;
+        } else {
+            fprintf(stderr, "[WARN] %s: Unsupported dev_type '%s' (skipping device)\n", section, dev_type_str);
+            parse_successful = 0;
+            failed_dev_count++;
+            continue;
+        }
+
+        // 4.3 Parse ns_name (optional, default empty string)
+        snprintf(key, sizeof(key), "%s:ns_name", section);
+        const char *ns_name = iniparser_getstring(ini, key, "");
+        if (strlen(ns_name) > 0) {
+            dev->ns_name = strdup(ns_name);  // Dynamic allocation (free in cleanup)
+            if (dev->ns_name == NULL) {
+                fprintf(stderr, "[WARN] %s: Failed to allocate memory for ns_name (using empty string)\n", section);
+                dev->ns_name = strdup("");
+            }
+        } else {
+            dev->ns_name = strdup("");
+        }
+
+        // 4.4 Parse dev_status (optional, default offline)
+        snprintf(key, sizeof(key), "%s:dev_status", section);
+        const char *status_str = iniparser_getstring(ini, key, "offline");
+        if (strcasecmp(status_str, "online") == 0) {
+            dev->dev_status = IOT_DEV_STATUS_ONLINE;
+        } else if (strcasecmp(status_str, "error") == 0) {
+            dev->dev_status = IOT_DEV_STATUS_ERROR;
+        } else if (strcasecmp(status_str, "configuring") == 0) {
+            dev->dev_status = IOT_DEV_STATUS_CONFIGURING;
+        } else {
+            dev->dev_status = IOT_DEV_STATUS_OFFLINE;
+        }
+
+        // 4.5 Parse device name (optional, default "device_<dev_id>")
+        snprintf(key, sizeof(key), "%s:name", section);
+        const char *dev_name = iniparser_getstring(ini, key, "");
+        if (strlen(dev_name) > 0) {
+            strncpy(dev->name, dev_name, MAX_DEV_NAME - 1);
+        } else {
+            snprintf(dev->name, MAX_DEV_NAME, "device_%d", dev->dev_id);
+        }
+        dev->name[MAX_DEV_NAME - 1] = '\0';
+
+        // 4.6 Parse working_mode (optional, default client/0)
+        snprintf(key, sizeof(key), "%s:working_mode", section);
+        const char *work_mode = iniparser_getstring(ini, key, "client");
+        dev->config.working_mode = (strcasecmp(work_mode, "gateway") == 0 || 
+                                    strcasecmp(work_mode, "server") == 0) ? 1 : 0;
+
+        // 4.7 Parse config_path (optional, default "/etc/iot/dev_<dev_id>.conf")
+        snprintf(key, sizeof(key), "%s:config_path", section);
+        const char *cfg_path = iniparser_getstring(ini, key, "");
+        if (strlen(cfg_path) > 0) {
+            strncpy(dev->config.config_path, cfg_path, sizeof(dev->config.config_path) - 1);
+        } else {
+            snprintf(dev->config.config_path, sizeof(dev->config.config_path), 
+                     "/etc/iot/dev_%d.conf", dev->dev_id);
+        }
+        dev->config.config_path[sizeof(dev->config.config_path) - 1] = '\0';
+
+        // 4.8 Parse auto_connect (optional, default 0)
+        snprintf(key, sizeof(key), "%s:auto_connect", section);
+        dev->config.auto_connect = iniparser_getint(ini, key, 0);
+
+        // 4.9 Parse physical_port (optional, default -1)
+        snprintf(key, sizeof(key), "%s:physical_port", section);
+        dev->physical_port = iniparser_getint(ini, key, -1);
+
+        // -------------------------- Parse Protocol-Specific Attributes --------------------------
+        int proto_parse_result = BACKEND_PROXY_PROCESS_ERROR;
+        switch (dev->dev_type) {
+            case IOT_DEV_TYPE_BLUETOOTH:
+                proto_parse_result = parse_bluetooth_attr(ini, section, &dev->specific_attr.bt_attr);
+                break;
+            case IOT_DEV_TYPE_CAN:
+                proto_parse_result = parse_can_attr(ini, section, &dev->specific_attr.can_attr);
+                break;
+            case IOT_DEV_TYPE_ZIGBEE:
+                proto_parse_result = parse_zigbee_attr(ini, section, &dev->specific_attr.zigbee_attr);
+                break;
+            case IOT_DEV_TYPE_LORA:
+                proto_parse_result = parse_lora_attr(ini, section, &dev->specific_attr.lora_attr);
+                break;
+            case IOT_DEV_TYPE_POWERLINK:
+                proto_parse_result = parse_powerlink_attr(ini, section, &dev->specific_attr.plk_attr);
+                break;
+            default:
+                proto_parse_result = BACKEND_PROXY_PROCESS_ERROR;
+                break;
+        }
+
+        // 4.10 Validate protocol attribute parsing result
+        if (proto_parse_result != BACKEND_PROXY_PROCESS_OK) {
+            fprintf(stderr, "[WARN] %s: Failed to parse %s-specific attributes (skipping device)\n",
+                    section, dev_type_str);
+            // Free allocated memory for current device
+            if (dev->ns_name != NULL) {
+                free(dev->ns_name);
+                dev->ns_name = NULL;
+            }
+            memset(dev, 0, sizeof(IotDevice));
+            failed_dev_count++;
+            parse_successful = 0;
+        }
+
+        // 4.11 Count successfully parsed devices
+        if (parse_successful) {
+            fprintf(stdout, "[INFO] %s: Successfully parsed %s device (dev_id=%d, name=%s)\n",
+                    section, dev_type_str, dev->dev_id, dev->name);
+            parsed_dev_count++;
+        }
+    }
+
+    // 5. Clean up iniparser resources
+    iniparser_freedict(ini);
+
+    // 6. Return standard result codes
+    if (parsed_dev_count == 0) {
+        fprintf(stderr, "[ERROR] No IoT devices were successfully parsed (total failed: %d)\n", failed_dev_count);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    } else {
+        if (failed_dev_count > 0) {
+            fprintf(stdout, "[WARN] Partially successful initialization: %d devices parsed, %d failed\n",
+                    parsed_dev_count, failed_dev_count);
+        } else {
+            fprintf(stdout, "[INFO] All %d IoT devices initialized successfully\n", parsed_dev_count);
+        }
+        return BACKEND_PROXY_PROCESS_OK;
+    }
+}
+
+
+
+/**
+ * @brief Clean up IoT device resources (memory + file descriptors)
+ * @param engine Pointer to BackendEngine instance
+ * 
+ * @note This function complements backend_engine_init_iot_devices()
+ * @note Must be called before destroying the BackendEngine to prevent memory leaks
+ */
+void backend_engine_cleanup_iot_devices(BackendEngine *engine) {
+    if (engine == NULL || engine->iot_dev_set == NULL) {
+        return;
+    }
+
+    // Free dynamically allocated memory for each device
+    for (int i = 0; i < MAX_IOT_DEV_NUM; i++) {
+        IotDevice *dev = &engine->iot_dev_set->iot_dev[i];
+        if (dev->ns_name != NULL) {
+            free(dev->ns_name);
+            dev->ns_name = NULL;
+        }
+        // Close device file descriptor if open
+        if (dev->fd >= 0) {
+            close(dev->fd);
+            dev->fd = -1;
+        }
+        // Clear device structure
+        memset(dev, 0, sizeof(IotDevice));
+    }
+
+    // Free IoT device set memory
+    free(engine->iot_dev_set);
+    engine->iot_dev_set = NULL;
+}
 
 /**
  * @brief Initialize the session pool of the backend engine

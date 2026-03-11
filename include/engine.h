@@ -69,7 +69,7 @@ struct BackendEngOps;
 
 typedef struct BackendEngine_ {
     struct HighSpeedNetDeviceSet    *dev_set;               /**< @brief Pointer to the set of high-speed network devices managed by this engine. */
-    IoTDeviceSet                    *iot_dev_set;           /**< @brief Pointer to the set of IoT devices (Bluetooth/CAN/Zigbee/LoRa) managed by this engine. */
+    IoTDeviceSet                    *iot_dev_set;           /**< @brief Pointer to the set of IoT devices (Bluetooth/CAN/Zigbee/LoRa/OpenPowerLink) managed by this engine. */
     uint16_t                        dev_num;                /**< @brief Number of high-speed network devices in dev_set. */
     uint16_t                        active_mask;            /**< @brief Bitmask indicating which network devices in dev_set are currently active (bit i set => device i is active). */
     struct BackendSessionPool       *sess_pool;             /**< @brief Session pool for managing reusable backend session objects used in connection handling. */
@@ -130,7 +130,8 @@ int engine_init_shared_mem_queue(BackendEngine *eng);
 int engine_init_poller(BackendEngine *eng);
 int engine_init_hyperamp_queue(BackendEngine *eng);
 
-int engine_init_iot_dev(BackendEngine *eng);
+int engine_init_iot_devices(BackendEngine *eng);
+void backend_engine_cleanup_iot_devices(BackendEngine *engine);
 
 
 int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice *hs_dev, int ip_version);

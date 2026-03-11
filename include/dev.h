@@ -253,16 +253,16 @@ do {                                                                           \
 
 
 /**
- * @brief IoT protocol type enumeration (matches IotProtoType in message definition)
+ * @brief IoT device type enumeration (matches IotProtoType in message definition)
  */
 typedef enum {
     IOT_DEV_TYPE_UNKNOWN = 0,    // Unknown IoT device type
     IOT_DEV_TYPE_BLUETOOTH,      // Bluetooth device (BLE/Classic Bluetooth)
     IOT_DEV_TYPE_ZIGBEE,         // Zigbee device (802.15.4)
     IOT_DEV_TYPE_CAN,            // CAN bus device (CAN 2.0/CAN FD)
-    IOT_DEV_TYPE_LORA            // LoRa/LoRaWAN device
+    IOT_DEV_TYPE_LORA,           // LoRa/LoRaWAN device
+    IOT_DEV_TYPE_POWERLINK       // OpenPowerLink (Ethernet POWERLINK) device
 } IotDevType;
-
 
 /**
  * @brief IoT device status enumeration
@@ -270,10 +270,9 @@ typedef enum {
 typedef enum IotDevStatus_{
     IOT_DEV_STATUS_OFFLINE = 0,  // Device offline (disconnected/unavailable)
     IOT_DEV_STATUS_ONLINE,       // Device online (connected/available)
-    IOT_DEV_STATUS_ERROR,        // Device error (fault/abnormal)
-    IOT_DEV_STATUS_CONFIGURING   // Device being configured
+    IOT_DEV_STATUS_ERROR,        // Device error (fault/abnormal state)
+    IOT_DEV_STATUS_CONFIGURING   // Device being configured (temporary state)
 } IotDevStatus;
-
 
 /**
  * @brief Bluetooth device specific parameters
@@ -282,16 +281,15 @@ typedef struct BluetoothDevAttr_{
     uint16_t    bt_port;         // Bluetooth port/channel number
     uint8_t     bt_mac[6];       // Bluetooth MAC address (6 bytes)
     uint8_t     bt_version;      // Bluetooth version (0x01=BLE 5.0, 0x02=BLE 5.1, etc.)
-    uint16_t    conn_interval;   // BLE connection interval (ms)
+    uint16_t    conn_interval;   // BLE connection interval (unit: ms)
 } BluetoothDevAttr;
-
 
 /**
  * @brief CAN device specific parameters
  */
 typedef struct CANDevAttr_{
     uint16_t    can_port;        // CAN port number
-    uint32_t    can_bitrate;     // CAN bus bitrate (bps, e.g., 500000 for 500K)
+    uint32_t    can_bitrate;     // CAN bus bitrate (bps, e.g., 500000 for 500Kbps)
     uint8_t     can_mode;        // CAN mode (0x01=normal, 0x02=loopback, 0x03=silent)
     uint32_t    can_filter_id;   // CAN filter ID (for frame filtering)
 } CANDevAttr;
@@ -301,7 +299,7 @@ typedef struct CANDevAttr_{
  */
 typedef struct ZigbeeDevAttr_{
     uint16_t    zigbee_pan_id;   // Zigbee PAN ID
-    uint8_t     zigbee_channel;  // Zigbee channel (11-26)
+    uint8_t     zigbee_channel;  // Zigbee channel (range: 11-26)
     uint8_t     zigbee_mac[8];   // Zigbee MAC address (8 bytes)
     uint8_t     zigbee_role;     // Zigbee role (0x01=coordinator, 0x02=router, 0x03=end device)
 } ZigbeeDevAttr;
@@ -312,20 +310,33 @@ typedef struct ZigbeeDevAttr_{
 typedef struct LoRaDevAttr_{
     uint16_t    lora_port;       // LoRa port number
     uint8_t     lora_freq_band;  // LoRa frequency band (0x01=EU868, 0x02=US915, 0x03=CN470, etc.)
-    uint8_t     lora_sf;         // LoRa spreading factor (7-12)
-    uint8_t     lora_cr;         // LoRa coding rate (1-4, corresponds to 4/5 ~ 4/8)
+    uint8_t     lora_sf;         // LoRa spreading factor (range: 7-12)
+    uint8_t     lora_cr;         // LoRa coding rate (range: 1-4, corresponds to 4/5 ~ 4/8)
     uint32_t    lora_dev_eui;    // LoRa device EUI (unique identifier)
 } LoRaDevAttr;
 
+/**
+ * @brief OpenPowerLink device specific parameters (Industrial Real-Time Ethernet)
+ */
+typedef struct PowerLinkDevAttr_ {
+    uint16_t    plk_port;        // POWERLINK port number (corresponding to Ethernet interface)
+    uint8_t     plk_mac[6];      // Device MAC address (6 bytes)
+    uint16_t    plk_node_id;     // POWERLINK NodeID (range: 1-240)
+    uint8_t     plk_role;        // POWERLINK role (0: MN (Managing Node), 1: CN (Controlled Node))
+    uint32_t    plk_cycle_ms;    // Real-time cycle time (unit: ms, typically 1~10ms)
+    uint16_t    plk_rx_pdo_len;  // Length of received PDO (Process Data Object)
+    uint16_t    plk_tx_pdo_len;  // Length of transmitted PDO (Process Data Object)
+} PowerLinkDevAttr;
 
 /**
  * @brief Union for IoT device specific attributes (memory optimization)
  */
 typedef union {
-    BluetoothDevAttr    bt_attr; // Bluetooth device attributes
-    CANDevAttr          can_attr;// CAN device attributes
+    BluetoothDevAttr    bt_attr;     // Bluetooth device attributes
+    CANDevAttr          can_attr;    // CAN device attributes
     ZigbeeDevAttr       zigbee_attr; // Zigbee device attributes
     LoRaDevAttr         lora_attr;   // LoRa device attributes
+    PowerLinkDevAttr    plk_attr;    // OpenPowerLink device attributes
 } IotDevSpecificAttr;
 
 /**
@@ -341,7 +352,7 @@ typedef struct IotDevStat_{
 } IotDevStat;
 
 /**
- * @brief IoT device configuration (from config file, initialized on startup)
+ * @brief IoT device configuration (loaded from config file, initialized on startup)
  */
 typedef struct {
     int         working_mode;    // 0=client mode, 1=server/gateway mode
@@ -350,13 +361,13 @@ typedef struct {
 } IotDevConfig;
 
 /**
- * @brief Main structure for IoT device (Bluetooth/CAN/Zigbee/LoRa)
+ * @brief Main structure for IoT device (Bluetooth/CAN/Zigbee/LoRa/POWERLINK)
  * @note Refer to HighSpeedNetDevice design, optimized for IoT characteristics
  */
 typedef struct IotDevice_ {
     // Device identification information
     int                         dev_id;             // Unique device ID (global)
-    IotDevType                  dev_type;           // IoT device type (Bluetooth/CAN/Zigbee/LoRa)
+    IotDevType                  dev_type;           // IoT device type
     char                        *ns_name;           // Namespace name (for device grouping)
     IotDevStatus                dev_status;         // Device online/offline status
 
@@ -365,7 +376,7 @@ typedef struct IotDevice_ {
     IotDevConfig                config;             // Device configuration (from config file)
     IotDevSpecificAttr          specific_attr;      // Protocol-specific attributes
 
-    // Session connection information (simplified for IoT, no multi-protocol queue)
+    // Session connection information
     struct SessionNodeQueue     iot_sess_queue;     // IoT session queue (single queue for simplicity)
     int                         sess_id;            // Associated session ID (initialized on startup)
 
@@ -375,7 +386,8 @@ typedef struct IotDevice_ {
     // Device hardware/port information
     int                         physical_port;      // Physical port number (e.g., /dev/ttyUSB0 mapped to ID)
     int                         fd;                 // Device file descriptor (for hardware access)
-}IotDevice;
+} IotDevice;
+
 
 
 typedef struct IoTDeviceSet_ {
