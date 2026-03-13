@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <limits.h>
+#include <obdcreate/obdcreate.h>
 //------------------------------------------------------------------------------
 // const defines
 //------------------------------------------------------------------------------
@@ -162,8 +163,8 @@ static tOplkError initCn()
     
     // pass selected device name to Edrv
     cnInstance_l.initParam.hwParam.pDevName = "eth0";
-    cnInstance_l.initParam.ipAddress = (0xFFFFFF00 & IP_ADDR) | cnInstance_l.initParam.nodeId;
     cnInstance_l.initParam.nodeId = NODEID;
+    cnInstance_l.initParam.ipAddress = (0xFFFFFF00 & IP_ADDR) | cnInstance_l.initParam.nodeId;
     
     // Set MAC address
     memcpy(cnInstance_l.initParam.aMacAddress, macAddr, sizeof(cnInstance_l.initParam.aMacAddress));
@@ -199,6 +200,19 @@ static tOplkError initCn()
     // Set callback function for events
     cnInstance_l.initParam.pfnCbEvent = eventCallback;
     cnInstance_l.initParam.pfnCbSync = NULL;
+
+    ret = obdcreate_initObd(&cnInstance_l.initParam.obdInitParam);
+    if (ret != kErrorOk)
+    {
+        fprintf(stderr,
+                "obdcreate_initObd() failed with \"%s\" (0x%04x)\n",
+                debugstr_getRetValStr(ret),
+                ret);
+        printf("obdcreate_initObd() failed with \"%s\" (0x%04x)\n",
+                debugstr_getRetValStr(ret), ret);
+        return ret;
+    }
+
 
     ret = oplk_initialize();
     if (ret != kErrorOk)

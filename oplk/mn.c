@@ -10,11 +10,11 @@
 #include <limits.h>
 #include <unistd.h>
 #include <time.h>
-
+#include <obdcreate/obdcreate.h>
 //------------------------------------------------------------------------------
 // const defines
 //------------------------------------------------------------------------------
-#define CYCLE_LEN           UINT_MAX
+#define CYCLE_LEN           50000
 #define NODEID              0xF0                //=> MN
 #define IP_ADDR             0xc0a86401          // 192.168.100.1
 #define SUBNET_MASK         0xFFFFFF00          // 255.255.255.0
@@ -194,6 +194,14 @@ static tOplkError initMn(void)
     mnInstance_l.initParam.pfnCbEvent = eventCallback;
     mnInstance_l.initParam.pfnCbSync  = NULL;
 
+     // Initialize object dictionary
+    ret = obdcreate_initObd(&mnInstance_l.initParam.obdInitParam);
+    if (ret != kErrorOk)
+    {
+        printf("obdcreate_initObd() failed with \"%s\" (0x%04x)\n",
+                debugstr_getRetValStr(ret), ret);
+        return ret;
+    }
 
     // initialize POWERLINK stack
     ret = oplk_initialize();
