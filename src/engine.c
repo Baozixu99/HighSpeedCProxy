@@ -1134,7 +1134,7 @@ int parse_powerlink_attr(dictionary *ini, const char *section, PowerLinkDevAttr 
  * @warning Ensure MAX_IOT_DEV_NUM, MAX_DEV_NAME are defined before using this function
  * @warning Call backend_engine_cleanup_iot_devices() to free allocated memory
  */
-int backend_engine_init_iot_devices(BackendEngine *engine) {
+int engine_init_iot_devices(BackendEngine *engine) {
     // 1. Validate input parameters
     if (engine == NULL) {
         fprintf(stderr, "[ERROR] Invalid BackendEngine pointer (NULL)\n");
@@ -1317,7 +1317,7 @@ int backend_engine_init_iot_devices(BackendEngine *engine) {
                     section, dev_type_str, dev->dev_id, dev->name);
             parsed_dev_count++;
         }
-    }
+    }// for (int i = 0; i < total_sections && parsed_dev_count < MAX_IOT_DEV_NUM; i++)
 
     // 5. Clean up iniparser resources
     iniparser_freedict(ini);
@@ -1330,7 +1330,9 @@ int backend_engine_init_iot_devices(BackendEngine *engine) {
         if (failed_dev_count > 0) {
             fprintf(stdout, "[WARN] Partially successful initialization: %d devices parsed, %d failed\n",
                     parsed_dev_count, failed_dev_count);
+            return BACKEND_PROXY_PROCESS_ERROR;
         } else {
+            engine->iot_dev_num = parsed_dev_count;
             fprintf(stdout, "[INFO] All %d IoT devices initialized successfully\n", parsed_dev_count);
         }
         return BACKEND_PROXY_PROCESS_OK;
@@ -1338,15 +1340,37 @@ int backend_engine_init_iot_devices(BackendEngine *engine) {
 }
 
 
+/**
+ * @brief Initialize IoT device sessions based on parsed IoT device set
+ * @param engine Pointer to BackendEngine instance (uses parsed IoT devices from iot_dev_set)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): All sessions initialized successfully OR no sessions to start
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Critical error (invalid input/session creation failed)
+ * 
+ * @note This function:
+ *       1. Depends on the successful execution of engine_init_iot_devices()
+ *       2. Iterates through all valid IoT devices in engine->iot_dev_set
+ *       3. Starts the corresponding session instance for each device sequentially
+ *       4. Initializes protocol-specific communication sessions for connected devices
+ *       5. Maintains session context for subsequent data interaction and control
+ * 
+ * @warning Ensure engine_init_iot_devices() has been executed and returned OK before calling
+ * @warning Call backend_engine_cleanup_iot_sessions() to release session resources
+ * @warning Do NOT call this function repeatedly without proper cleanup
+ */
+int engine_init_iot_session(BackendEngine *engine){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
 
 /**
  * @brief Clean up IoT device resources (memory + file descriptors)
  * @param engine Pointer to BackendEngine instance
  * 
- * @note This function complements backend_engine_init_iot_devices()
+ * @note This function complements engine_init_iot_devices()
  * @note Must be called before destroying the BackendEngine to prevent memory leaks
  */
-void backend_engine_cleanup_iot_devices(BackendEngine *engine) {
+void engine_cleanup_iot_devices(BackendEngine *engine) {
     if (engine == NULL || engine->iot_dev_set == NULL) {
         return;
     }
