@@ -1719,9 +1719,66 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
  * @warning Session IDs must match the established frontend-backend communication link
  */
 int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t msg_len, uint8_t *msg){
+    IotMsgHeader *iot_msg_hdr;
+    uint8_t      *iot_data;
+    int          ret;
+
+    iot_msg_hdr = (IotMsgHeader *)msg;
+
+    if(NULL == iot_msg_hdr){
+        error_print("backend_proxy_iot_msg_process failed: msg pointer should not be NULL!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    iot_data = msg + sizeof(IotMsgHeader);
+
+    switch(iot_msg_hdr->proto_type){
+        case IOT_DEV_TYPE_BLUETOOTH:
+            if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotBtAddr)){
+                error_print("backend_proxy_iot_msg_process failed: invalid msg_len for Bluetooth protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            ret = backend_proxy_bluetooth_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
+            break;
+        case IOT_DEV_TYPE_CAN:
+            if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotCanAddr)){
+                error_print("backend_proxy_iot_msg_process failed: invalid msg_len for CAN protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            ret = backend_proxy_can_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
+            break;
+        case IOT_DEV_TYPE_ZIGBEE:
+            if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotZigbeeAddr)){
+                error_print("backend_proxy_iot_msg_process failed: invalid msg_len for ZigBee protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            ret = backend_proxy_zigbee_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
+            break;
+        case IOT_DEV_TYPE_LORA:
+            if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotLoraAddr)){
+                error_print("backend_proxy_iot_msg_process failed: invalid msg_len for LoRa protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            ret = backend_proxy_lora_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
+            break;
+        case IOT_DEV_TYPE_POWERLINK:
+            if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotPowerLinkAddr)){
+                error_print("backend_proxy_iot_msg_process failed: invalid msg_len for PowerLink protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            ret = backend_proxy_powerlink_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
+            break;
+        default:
+            error_print("backend_proxy_iot_msg_process failed: unsupported protocol type!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return ret;
 }
 
 /**

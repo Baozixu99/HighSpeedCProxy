@@ -635,48 +635,68 @@ typedef struct IotMsgHeader_{
 } __attribute__((packed)) IotMsgHeader;
 
 
+/* -------------------------- IoT Protocol Address Structures -------------------------- */
+/**
+ * @brief Bluetooth device address (MAC + port/channel)
+ */
+typedef struct {
+    uint8_t mac[6];      /**< Bluetooth MAC address (6 bytes) */
+    uint16_t port;       /**< Bluetooth port/channel number */
+} IotBtAddr;
+
+
+/**
+ * @brief CAN device address (port + CAN ID + bus ID)
+ */
+typedef struct {
+    uint16_t port;       /**< CAN port number */
+    uint32_t can_id;     /**< CAN frame ID (11/29-bit) */
+    uint8_t bus_id;      /**< CAN bus ID (multi-bus system) */
+} IotCanAddr;
+
+/**
+ * @brief ZigBee device address (64-bit MAC + PAN ID + endpoint)
+ */
+typedef struct {
+    uint8_t mac[8];      /**< ZigBee 64-bit extended MAC address */
+    uint16_t pan_id;     /**< ZigBee PAN ID */
+    uint8_t endpoint;    /**< ZigBee endpoint (0~255) */
+} IotZigbeeAddr;
+
+/**
+ * @brief LoRa device address (DevEUI + port + frequency band)
+ */
+typedef struct {
+    uint64_t dev_eui;    /**< LoRa unique device EUI */
+    uint16_t port;       /**< LoRa application port */
+    uint8_t freq_band;   /**< LoRa frequency band (EU868/US915/CN470) */
+} IotLoraAddr;
+
+/**
+ * @brief PowerLink device address (NodeID + MAC + PDO ID)
+ */
+typedef struct {
+    uint16_t node_id;    /**< PowerLink node ID (1~240) */
+    uint8_t mac[6];      /**< PowerLink MAC address */
+    uint16_t pdo_id;     /**< PDO object identifier */
+} IotPowerLinkAddr;
+
+/* -------------------------- Unified IoT Address Structure -------------------------- */
+/**
+ * @brief Unified IoT device address structure (type + union address)
+ */
 typedef struct IotAddr_ {
-    IotProtoType addr_type;  /**< Protocol type (matches session type) */
+    IotProtoType addr_type;      /**< Protocol type (matches session type) */
+
     union {
-        // Bluetooth address (MAC + port/channel)
-        struct {
-            uint8_t mac[6];  /**< Bluetooth MAC address (6 bytes) */
-            uint16_t port;   /**< Bluetooth port/channel number */
-        } bt_addr;
-
-        // CAN address (port + filter ID + bus ID)
-        struct {
-            uint16_t port;   /**< CAN port number */
-            uint32_t can_id; /**< CAN frame ID (11/29-bit) */
-            uint8_t bus_id;  /**< CAN bus ID (for multi-bus systems) */
-        } can_addr;
-
-        // Zigbee address (MAC + PAN ID + endpoint)
-        struct {
-            uint8_t mac[8];  /**< Zigbee 64-bit MAC address */
-            uint16_t pan_id; /**< Zigbee PAN ID */
-            uint8_t endpoint;/**< Zigbee endpoint number (0-255) */
-        } zigbee_addr;
-
-        // LoRa address (DevEUI + port + frequency band)
-        struct {
-            uint64_t dev_eui;/**< LoRa DevEUI (unique device identifier) */
-            uint16_t port;   /**< LoRa application port */
-            uint8_t freq_band;/**< LoRa frequency band (EU868/US915/CN470) */
-        } lora_addr;
-
-        // OpenPowerLink address (NodeID + MAC + PDO ID)
-        struct {
-            uint16_t node_id;/**< PowerLink NodeID (1-240) */
-            uint8_t mac[6];  /**< PowerLink device MAC address */
-            uint16_t pdo_id; /**< PDO ID (Process Data Object identifier) */
-        } powerlink_addr;
-
-        // Raw bytes (fallback for unrecognized protocols)
-        uint8_t raw[16];     /**< Raw address bytes (max 16 bytes) */
-    } addr_info;             /**< Protocol-specific address details */
+        IotBtAddr          bt_addr;        /**< Bluetooth address */
+        IotCanAddr         can_addr;       /**< CAN address */
+        IotZigbeeAddr      zigbee_addr;    /**< ZigBee address */
+        IotLoraAddr        lora_addr;      /**< LoRa address */
+        IotPowerLinkAddr   powerlink_addr; /**< PowerLink address */
+        uint8_t            raw[16];        /**< Raw fallback bytes (max 16 bytes) */
+    } addr_info;
 } IotAddr;
-
 
 typedef struct IotMsgBuffer_ {
     uint8_t     *data;           /**< Pointer to raw data buffer */
