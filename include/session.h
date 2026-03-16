@@ -519,138 +519,128 @@ void delete_session(struct BackendSession* sess);
 
 struct IotDevice_;
 typedef struct IotDevice_ IotDevice;
-
-IoTBackendSession* iot_sess_init(IotDevice *dev);
-
-int bluetooth_sess_init(IotDevice *dev, IoTBackendSession *sess);
-
-int can_sess_init(IotDevice *dev, IoTBackendSession *sess);
-
-int zigbee_sess_init(IotDevice *dev, IoTBackendSession *sess);
-
-int lora_sess_init(IotDevice *dev, IoTBackendSession *sess);
-
-int powerlink_sess_init(IotDevice *dev, IoTBackendSession *sess);
+struct BackendEngine_;
+typedef struct BackendEngine_ BackendEngine;
 
 
-/**
- * @brief Initialize Bluetooth communication session for IoT device
- * @param dev Pointer to IotDevice instance (pre-initialized device)
- * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
- * @return int Execution result
- *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
- *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
- *
- * @note This function only initializes session context, NOT device hardware.
- *       Device initialization is completed in the prior stage.
- *       The memory of IoTBackendSession is pre-allocated, no need to manage.
- *       1. Binds session context to the corresponding Bluetooth device
- *       2. Configures session state and communication parameters
- *       3. Sets up data transceiving logic for the session
- *       4. Prepares session for subsequent data interaction
- *
- * @warning Device hardware initialization must be completed before calling
- * @warning Session memory is managed externally, do not free in this function
- */
 int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess);
 
-/**
- * @brief Initialize CAN bus communication session for IoT device
- * @param dev Pointer to IotDevice instance (pre-initialized device)
- * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
- * @return int Execution result
- *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
- *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
- *
- * @note This function only initializes session context, NOT device hardware.
- *       Device initialization is completed in the prior stage.
- *       The memory of IoTBackendSession is pre-allocated, no need to manage.
- *       1. Binds session context to the corresponding CAN device
- *       2. Configures session state and bus communication parameters
- *       3. Sets up message queue and data processing logic
- *       4. Prepares session for subsequent bus communication
- *
- * @warning Device hardware initialization must be completed before calling
- * @warning Session memory is managed externally, do not free in this function
- */
 int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess);
 
-/**
- * @brief Initialize ZigBee communication session for IoT device
- * @param dev Pointer to IotDevice instance (pre-initialized device)
- * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
- * @return int Execution result
- *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
- *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
- *
- * @note This function only initializes session context, NOT device hardware.
- *       Device initialization is completed in the prior stage.
- *       The memory of IoTBackendSession is pre-allocated, no need to manage.
- *       1. Binds session context to the corresponding ZigBee device
- *       2. Configures session state and network communication parameters
- *       3. Sets up wireless data interaction logic
- *       4. Prepares session for subsequent network communication
- *
- * @warning Device hardware initialization must be completed before calling
- * @warning Session memory is managed externally, do not free in this function
- */
 int engine_init_zigbee_session(IotDevice *dev, IoTBackendSession *sess);
 
-/**
- * @brief Initialize LoRa communication session for IoT device
- * @param dev Pointer to IotDevice instance (pre-initialized device)
- * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
- * @return int Execution result
- *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
- *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
- *
- * @note This function only initializes session context, NOT device hardware.
- *       Device initialization is completed in the prior stage.
- *       The memory of IoTBackendSession is pre-allocated, no need to manage.
- *       1. Binds session context to the corresponding LoRa device
- *       2. Configures session state and long-range communication parameters
- *       3. Sets up uplink/downlink data transfer logic
- *       4. Prepares session for subsequent RF communication
- *
- * @warning Device hardware initialization must be completed before calling
- * @warning Session memory is managed externally, do not free in this function
- */
 int engine_init_lora_session(IotDevice *dev, IoTBackendSession *sess);
 
-/**
- * @brief Initialize PowerLink real-time communication session for IoT device
- * @param dev Pointer to IotDevice instance (pre-initialized device)
- * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
- * @return int Execution result
- *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
- *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
- *
- * @note This function only initializes session context, NOT device hardware.
- *       Device initialization is completed in the prior stage.
- *       The memory of IoTBackendSession is pre-allocated, no need to manage.
- *       1. Binds real-time session context to the corresponding PowerLink device
- *       2. Configures session state and synchronous communication parameters
- *       3. Sets up real-time data buffer and processing logic
- *       4. Prepares session for subsequent industrial Ethernet communication
- *
- * @warning Device hardware initialization must be completed before calling
- * @warning Session memory is managed externally, do not free in this function
- */
 int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess);
 
+void backend_iot_sess_destroy(void);
 
-void iot_sess_destroy(IoTBackendSession *sess);
 
-void bluetooth_sess_cleanup(IoTBackendSession *sess);
 
-void can_sess_cleanup(IoTBackendSession *sess);
+/**
+ * @brief Universal cleanup interface for IoT device backend communication session
+ * @param sess Pointer to pre-allocated IoTBackendSession instance (IoT device only)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): IoT session cleaned up successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Cleanup failed due to invalid input or unknown IoT session type
+ *
+ * @note This function is dedicated for IoT device session cleanup ONLY.
+ *       It is NOT used for IP network device session cleanup.
+ *       Automatically dispatches to protocol-specific handler based on sess_type (paired with IoT device type).
+ *       Only clears IoT session context, state and control flags.
+ *       NO device hardware deinitialization.
+ *       NO memory free operation for IoTBackendSession (memory managed externally).
+ *
+ * @warning This function is the reverse of IoT device session initialization functions
+ * @warning Only for IoT device sessions, DO NOT use for IP network sessions
+ * @warning sess_type must be paired with corresponding IoT device type
+ * @warning Ensure all IoT data interaction completed before calling
+ */
+int backend_cleanup_iot_session(IoTBackendSession *sess);
 
-void zigbee_sess_cleanup(IoTBackendSession *sess);
+/**
+ * @brief Internal cleanup handler for Bluetooth IoT session
+ * @param dev Pointer to IotDevice instance
+ * @param sess Pointer to IoTBackendSession instance
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Bluetooth IoT session cleaned up successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Cleanup failed
+ *
+ * @note Internal handler for Bluetooth IoT session cleanup only.
+ *       Resets session context, state and transceiving flags.
+ *       Device hardware remains initialized.
+ *       No memory free for IoTBackendSession.
+ *
+ * @warning For internal IoT session cleanup only, called by backend_cleanup_iot_session()
+ */
+int cleanup_bluetooth_iot_session(IotDevice *dev, IoTBackendSession *sess);
 
-void lora_sess_cleanup(IoTBackendSession *sess);
+/**
+ * @brief Internal cleanup handler for CAN IoT session
+ * @param dev Pointer to IotDevice instance
+ * @param sess Pointer to IoTBackendSession instance
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): CAN IoT session cleaned up successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Cleanup failed
+ *
+ * @note Internal handler for CAN IoT session cleanup only.
+ *       Resets session context, state and bus communication flags.
+ *       Device hardware remains initialized.
+ *       No memory free for IoTBackendSession.
+ *
+ * @warning For internal IoT session cleanup only, called by backend_cleanup_iot_session()
+ */
+int cleanup_can_iot_session(IotDevice *dev, IoTBackendSession *sess);
 
-void powerlink_sess_cleanup(IoTBackendSession *sess);
+/**
+ * @brief Internal cleanup handler for ZigBee IoT session
+ * @param dev Pointer to IotDevice instance
+ * @param sess Pointer to IoTBackendSession instance
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): ZigBee IoT session cleaned up successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Cleanup failed
+ *
+ * @note Internal handler for ZigBee IoT session cleanup only.
+ *       Resets session context, state and network flags.
+ *       Device hardware remains initialized.
+ *       No memory free for IoTBackendSession.
+ *
+ * @warning For internal IoT session cleanup only, called by backend_cleanup_iot_session()
+ */
+int cleanup_zigbee_iot_session(IotDevice *dev, IoTBackendSession *sess);
 
-void iot_sess_cleanup_common(IoTBackendSession *sess);
+/**
+ * @brief Internal cleanup handler for LoRa IoT session
+ * @param dev Pointer to IotDevice instance
+ * @param sess Pointer to IoTBackendSession instance
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): LoRa IoT session cleaned up successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Cleanup failed
+ *
+ * @note Internal handler for LoRa IoT session cleanup only.
+ *       Resets session context, state and RF communication flags.
+ *       Device hardware remains initialized.
+ *       No memory free for IoTBackendSession.
+ *
+ * @warning For internal IoT session cleanup only, called by backend_cleanup_iot_session()
+ */
+int cleanup_lora_iot_session(IotDevice *dev, IoTBackendSession *sess);
+
+/**
+ * @brief Internal cleanup handler for PowerLink IoT session
+ * @param dev Pointer to IotDevice instance
+ * @param sess Pointer to IoTBackendSession instance
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): PowerLink IoT session cleaned up successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Cleanup failed
+ *
+ * @note Internal handler for PowerLink IoT session cleanup only.
+ *       Resets real-time session context, state and sync flags.
+ *       Device hardware remains initialized.
+ *       No memory free for IoTBackendSession.
+ *
+ * @warning For internal IoT session cleanup only, called by backend_cleanup_iot_session()
+ */
+int cleanup_powerlink_iot_session(IotDevice *dev, IoTBackendSession *sess);
 
 #endif

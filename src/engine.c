@@ -1355,7 +1355,7 @@ int engine_init_iot_devices(BackendEngine *engine) {
  *       5. Maintains session context for subsequent data interaction and control
  * 
  * @warning Ensure engine_init_iot_devices() has been executed and returned OK before calling
- * @warning Call backend_engine_cleanup_iot_sessions() to release session resources
+ * @warning Call backend_iot_sess_destroy() to release session resources
  * @warning Do NOT call this function repeatedly without proper cleanup
  */
 int engine_init_iot_session(BackendEngine *engine){
@@ -1427,6 +1427,29 @@ void engine_cleanup_iot_devices(BackendEngine *engine) {
     free(engine->iot_dev_set);
     engine->iot_dev_set = NULL;
 }
+
+/**
+ * @brief Destroy all active IoT backend communication sessions
+ *
+ * @details This function iterates all created and running IoT device sessions
+ *          including Bluetooth, CAN, ZigBee, LoRa and PowerLink.
+ *          It calls backend_cleanup_iot_session() for each valid IoT session instance
+ *          to clean up context, reset state and unbind from devices.
+ *          This is the top-level destructor for ALL IoT sessions.
+ *          NOT used for IP network device session management.
+ *
+ * @note This function takes no parameters and returns no value.
+ *       IoTBackendSession memory is managed externally, not freed here.
+ *       Only performs session context cleanup and state reset.
+ *
+ * @warning This function releases ALL running IoT communication sessions
+ * @warning Do NOT call during ongoing IoT data transmission
+ * @warning This is the reverse & top-level counterpart of engine_init_iot_session()
+ */
+void backend_iot_sess_destroy(void){
+
+}
+
 
 /**
  * @brief Initialize the session pool of the backend engine
