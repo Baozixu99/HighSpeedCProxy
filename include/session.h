@@ -442,7 +442,7 @@ typedef struct IotMsgBuffer_ IotMsgBuffer;
  */
 typedef struct IoTBackendSession_ {
     // 1. Session core identification (1:1 binding with IoT device)
-    int                 sess_type;           // IoT session type (matches protocol type， IotProtoType)
+    int                 sess_type;           // IoT session type (matches protocol type)
     int                 dev_id;              // Associated IoT device ID (global unique)
     int                 sess_id;             // IoT session ID (same as device's sess_id)
     IotSessMode         working_mode;        // Session working mode (client/gateway)
@@ -531,6 +531,113 @@ int zigbee_sess_init(IotDevice *dev, IoTBackendSession *sess);
 int lora_sess_init(IotDevice *dev, IoTBackendSession *sess);
 
 int powerlink_sess_init(IotDevice *dev, IoTBackendSession *sess);
+
+
+/**
+ * @brief Initialize Bluetooth communication session for IoT device
+ * @param dev Pointer to IotDevice instance (pre-initialized device)
+ * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
+ *
+ * @note This function only initializes session context, NOT device hardware.
+ *       Device initialization is completed in the prior stage.
+ *       The memory of IoTBackendSession is pre-allocated, no need to manage.
+ *       1. Binds session context to the corresponding Bluetooth device
+ *       2. Configures session state and communication parameters
+ *       3. Sets up data transceiving logic for the session
+ *       4. Prepares session for subsequent data interaction
+ *
+ * @warning Device hardware initialization must be completed before calling
+ * @warning Session memory is managed externally, do not free in this function
+ */
+int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess);
+
+/**
+ * @brief Initialize CAN bus communication session for IoT device
+ * @param dev Pointer to IotDevice instance (pre-initialized device)
+ * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
+ *
+ * @note This function only initializes session context, NOT device hardware.
+ *       Device initialization is completed in the prior stage.
+ *       The memory of IoTBackendSession is pre-allocated, no need to manage.
+ *       1. Binds session context to the corresponding CAN device
+ *       2. Configures session state and bus communication parameters
+ *       3. Sets up message queue and data processing logic
+ *       4. Prepares session for subsequent bus communication
+ *
+ * @warning Device hardware initialization must be completed before calling
+ * @warning Session memory is managed externally, do not free in this function
+ */
+int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess);
+
+/**
+ * @brief Initialize ZigBee communication session for IoT device
+ * @param dev Pointer to IotDevice instance (pre-initialized device)
+ * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
+ *
+ * @note This function only initializes session context, NOT device hardware.
+ *       Device initialization is completed in the prior stage.
+ *       The memory of IoTBackendSession is pre-allocated, no need to manage.
+ *       1. Binds session context to the corresponding ZigBee device
+ *       2. Configures session state and network communication parameters
+ *       3. Sets up wireless data interaction logic
+ *       4. Prepares session for subsequent network communication
+ *
+ * @warning Device hardware initialization must be completed before calling
+ * @warning Session memory is managed externally, do not free in this function
+ */
+int engine_init_zigbee_session(IotDevice *dev, IoTBackendSession *sess);
+
+/**
+ * @brief Initialize LoRa communication session for IoT device
+ * @param dev Pointer to IotDevice instance (pre-initialized device)
+ * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
+ *
+ * @note This function only initializes session context, NOT device hardware.
+ *       Device initialization is completed in the prior stage.
+ *       The memory of IoTBackendSession is pre-allocated, no need to manage.
+ *       1. Binds session context to the corresponding LoRa device
+ *       2. Configures session state and long-range communication parameters
+ *       3. Sets up uplink/downlink data transfer logic
+ *       4. Prepares session for subsequent RF communication
+ *
+ * @warning Device hardware initialization must be completed before calling
+ * @warning Session memory is managed externally, do not free in this function
+ */
+int engine_init_lora_session(IotDevice *dev, IoTBackendSession *sess);
+
+/**
+ * @brief Initialize PowerLink real-time communication session for IoT device
+ * @param dev Pointer to IotDevice instance (pre-initialized device)
+ * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
+ *
+ * @note This function only initializes session context, NOT device hardware.
+ *       Device initialization is completed in the prior stage.
+ *       The memory of IoTBackendSession is pre-allocated, no need to manage.
+ *       1. Binds real-time session context to the corresponding PowerLink device
+ *       2. Configures session state and synchronous communication parameters
+ *       3. Sets up real-time data buffer and processing logic
+ *       4. Prepares session for subsequent industrial Ethernet communication
+ *
+ * @warning Device hardware initialization must be completed before calling
+ * @warning Session memory is managed externally, do not free in this function
+ */
+int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess);
+
 
 void iot_sess_destroy(IoTBackendSession *sess);
 

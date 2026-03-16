@@ -1359,6 +1359,38 @@ int engine_init_iot_devices(BackendEngine *engine) {
  * @warning Do NOT call this function repeatedly without proper cleanup
  */
 int engine_init_iot_session(BackendEngine *engine){
+    IotDevice   *iot_dev;
+    int         iot_dev_cnt, iot_dev_num;
+
+    iot_dev_cnt = 0;
+    iot_dev_num = engine->iot_dev_num;
+
+//    set->hs_net_dev[cnt];
+
+    while(iot_dev_cnt < iot_dev_num){
+        iot_dev = &engine->iot_dev_set->iot_dev[iot_dev_cnt];
+
+        if(IOT_DEV_STATUS_ONLINE != iot_dev->dev_status){
+            switch (iot_dev->dev_type) {
+                case IOT_DEV_TYPE_BLUETOOTH:
+                    break;
+                case IOT_DEV_TYPE_CAN:
+                    break;
+                case IOT_DEV_TYPE_ZIGBEE:
+                    break;
+                case IOT_DEV_TYPE_LORA:
+                    break;
+                case IOT_DEV_TYPE_POWERLINK:
+                    break;
+                default:
+                    break;
+
+            } // switch (iot_dev->dev_type)
+        } // if(IOT_DEV_STATUS_ONLINE != iot_dev->dev_status)
+
+        iot_dev_cnt++;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
