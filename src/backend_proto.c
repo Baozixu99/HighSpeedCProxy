@@ -97,12 +97,12 @@ int backend_proxy_msg_process(uint8_t *msg){
         printf("In %s-11\n", __func__);
     }else if(PROXY_MSG_TYPE_IOT == msg_type){
 /*
- * When msg_type is PROXY_MSG_TYPE_IOT, the frontend_sess_id and backend_sess_id should be checked to determine whether the session (if it exists) 
- * is an application session.
+ * When msg_type is PROXY_MSG_TYPE_IOT, execute the backend_proxy_iot_msg_process.
  */
-
+        ret = backend_proxy_iot_msg_process(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
     }else{
-
+        error_print("backend_proxy_msg_process failed: unsupported message type!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     return ret;
@@ -1693,22 +1693,32 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
 
 /**
  * @brief Unified entry function for IoT proxy message processing
- * 
- * This function is the top-level handler for all IoT proxy messages transmitted from frontend to backend via HyperAMP,
- * following the same pattern as device/strategy/session/data messages. It parses the ProxyMsgHeader and IotMsgHeader,
- * validates message integrity, and dispatches to protocol-specific sub-handlers based on IotMsgHeader.proto_type.
- * 
- * @param msg Pointer to the full IoT proxy message (ProxyMsgHeader + IotMsgHeader + IoT data)
+ *
+ * @details This function serves as the top-level unified entry for all IoT proxy message handling.
+ *          It processes messages transmitted from the frontend to the backend through the HyperAMP channel.
+ *          It parses message headers, validates parameters and message integrity,
+ *          and distributes messages to corresponding protocol-specific processing handlers.
+ *
+ * @param frontend_sess_id Frontend session ID for message interaction
+ * @param backend_sess_id Backend session ID for IoT communication matching
+ * @param msg_len Total length of the received IoT proxy message
+ * @param msg Pointer to the complete IoT proxy message data
+ *
  * @return int Processing result
  *         - BACKEND_PROXY_PROCESS_OK: Message processed successfully
- *         - BACKEND_PROXY_PROCESS_ERROR: Processing failed (invalid header/proto type/length)
- * 
- * @note Handles frontend-to-backend messages sent via HyperAMP (core ProxyMsg transmission channel)
- * @note Follows the same error code standard as other proxy message handlers
- * @note Validates message length (ProxyMsgHeader.total_len matches actual data length)
- * @note Extracts frontend/backend session ID from ProxyMsgHeader (for IoT session binding)
+ *         - BACKEND_PROXY_PROCESS_ERROR: Processing failed (invalid parameter/header/type/length)
+ *
+ * @note This is the core unified entry for all IoT-type proxy messages
+ * @note Messages are transmitted from frontend to backend via HyperAMP channel
+ * @note Consists of ProxyMsgHeader, IotMsgHeader and protocol-specific payload data
+ * @note Validates input parameters, message length and header integrity
+ * @note Extracts and uses protocol type to dispatch to corresponding IoT processing logic
+ * @note Adopts consistent error code standards with other proxy message modules
+ *
+ * @warning Ensure the input message pointer and length are valid before invocation
+ * @warning Session IDs must match the established frontend-backend communication link
  */
-int backend_proxy_iot_msg_process(uint8_t *msg){
+int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t msg_len, uint8_t *msg){
 
 
     return BACKEND_PROXY_PROCESS_OK;

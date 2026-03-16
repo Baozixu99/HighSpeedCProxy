@@ -97,7 +97,7 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
 
 
 
-int backend_proxy_iot_msg_process(uint8_t *msg);
+int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t msg_len, uint8_t *msg);
 
 
 int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id, 
