@@ -495,6 +495,13 @@ typedef struct IoTBackendSession_ {
 } IoTBackendSession;
 
 
+extern IoTBackendSession *backend_bluetooth_sess;
+extern IoTBackendSession *backend_can_sess;
+extern IoTBackendSession *backend_zigbee_sess;
+extern IoTBackendSession *backend_lora_sess;
+extern IoTBackendSession *backend_powerlink_sess;
+
+
 int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
 int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
 
