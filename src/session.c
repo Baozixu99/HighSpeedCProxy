@@ -238,6 +238,15 @@ void delete_session(struct BackendSession* sess)
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess){
+    if(NULL == dev || NULL == sess){
+        error_print("engine_init_bluetooth_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess->bound_dev         = dev;
+    sess->send_to_remote    = bluetooth_send_to_remote;
+    sess->recv_from_remote  = bluetooth_recv_from_remote;
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -261,6 +270,15 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess){
+    if(NULL == dev || NULL == sess){
+        error_print("engine_init_can_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess->bound_dev         = dev;
+    sess->send_to_remote    = can_send_to_remote;
+    sess->recv_from_remote  = can_recv_from_remote;
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -284,6 +302,15 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_zigbee_session(IotDevice *dev, IoTBackendSession *sess){
+    if(NULL == dev || NULL == sess){
+        error_print("engine_init_zigbee_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess->bound_dev         = dev;
+    sess->send_to_remote    = zigbee_send_to_remote;
+    sess->recv_from_remote  = zigbee_recv_from_remote;
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -307,6 +334,15 @@ int engine_init_zigbee_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_lora_session(IotDevice *dev, IoTBackendSession *sess){
+    if(NULL == dev || NULL == sess){
+        error_print("engine_init_zigbee_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess->bound_dev         = dev;
+    sess->send_to_remote    = lora_send_to_remote;
+    sess->recv_from_remote  = lora_recv_from_remote;
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -330,6 +366,15 @@ int engine_init_lora_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
+    if(NULL == dev || NULL == sess){
+        error_print("engine_init_powerlink_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess->bound_dev         = dev;
+    sess->send_to_remote    = powerlink_send_to_remote;
+    sess->recv_from_remote  = powerlink_recv_from_remote;
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 

@@ -40,7 +40,7 @@ int backend_proxy_msg_process(uint8_t *msg){
 /*
  * Check the validity of the message length.
  */
-    if(!PROXY_MSG_LEN_VALID(msg_type)){
+    if(!PROXY_MSG_LEN_VALID(msg_len)){
         error_print("Message length error!");
         return BACKEND_PROXY_PROCESS_ERROR;
     }// Unsupported message type.
@@ -83,7 +83,7 @@ int backend_proxy_msg_process(uint8_t *msg){
         printf("In %s-8\n", __func__);
         ret = backend_proxy_sess_msg_process(frontend_sess_id, backend_sess_id, msg_ptr);
         printf("In %s-9\n", __func__);
-    }else{
+    }else if(PROXY_MSG_TYPE_DATA == msg_type){
 /*
  * When msg_type is PROXY_MSG_TYPE_DATA, the frontend_sess_id and backend_sess_id should be checked to determine whether the session (if it exists) 
  * is an application session.
@@ -95,6 +95,14 @@ int backend_proxy_msg_process(uint8_t *msg){
         }
         ret = backend_proxy_data_msg_process(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
         printf("In %s-11\n", __func__);
+    }else if(PROXY_MSG_TYPE_IOT == msg_type){
+/*
+ * When msg_type is PROXY_MSG_TYPE_IOT, the frontend_sess_id and backend_sess_id should be checked to determine whether the session (if it exists) 
+ * is an application session.
+ */
+
+    }else{
+
     }
 
     return ret;
@@ -1701,6 +1709,8 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
  * @note Extracts frontend/backend session ID from ProxyMsgHeader (for IoT session binding)
  */
 int backend_proxy_iot_msg_process(uint8_t *msg){
+
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
