@@ -48,12 +48,15 @@ typedef enum {
  * Safe for use on uncached memory (e.g., FeiTeng Pi platform).
  */
 typedef struct {
-    volatile uint32_t lock_value;     // 0 = unlocked, 1 = locked
-    volatile uint32_t owner_zone_id;  // Zone ID holding the lock (for debugging)
-    volatile uint32_t lock_count;     // Lock acquisition count
+    volatile uint32_t lock_value;       // 0 = 未锁定, 1 = 已锁定
+    volatile uint32_t owner_zone_id;    // 持有锁的 zone ID
+    volatile uint32_t lock_count;       // 加锁次数统计
     volatile uint32_t contention_count; // Lock contention count
-} __attribute__((packed)) HyperampSpinlock;
-
+}__attribute__((aligned(4))) HyperampSpinlock;
+/* 注：移除 __packed__，保留 __aligned(4)：
+ *   - lock_value 必须 4 字节对齐以支持 LDAXR/STXR 指令
+ *   - 4 个 uint32_t 自然对齐，sizeof = 16B，无隐式 padding
+ */
 
 /* ==================== Address Mapping Table Entry ==================== */
 
@@ -104,7 +107,7 @@ typedef struct {
     uint32_t enqueue_count;       ///< Total enqueue operations
     uint32_t dequeue_count;       ///< Total dequeue operations
     
-} __attribute__((packed)) HyperampShmQueue;
+} __attribute__((packed, aligned(4))) HyperampShmQueue;
 
 /* Magic Number Definition */
 #define HYPERAMP_QUEUE_MAGIC        0x48415150  // "HAQP" - HyperAmp Queue Protocol
