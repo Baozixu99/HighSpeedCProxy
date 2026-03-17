@@ -1,4 +1,10 @@
-
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/l2cap.h>
+#include <linux/can.h>
+#include <linux/can/raw.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h> 
 #include "session.h"
 #include "dev.h"
 #include "common_utils.h"
@@ -237,15 +243,49 @@ void delete_session(struct BackendSession* sess)
  * @warning Device hardware initialization must be completed before calling
  * @warning Session memory is managed externally, do not free in this function
  */
-int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess){
-    if(NULL == dev || NULL == sess){
+int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
+    int sk;
+    struct sockaddr_l2 loc_addr;
+
+    // Validate input parameters
+    if (NULL == dev || NULL == sess) {
         error_print("engine_init_bluetooth_session failed: invalid input parameters!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    // Bind device and function pointers to the session
     sess->bound_dev         = dev;
     sess->send_to_remote    = bluetooth_send_to_remote;
     sess->recv_from_remote  = bluetooth_recv_from_remote;
+
+    // 1. Create Socket
+    // Fixed to SOCK_DGRAM for connectionless communication
+    sk = socket(AF_BLUETOOTH, SOCK_DGRAM, BTPROTO_L2CAP);
+    if (sk < 0) {
+        error_print("engine_init_bluetooth_session failed: socket creation failed!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // 2. Configure Local Address
+    // Hardcoded PSM 0x1001
+    loc_addr.l2_family  = AF_BLUETOOTH;
+    bacpy(&loc_addr.l2_bdaddr, BDADDR_ANY); // Bind to all local adapters
+    loc_addr.l2_psm     = htobs(0x1001);        // Hardcoded PSM value
+
+    // 3. Bind the socket (Server Mode Only)
+    // working_mode == 1 indicates the device acts as a server and must bind to the PSM
+    if (1 == dev->config.working_mode) {
+        if (bind(sk, (struct sockaddr *)&loc_addr, sizeof(loc_addr)) < 0) {
+            error_print("engine_init_bluetooth_session failed: bind failed (may require root privileges or PSM is in use)\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }
+
+    // Assign the file descriptor to the session
+    // Note: Remote address is not resolved here. 
+    // The proxy frontend will provide the destination address dynamically during data transmission.
+    sess->dev_fd = sk;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -269,15 +309,75 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Device hardware initialization must be completed before calling
  * @warning Session memory is managed externally, do not free in this function
  */
-int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess){
-    if(NULL == dev || NULL == sess){
+int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
+    int sk;
+    struct sockaddr_can addr;
+    struct ifreq ifr;
+
+    // 1. Validate input parameters
+    if (NULL == dev || NULL == sess) {
         error_print("engine_init_can_session failed: invalid input parameters!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    sess->bound_dev         = dev;
-    sess->send_to_remote    = can_send_to_remote;
-    sess->recv_from_remote  = can_recv_from_remote;
+    // 2. Bind context and function pointers
+    sess->bound_dev = dev;
+    sess->send_to_remote = can_send_to_remote;
+    sess->recv_from_remote = can_recv_from_remote;
+
+    // 3. Create Socket (RAW mode fixed)
+    sk = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+    if (sk < 0) {
+        error_print("engine_init_can_session failed: socket creation failed!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // 4. Prepare Address Structure
+    addr.can_family = AF_CAN;
+    
+    // Fixed Interface Name: "can0"
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, "can0", IFNAMSIZ - 1);
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+
+    // Get Interface Index for "can0"
+    // This is required even if we don't bind immediately, to ensure the interface exists
+    // and to populate addr.can_ifindex for potential future use or sendto.
+    if (ioctl(sk, SIOCGIFINDEX, &ifr) < 0) {
+        error_print("engine_init_can_session failed: interface can0 not found!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    addr.can_ifindex = ifr.ifr_ifindex;
+
+    // 5. Conditional Binding (Mirroring Bluetooth Logic)
+    // Only bind if the device is in Server Mode (working_mode == 1)
+    if (1 == dev->config.working_mode) {
+        if (bind(sk, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            error_print("engine_init_can_session failed: bind failed!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        
+        // Optional: In server mode, we might want to receive all frames
+        setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+    } else {
+        // Client/Proxy Mode:
+        // We do NOT bind. The socket is created and resolved to "can0" index,
+        // but not bound to it. This allows the proxy to send data dynamically
+        // without being stuck in a specific receive context, similar to the 
+        // unbound Bluetooth client socket behavior.
+        // Note: To receive in client mode without bind, specific routing or 
+        // sendto usage is typically required, but this matches the requested pattern.
+        
+        // Even in client mode, if we expect to receive responses on this socket,
+        // we might still need to set filters, but we skip the bind() call.
+        // Clearing filter just in case, though effect without bind varies by driver.
+        setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+    }
+
+    // 6. Assign File Descriptor
+    sess->dev_fd = sk;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
