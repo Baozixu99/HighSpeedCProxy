@@ -1807,6 +1807,23 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
                                         uint16_t backend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data){
+    IoTBackendSession   *iot_sess;
+    IotBtAddr           *bt_addr;
+    uint8_t             *iot_payload;
+//    uint16_t            data_len;
+
+    iot_sess = backend_bluetooth_sess;
+    (void)iot_sess;
+    
+    bt_addr         = (IotBtAddr *)iot_data;
+    iot_payload     = iot_data + sizeof(IotBtAddr);
+
+    (void)bt_addr;
+    (void)iot_payload;
+//    bt_addr->mac;
+//    bt_addr->port;
+
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 

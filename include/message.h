@@ -642,7 +642,7 @@ typedef struct IotMsgHeader_{
 typedef struct {
     uint8_t mac[6];      /**< Bluetooth MAC address (6 bytes) */
     uint16_t port;       /**< Bluetooth port/channel number */
-} IotBtAddr;
+} __attribute__((packed))IotBtAddr;
 
 
 /**
@@ -652,7 +652,7 @@ typedef struct {
     uint16_t port;       /**< CAN port number */
     uint32_t can_id;     /**< CAN frame ID (11/29-bit) */
     uint8_t bus_id;      /**< CAN bus ID (multi-bus system) */
-} IotCanAddr;
+} __attribute__((packed))IotCanAddr;
 
 /**
  * @brief ZigBee device address (64-bit MAC + PAN ID + endpoint)
@@ -661,7 +661,7 @@ typedef struct {
     uint8_t mac[8];      /**< ZigBee 64-bit extended MAC address */
     uint16_t pan_id;     /**< ZigBee PAN ID */
     uint8_t endpoint;    /**< ZigBee endpoint (0~255) */
-} IotZigbeeAddr;
+} __attribute__((packed))IotZigbeeAddr;
 
 /**
  * @brief LoRa device address (DevEUI + port + frequency band)
@@ -670,7 +670,7 @@ typedef struct {
     uint64_t dev_eui;    /**< LoRa unique device EUI */
     uint16_t port;       /**< LoRa application port */
     uint8_t freq_band;   /**< LoRa frequency band (EU868/US915/CN470) */
-} IotLoraAddr;
+} __attribute__((packed))IotLoraAddr;
 
 /**
  * @brief PowerLink device address (NodeID + MAC + PDO ID)
@@ -679,21 +679,40 @@ typedef struct {
     uint16_t node_id;    /**< PowerLink node ID (1~240) */
     uint8_t mac[6];      /**< PowerLink MAC address */
     uint16_t pdo_id;     /**< PDO object identifier */
-} IotPowerLinkAddr;
+} __attribute__((packed))IotPowerLinkAddr;
+
+
+/**
+ * @brief Modbus TCP device address (IPv4 + Port)
+ * 
+ * Note: Modbus TCP addressing relies on the TCP/IP stack.
+ * - IP Address: Target server/client IPv4 address.
+ * - Port: Typically 502 (standard), but can be custom.
+ * - Unit ID is usually part of the PDU payload, not the transport address, 
+ *   so it is not included here to keep the struct compact.
+ */
+typedef struct {
+    uint8_t ip[4];       /**< IPv4 address (e.g., 192.168.1.10) */
+    uint16_t port;       /**< TCP port number (Default: 502) */
+} __attribute__((packed)) IotModbusTcpAddr;
+
 
 /* -------------------------- Unified IoT Address Structure -------------------------- */
 /**
  * @brief Unified IoT device address structure (type + union address)
  */
+/**
+ * @brief Unified IoT device address structure (type + union address)
+ */
 typedef struct IotAddr_ {
     IotProtoType addr_type;      /**< Protocol type (matches session type) */
-
     union {
         IotBtAddr          bt_addr;        /**< Bluetooth address */
         IotCanAddr         can_addr;       /**< CAN address */
         IotZigbeeAddr      zigbee_addr;    /**< ZigBee address */
         IotLoraAddr        lora_addr;      /**< LoRa address */
         IotPowerLinkAddr   powerlink_addr; /**< PowerLink address */
+        IotModbusTcpAddr   modbus_tcp_addr;/**< Modbus TCP address (New) */
         uint8_t            raw[16];        /**< Raw fallback bytes (max 16 bytes) */
     } addr_info;
 } IotAddr;
@@ -734,6 +753,87 @@ typedef enum {
     MEMORY_ALLOC_CALLER,    // Allocated by caller
     MEMORY_ALLOC_AMPQUEUE   // Message is placed directly into the HyperAMP queue
 } MemoryAllocMode;
+
+
+/* -------------------------------------------------------------------------- */
+/*                         Protocol Payload Limits                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @brief Maximum pure payload for Bluetooth (Classic/BLE).
+ * 
+ * Standards Reference:
+ * - BLE: Default ATT MTU is 23 bytes (20 bytes payload). With MTU exchange, 
+ *   it can go up to 247 bytes (244 bytes payload).
+ * - Classic Bluetooth: Varies by L2CAP configuration.
+ * 
+ * Configured Value: 244 bytes (Assumes BLE MTU negotiation enabled).
+ * Adjust to 20 if operating in legacy BLE mode without MTU exchange.
+ */
+#define BACKEND_BLUETOOTH_MAX_PAYLOAD     (244)
+
+/**
+ * @brief Maximum pure payload for ZigBee (IEEE 802.15.4).
+ * 
+ * Standards Reference:
+ * - IEEE 802.15.4 MAC frame max is 127 bytes.
+ * - After subtracting MAC, Network (NWK), and APS headers, the APS payload 
+ *   typically allows ~80 to 100 bytes without fragmentation.
+ * 
+ * Configured Value: 100 bytes (Conservative limit to avoid fragmentation).
+ */
+#define BACKEND_ZIGBEE_MAX_PAYLOAD        (100)
+
+/**
+ * @brief Maximum pure payload for LoRa / LoRaWAN.
+ * 
+ * Standards Reference:
+ * - LoRaWAN payload size depends on Spreading Factor (SF) and regional regulations.
+ * - Typical max payload ranges from 51 bytes (SF12) to 243 bytes (SF7).
+ * 
+ * Configured Value: 222 bytes (Safe upper bound for most SF settings).
+ * Reduce to ~50-60 bytes for long-range/low-data-rate scenarios (SF11/SF12).
+ */
+#define BACKEND_LORA_MAX_PAYLOAD          (222)
+
+/**
+ * @brief Maximum pure payload for PowerLink (Power Line Communication).
+ * 
+ * Standards Reference:
+ * - Depends on specific PLC chipset (e.g., G3-PLC, PRIME, or proprietary).
+ * - High noise environments often require smaller frames for reliability.
+ * 
+ * Configured Value: 128 bytes (Typical value for many PLC applications).
+ * Verify against specific hardware datasheet.
+ */
+#define BACKEND_POWERLINK_MAX_PAYLOAD     (128)
+
+/**
+ * @brief Maximum pure payload for CAN bus.
+ * 
+ * Standards Reference:
+ * - CAN 2.0 (Standard/Extended): Max 8 bytes data field.
+ * - CAN FD (Flexible Data-rate): Max 64 bytes data field.
+ * 
+ * Configured Value: 64 bytes (Assumes CAN FD support).
+ * IMPORTANT: Change to 8 if using legacy CAN 2.0 hardware.
+ */
+#define BACKEND_CAN_MAX_PAYLOAD           (64)
+
+/**
+ * @brief Maximum pure payload for Modbus TCP.
+ * 
+ * Standards Reference:
+ * - Modbus TCP ADU (Application Data Unit) is encapsulated in TCP.
+ * - The MBAP header is 7 bytes.
+ * - While TCP allows large segments, standard Modbus implementations often 
+ *   limit the PDU (Protocol Data Unit) to 253 bytes (0x00FD) to ensure 
+ *   compatibility with embedded devices and avoid TCP fragmentation issues.
+ * - Theoretical max is 65535, but 253 is the de-facto standard safe limit.
+ * 
+ * Configured Value: 253 bytes (Standard Modbus TCP PDU limit).
+ */
+#define BACKEND_MODBUS_TCP_MAX_PAYLOAD    (253)
 
 int build_proxy_general_message(struct BackendEngine_ *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, 
                                 uint8_t **result_msg, MemoryAllocMode alloc_mode, struct SharedMemoryPoolQueue *ring_buf);
