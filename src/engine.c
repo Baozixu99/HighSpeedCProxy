@@ -1152,7 +1152,7 @@ int engine_init_iot_devices(BackendEngine *engine) {
     }
 
     // 3. Load and parse INI configuration file
-    dictionary *ini = iniparser_load("iot_dev.ini");
+    dictionary *ini = iniparser_load(IOT_DEV_CFG);
     if (ini == NULL) {
         fprintf(stderr, "[ERROR] Failed to load configuration file: iot_dev.ini\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -1360,7 +1360,7 @@ int engine_init_iot_devices(BackendEngine *engine) {
  * @warning Do NOT call this function repeatedly without proper cleanup
  * @warning **Only one instance per IoT protocol type is supported in system**
  */
-int engine_init_iot_session(BackendEngine *engine){
+int engine_init_iot_sessions(BackendEngine *engine){
     IotDevice   *iot_dev;
     int         iot_dev_cnt, iot_dev_num, ret;
 
@@ -1376,7 +1376,7 @@ int engine_init_iot_session(BackendEngine *engine){
 
     /* Check for invalid input pointers */
     if (NULL == engine || NULL == engine->iot_dev_set) {
-        error_print("engine_init_iot_session failed: invalid engine pointer!\n");
+        error_print("engine_init_iot_sessions failed: invalid engine pointer!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
@@ -1389,21 +1389,21 @@ int engine_init_iot_session(BackendEngine *engine){
                 case IOT_DEV_TYPE_BLUETOOTH:
                     /* Ensure only ONE Bluetooth device instance is supported */
                     if(NULL != backend_bluetooth_sess){
-                        error_print("engine_init_iot_session failed: only one bluetooth device is supported in backendengine!\n");
+                        error_print("engine_init_iot_sessions failed: only one bluetooth device is supported in backendengine!\n");
                         goto init_iot_sess_error;
                     }
 
                     backend_bluetooth_sess = malloc(sizeof(IoTBackendSession));
 
                     if(NULL == backend_bluetooth_sess){
-                        error_print("engine_init_iot_session failed: insufficient memory for allocating backend_bluetooth_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: insufficient memory for allocating backend_bluetooth_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
                     ret = engine_init_bluetooth_session(iot_dev, backend_bluetooth_sess);
 
                     if(BACKEND_PROXY_PROCESS_OK != ret){
-                        error_print("engine_init_iot_session failed: failed to initialize backend_bluetooth_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: failed to initialize backend_bluetooth_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
@@ -1411,21 +1411,21 @@ int engine_init_iot_session(BackendEngine *engine){
                 case IOT_DEV_TYPE_CAN:
                     /* Ensure only ONE CAN device instance is supported */
                     if(NULL != backend_can_sess){
-                        error_print("engine_init_iot_session failed: only one CAN device is supported in backendengine!\n");
+                        error_print("engine_init_iot_sessions failed: only one CAN device is supported in backendengine!\n");
                         goto init_iot_sess_error;
                     }
 
                     backend_can_sess = malloc(sizeof(IoTBackendSession));
 
                     if(NULL == backend_can_sess){
-                        error_print("engine_init_iot_session failed: insufficient memory for allocating backend_can_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: insufficient memory for allocating backend_can_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
                     ret = engine_init_can_session(iot_dev, backend_can_sess);
 
                     if(BACKEND_PROXY_PROCESS_OK != ret){
-                        error_print("engine_init_iot_session failed: failed to initialize backend_can_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: failed to initialize backend_can_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
@@ -1433,21 +1433,21 @@ int engine_init_iot_session(BackendEngine *engine){
                 case IOT_DEV_TYPE_ZIGBEE:
                     /* Ensure only ONE ZigBee device instance is supported */
                     if(NULL != backend_zigbee_sess){
-                        error_print("engine_init_iot_session failed: only one ZigBee device is supported in backendengine!\n");
+                        error_print("engine_init_iot_sessions failed: only one ZigBee device is supported in backendengine!\n");
                         goto init_iot_sess_error;
                     }
 
                     backend_zigbee_sess = malloc(sizeof(IoTBackendSession));
 
                     if(NULL == backend_zigbee_sess){
-                        error_print("engine_init_iot_session failed: insufficient memory for allocating backend_zigbee_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: insufficient memory for allocating backend_zigbee_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
                     ret = engine_init_zigbee_session(iot_dev, backend_zigbee_sess);
 
                     if(BACKEND_PROXY_PROCESS_OK != ret){
-                        error_print("engine_init_iot_session failed: failed to initialize backend_zigbee_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: failed to initialize backend_zigbee_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
@@ -1455,21 +1455,21 @@ int engine_init_iot_session(BackendEngine *engine){
                 case IOT_DEV_TYPE_LORA:
                     /* Ensure only ONE LoRa device instance is supported */
                     if(NULL != backend_lora_sess){
-                        error_print("engine_init_iot_session failed: only one LoRa device is supported in backendengine!\n");
+                        error_print("engine_init_iot_sessions failed: only one LoRa device is supported in backendengine!\n");
                         goto init_iot_sess_error;
                     }
 
                     backend_lora_sess = malloc(sizeof(IoTBackendSession));
 
                     if(NULL == backend_lora_sess){
-                        error_print("engine_init_iot_session failed: insufficient memory for allocating backend_lora_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: insufficient memory for allocating backend_lora_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
                     ret = engine_init_lora_session(iot_dev, backend_lora_sess);
 
                     if(BACKEND_PROXY_PROCESS_OK != ret){
-                        error_print("engine_init_iot_session failed: failed to initialize backend_lora_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: failed to initialize backend_lora_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
@@ -1477,27 +1477,27 @@ int engine_init_iot_session(BackendEngine *engine){
                 case IOT_DEV_TYPE_POWERLINK:
                     /* Ensure only ONE PowerLink device instance is supported */
                     if(NULL != backend_powerlink_sess){
-                        error_print("engine_init_iot_session failed: only one PowerLink device is supported in backendengine!\n");
+                        error_print("engine_init_iot_sessions failed: only one PowerLink device is supported in backendengine!\n");
                         goto init_iot_sess_error;
                     }
 
                     backend_powerlink_sess = malloc(sizeof(IoTBackendSession));
 
                     if(NULL == backend_powerlink_sess){
-                        error_print("engine_init_iot_session failed: insufficient memory for allocating backend_powerlink_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: insufficient memory for allocating backend_powerlink_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
                     ret = engine_init_powerlink_session(iot_dev, backend_powerlink_sess);
 
                     if(BACKEND_PROXY_PROCESS_OK != ret){
-                        error_print("engine_init_iot_session failed: failed to initialize backend_powerlink_sess instance!\n");
+                        error_print("engine_init_iot_sessions failed: failed to initialize backend_powerlink_sess instance!\n");
                         goto init_iot_sess_error;
                     }
 
                     break;
                 default:
-                    error_print("engine_init_iot_session failed: unsupported device type!\n");
+                    error_print("engine_init_iot_sessions failed: unsupported device type!\n");
                     goto init_iot_sess_error;
 
             } // switch (iot_dev_type)
@@ -1886,6 +1886,20 @@ void engine_init()
 
     if(BACKEND_PROXY_PROCESS_OK != ret){
         error_print("engine_init failed: engine_init_hyperamp_queue returned error!\n");
+        return;
+    }
+
+    ret = engine_init_iot_devices(p_g_bk_eng);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("engine_init failed: engine_init_iot_devices returned error!\n");
+        return;
+    }
+
+    ret = engine_init_iot_sessions(p_g_bk_eng);
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("engine_init failed: engine_init_iot_sessions returned error!\n");
         return;
     }
 /*

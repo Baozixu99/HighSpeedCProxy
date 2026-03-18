@@ -132,7 +132,7 @@ int engine_init_poller(BackendEngine *eng);
 int engine_init_hyperamp_queue(BackendEngine *eng);
 
 int engine_init_iot_devices(BackendEngine *eng);
-int engine_init_iot_session(BackendEngine *eng);
+int engine_init_iot_sessions(BackendEngine *eng);
 
 void engine_cleanup_iot_devices(BackendEngine *engine);
 
