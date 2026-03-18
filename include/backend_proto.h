@@ -10,7 +10,8 @@
 #define PROXY_MSG_TYPE_VALID(x) (((x) == PROXY_MSG_TYPE_DEV)   || \
                                  ((x) == PROXY_MSG_TYPE_STRGY) || \
                                  ((x) == PROXY_MSG_TYPE_SESS)  || \
-                                 ((x) == PROXY_MSG_TYPE_DATA)) 
+                                 ((x) == PROXY_MSG_TYPE_DATA)  || \
+                                 ((x) == PROXY_MSG_TYPE_IOT)) 
 
 #define PROXY_MSG_LEN_VALID(x) (((x) >= PROXY_MSG_MIN_SIZE)   || \
                                  ((x) <= PROXY_MSG_MAX_SIZE))
@@ -129,40 +130,12 @@ int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data);
 
+int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id, 
+                                        uint16_t backend_sess_id,
+                                        IotMsgHeader *iot_header,
+                                        uint8_t *iot_data);
 
 size_t get_iot_addr_length(IotProtoType addr_type);
 
-
-size_t serialize_iot_addr(const IotAddr *iot_addr, uint8_t **serialized_addr);
-
-int build_bluetooth_iot_data(const IotAddr *iot_addr,
-                             const uint8_t *payload,
-                             size_t payload_len,
-                             uint8_t **iot_data,
-                             size_t *total_len);
-
-int build_can_iot_data(const IotAddr *iot_addr,
-                       const uint8_t *payload,
-                       size_t payload_len,
-                       uint8_t **iot_data,
-                       size_t *total_len);
-
-int build_lora_iot_data(const IotAddr *iot_addr,
-                        const uint8_t *payload,
-                        size_t payload_len,
-                        uint8_t **iot_data,
-                        size_t *total_len);
-
-int build_powerlink_iot_data(const IotAddr *iot_addr,
-                             const uint8_t *payload,
-                             size_t payload_len,
-                             uint8_t **iot_data,
-                             size_t *total_len);
-
-int build_zigbee_iot_data(const IotAddr *iot_addr,
-                          const uint8_t *payload,
-                          size_t payload_len,
-                          uint8_t **iot_data,
-                          size_t *total_len);
 
 #endif

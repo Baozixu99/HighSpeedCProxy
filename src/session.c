@@ -751,6 +751,7 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
  * @param timeout_ms Timeout in milliseconds (0 = non-blocking, -1 = blocking)
  * @return int Execution result
  *         - BACKEND_PROXY_PROCESS_OK: Data received successfully
+ *         - BACKEND_PROXY_PROCESS_AGAIN: No data available yet
  *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid param/offline/read error/timeout)
  * 
  * @note Filters duplicate packets using Bluetooth MAC address in addr

@@ -1408,6 +1408,8 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         goto init_iot_sess_error;
                     }
 
+                    backend_bluetooth_sess->eng = engine;
+
                     break;
                 case IOT_DEV_TYPE_CAN:
                     /* Ensure only ONE CAN device instance is supported */
@@ -1429,6 +1431,8 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         error_print("engine_init_iot_sessions failed: failed to initialize backend_can_sess instance!\n");
                         goto init_iot_sess_error;
                     }
+
+                    backend_can_sess->eng = engine;
 
                     break;
                 case IOT_DEV_TYPE_ZIGBEE:
@@ -1452,6 +1456,8 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         goto init_iot_sess_error;
                     }
 
+                    backend_zigbee_sess->eng = engine;
+
                     break;
                 case IOT_DEV_TYPE_LORA:
                     /* Ensure only ONE LoRa device instance is supported */
@@ -1474,6 +1480,8 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         goto init_iot_sess_error;
                     }
 
+                    backend_lora_sess->eng = engine;
+
                     break;
                 case IOT_DEV_TYPE_POWERLINK:
                     /* Ensure only ONE PowerLink device instance is supported */
@@ -1495,6 +1503,8 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         error_print("engine_init_iot_sessions failed: failed to initialize backend_powerlink_sess instance!\n");
                         goto init_iot_sess_error;
                     }
+
+                    backend_powerlink_sess->eng = engine;
 
                     break;
                 case IOT_DEV_TYPE_MODBUSTCP:
@@ -2337,17 +2347,33 @@ void engine_listener_run(struct BackendEngine_ *eng){
  * @see TAILQ_FOREACH_SAFE
  */
 void engine_iot_bluetooth_run(IoTBackendSession *sess){
-    int         rcv_size;
-    uint8_t     data[1024];
+    utils_print("In %s\n", __func__);
+    int                     ret;
+    uint8_t                 data[1024];
+    IotMsgBuffer            msg_buf;
+    GeneralProxyMsgHeader   proxy_msg_hdr;
 
-    if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+    do{
+        memset(&msg_buf, 0, sizeof(IotMsgBuffer));
         memset(data, 0, sizeof(data));
-        rcv_size = read(sess->dev_fd, data, sizeof(data) -1 );
+        msg_buf.data = data;
 
-        if(rcv_size > 0){
-            
+        ret = sess->recv_from_remote(sess, &msg_buf, 0);
+
+        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            error_print("engine_iot_bluetooth_run returned: no bluetooth data available yet!\n");
+            return;
+        }else if(BACKEND_PROXY_PROCESS_ERROR){
+            error_print("engine_iot_bluetooth_run failed: receive bluetooth data error!\n");
+        }else{
+            memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
+            proxy_msg_hdr.outer_header.frontend_sess_id = 0;
+            proxy_msg_hdr.outer_header.backend_sess_id = 0;
+            proxy_msg_hdr.outer_header.proxy_msg_type = PROXY_MSG_TYPE_IOT;
         }
-    }
+
+    }while(BACKEND_PROXY_PROCESS_OK == ret);
+
 }
 
 
