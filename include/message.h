@@ -603,7 +603,8 @@ typedef enum {
     IOT_PROTO_TYPE_ZIGBEE,         // Zigbee protocol (802.15.4)
     IOT_PROTO_TYPE_CAN,            // CAN bus protocol (CAN 2.0/CAN FD)
     IOT_PROTO_TYPE_LORA,           // LoRa/LoRaWAN protocol
-    IOT_PROTO_TYPE_POWERLINK       // OpenPowerLink (Ethernet POWERLINK) protocol
+    IOT_PROTO_TYPE_POWERLINK,      // OpenPowerLink (Ethernet POWERLINK) protocol
+    IOT_PROTO_TYPE_MODBUSTCP       // OpenPowerLink (Ethernet POWERLINK) protocol
 } IotProtoType;
 
 /**
@@ -627,7 +628,7 @@ typedef enum {
  */
 typedef struct IotMsgHeader_{
     uint16_t    proto_ver;              // IoT sub-protocol version (fixed: 0x01 for current version)
-    uint16_t    proto_type;             // IoT protocol type (Bluetooth/Zigbee/CAN/LoRa/POWERLINK)
+    uint16_t    proto_type;             // IoT protocol type (Bluetooth/Zigbee/CAN/LoRa/POWERLINK/MODBUS)
     uint16_t    opcode;                 // IoT message operation code
     uint16_t    dev_port_id;            // Device/port ID (to distinguish multi-port/device)
     uint16_t    payload_len;            // Length of IoT protocol raw data payload

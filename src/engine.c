@@ -2336,7 +2336,19 @@ void engine_listener_run(struct BackendEngine_ *eng){
  * @see engine_iot_dev_run()
  * @see TAILQ_FOREACH_SAFE
  */
-void engine_iot_bluetooth_run(IoTBackendSession *sess){}
+void engine_iot_bluetooth_run(IoTBackendSession *sess){
+    int         rcv_size;
+    uint8_t     data[1024];
+
+    if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+        memset(data, 0, sizeof(data));
+        rcv_size = read(sess->dev_fd, data, sizeof(data) -1 );
+
+        if(rcv_size > 0){
+            
+        }
+    }
+}
 
 
 
