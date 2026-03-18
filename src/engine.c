@@ -1497,6 +1497,13 @@ int engine_init_iot_sessions(BackendEngine *engine){
                     }
 
                     break;
+                case IOT_DEV_TYPE_MODBUSTCP:
+                    /* Ensure only ONE PowerLink device instance is supported */
+                    if(NULL != backend_modbustcp_sess){
+                        error_print("engine_init_iot_sessions failed: only one modbusTCP device is supported in backendengine!\n");
+                        goto init_iot_sess_error;
+                    }
+                    break;
                 default:
                     error_print("engine_init_iot_sessions failed: unsupported device type!\n");
                     goto init_iot_sess_error;
@@ -2275,6 +2282,288 @@ void engine_listener_run(struct BackendEngine_ *eng){
 
 }
 
+
+/**
+ * @brief Core execution loop for Bluetooth L2CAP session data ingestion and command forwarding.
+ * 
+ * This function drives the southbound data pipeline for the **Bluetooth** protocol within the BackendEngine.
+ * It accesses the specific `IoTBackendSession` instance configured for Bluetooth (SOCK_SEQPACKET/L2CAP),
+ * extracts raw L2CAP payloads, converts them into standardized backend proxy messages, and enqueues
+ * them into the HyperAMP shared memory TX queue.
+ * 
+ * @param sess Pointer to the active IoTBackendSession instance for Bluetooth, containing the listening 
+ *             or connected socket descriptors and client list.
+ * 
+ * @details The function executes a cyclic process focused on "Bluetooth-Device-to-Proxy" data flow:
+ * 
+ * 1. **Connection Management & Data Extraction**:
+ *    - **Server Mode**: Iterates the session's client list (`sock_list`) using `accept()` (non-blocking) 
+ *      to handle new incoming L2CAP connections on the configured PSM. Manages the linked list of 
+ *      connected clients (`IotSockNode`).
+ *    - **Client Mode**: Monitors the single active L2CAP connection for incoming packets.
+ *    - Extracts raw payloads from L2CAP channels (SOCK_SEQPACKET), preserving message boundaries.
+ *      - Handles BLE GATT notifications/indications if mapped to L2CAP.
+ *      - Reads classic Bluetooth L2CAP data packets.
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Transforms raw L2CAP data into the unified **Backend Proxy Protocol** format.
+ *    - Encapsulates payload with:
+ *      - Session ID / Bluetooth MAC Address (BD_ADDR).
+ *      - Protocol Type Indicator: `PROTOCOL_BLUETOOTH_L2CAP`.
+ *      - PSM (Protocol/Service Multiplexer) value and Channel ID (CID) if available.
+ *      - Timestamp and QoS flags.
+ * 
+ * 3. **Direct Enqueueing to HyperAMP TX Queue**:
+ *    - Constructs the proxy message buffer and **directly inserts** it into the global 
+ *      **HyperAMP Shared Memory TX Queue**.
+ *    - Bypasses intermediate per-session B2F queues for low-to-moderate latency requirements.
+ * 
+ * 4. **Downlink Command Execution (Frontend-to-Bluetooth)**:
+ *    - Checks the HyperAMP RX Queue for control commands targeted at this Bluetooth session.
+ *    - Decapsulates commands and writes raw data directly to the corresponding socket:
+ *      - Sends L2CAP packets to specific connected clients (Server mode) or the remote device (Client mode).
+ *      - Handles disconnection logic if `send()` fails (e.g., remote device out of range).
+ * 
+ * 5. **Session State Maintenance**:
+ *    - Monitors L2CAP link health (socket readability/writeability).
+ *    - Cleans up disconnected clients from the `sock_list` using `TAILQ_FOREACH_SAFE`.
+ *    - Generates session-close proxy messages upon disconnection events.
+ * 
+ * @note Uses `SOCK_SEQPACKET` to maintain L2CAP packet boundaries inherently.
+ * @note Supports both Server (listening on PSM) and Client (connecting to BD_ADDR) modes.
+ * @warning Ensure the session socket is set to non-blocking mode to prevent stalling the engine loop.
+ * 
+ * @see engine_iot_dev_run()
+ * @see TAILQ_FOREACH_SAFE
+ */
+void engine_iot_bluetooth_run(IoTBackendSession *sess){}
+
+
+
+/**
+ * @brief Core execution loop for CAN bus session data ingestion and frame forwarding.
+ * 
+ * This function drives the southbound data pipeline for the **CAN/CAN-FD** protocol. It accesses
+ * the `IoTBackendSession` bound to a SocketCAN interface (e.g., `can0`), reads raw CAN frames,
+ * converts them into standardized proxy messages, and enqueues them into the HyperAMP TX queue.
+ * 
+ * @param sess Pointer to the active IoTBackendSession instance for CAN, holding the PF_CAN socket.
+ * 
+ * @details The function executes a cyclic process for "CAN-Bus-to-Proxy" data flow:
+ * 
+ * 1. **Frame Extraction**:
+ *    - Reads raw `struct can_frame` or `struct canfd_frame` from the SocketCAN socket.
+ *    - Extracts critical fields: Arbitration ID (Standard/Extended), DLC (Data Length Code), 
+ *      Data payload, and Flags (RTR, EDF for FD frames).
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Encapsulates CAN data into the **Backend Proxy Protocol**.
+ *    - Headers include:
+ *      - Interface Name (e.g., "can0").
+ *      - Protocol Type: `PROTOCOL_CAN` or `PROTOCOL_CANFD`.
+ *      - CAN ID (29-bit or 11-bit), DLC, and Error State indicators.
+ * 
+ * 3. **Direct Enqueueing**:
+ *    - Inserts the formatted message directly into the **HyperAMP Shared Memory TX Queue**.
+ * 
+ * 4. **Downlink Command Execution**:
+ *    - Retrieves commands from the HyperAMP RX Queue.
+ *    - Constructs `can_frame` structures from the payload and writes them to the SocketCAN interface.
+ *    - Supports sending Standard and Extended ID frames, and Remote Transmission Requests (RTR).
+ * 
+ * 5. **Interface Monitoring**:
+ *    - Detects BUS-OFF states or interface down events.
+ *    - Handles reconnection if the CAN interface is restarted.
+ * 
+ * @note Requires Linux Kernel support for SocketCAN (PF_CAN).
+ * @note Supports both Classic CAN (8 bytes) and CAN-FD (up to 64 bytes) depending on socket configuration.
+ * 
+ * @see engine_iot_dev_run()
+ */
+void engine_iot_can_run(IoTBackendSession *sess){}
+
+
+
+/**
+ * @brief Core execution loop for Modbus TCP session data ingestion and PDU forwarding.
+ * 
+ * This function manages the southbound data pipeline for **Modbus TCP**. It accesses the
+ * `IoTBackendSession` handling established TCP streams, extracts Modbus PDUs (encapsulated in MBAP headers),
+ * converts them to proxy messages, and forwards them via HyperAMP.
+ * 
+ * @param sess Pointer to the active IoTBackendSession instance for Modbus TCP.
+ * 
+ * @details The function executes a cyclic process for "Modbus-TCP-to-Proxy" data flow:
+ * 
+ * 1. **PDU Extraction**:
+ *    - Reads TCP streams from connected clients (Server) or the PLC server (Client).
+ *    - Parses the **MBAP Header** (Transaction ID, Protocol ID, Length, Unit ID).
+ *    - Extracts the raw Modbus PDU (Function Code + Data).
+ *    - Validates Transaction IDs to ensure request/response matching if in stateful mode.
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Encapsulates data into the **Backend Proxy Protocol**.
+ *    - Headers include:
+ *      - Protocol Type: `PROTOCOL_MODBUS_TCP`.
+ *      - MBAP Metadata (Transaction ID, Unit ID).
+ *      - Function Code (e.g., 03 Read Holding Registers, 06 Write Single Register).
+ *      - Register addresses and values (parsed optionally for inspection, or passed as raw binary).
+ * 
+ * 3. **Direct Enqueueing**:
+ *    - Enqueues the message into the **HyperAMP Shared Memory TX Queue**.
+ * 
+ * 4. **Downlink Command Execution**:
+ *    - Receives write requests from the Frontend.
+ *    - Constructs valid Modbus TCP packets (MBAP + PDU) and sends them over the TCP socket.
+ *    - Handles timeout and retransmission logic if required by the session policy.
+ * 
+ * 5. **Connection Health**:
+ *    - Monitors TCP connection status (keep-alive, EOF).
+ *    - Cleans up closed connections and notifies the frontend via proxy messages.
+ * 
+ * @note Operates at the TCP level; does not implement a full Modbus state machine unless configured.
+ * @note Ensures atomic reading of MBAP headers to prevent frame tearing.
+ * 
+ * @see engine_iot_dev_run()
+ */
+void engine_iot_modbustcp_run(IoTBackendSession *sess){}
+
+
+
+/**
+ * @brief Core execution loop for ZigBee session data ingestion and cluster command forwarding.
+ * 
+ * This function drives the data pipeline for **ZigBee** (typically via a serial gateway or USB dongle).
+ * It accesses the `IoTBackendSession`, parses incoming ZigBee frames (APS/ZCL layers), converts them
+ * to proxy messages, and enqueues them into HyperAMP.
+ * 
+ * @param sess Pointer to the active IoTBackendSession instance for ZigBee.
+ * 
+ * @details The function executes a cyclic process for "ZigBee-Device-to-Proxy" data flow:
+ * 
+ * 1. **Frame Extraction**:
+ *    - Reads raw bytes from the ZigBee coordinator interface (UART/USB).
+ *    - Decapsulates the transport layer (e.g., TI Z-Stack, Ember ASH/EZSP, or XBee API frames).
+ *    - Extracts **APSDE-DATA** payloads containing Cluster Commands and Attribute Reports.
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Transforms ZigBee data into the **Backend Proxy Protocol**.
+ *    - Headers include:
+ *      - Protocol Type: `PROTOCOL_ZIGBEE`.
+ *      - Source/Destination IEEE Addresses (64-bit) and Network Addresses (16-bit).
+ *      - Endpoint, Cluster ID, and Profile ID.
+ *      - ZCL Command ID and Payload.
+ * 
+ * 3. **Direct Enqueueing**:
+ *    - Inserts the message into the **HyperAMP Shared Memory TX Queue**.
+ * 
+ * 4. **Downlink Command Execution**:
+ *    - Receives control commands (e.g., "Turn On Light", "Set Temperature") from the Frontend.
+ *    - Encapsulates them into appropriate ZCL commands and transmits via the coordinator.
+ * 
+ * 5. **Network State Maintenance**:
+ *    - Monitors coordinator status (network formed, device joined/left events).
+ *    - Handles serial port reconnection errors.
+ * 
+ * @note Requires specific parsing logic based on the underlying ZigBee stack (e.g., Z-Stack, EZSP).
+ * @note Focuses on application-level cluster data rather than raw MAC layer frames.
+ * 
+ * @see engine_iot_dev_run()
+ */
+void engine_iot_zigbee_run(IoTBackendSession *sess){}
+
+
+
+/**
+ * @brief Core execution loop for LoRaWAN session data ingestion and uplink payload forwarding.
+ * 
+ * This function manages the southbound pipeline for **LoRaWAN**. It accesses the `IoTBackendSession`
+ * connected to a LoRa Gateway bridge (e.g., UDP forwarder or MQTT backend), extracts decrypted 
+ * application payloads, converts them to proxy messages, and enqueues them into HyperAMP.
+ * 
+ * @param sess Pointer to the active IoTBackendSession instance for LoRaWAN.
+ * 
+ * @details The function executes a cyclic process for "LoRaWAN-Uplink-to-Proxy" data flow:
+ * 
+ * 1. **Payload Extraction**:
+ *    - Receives uplink notifications from the Network Server (NS) or Gateway Bridge.
+ *    - Extracts the decrypted **Application Payload** (FPort data).
+ *    - Captures metadata: DevEUI, AppEUI, FCnt (Frame Counter), RSSI, SNR, and DR (Data Rate).
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Encapsulates data into the **Backend Proxy Protocol**.
+ *    - Headers include:
+ *      - Protocol Type: `PROTOCOL_LORAWAN`.
+ *      - Device Identifiers (DevEUI).
+ *      - Port Number (FPort).
+ *      - RF Metadata (RSSI, SNR, Gateway ID).
+ * 
+ * 3. **Direct Enqueueing**:
+ *    - Inserts the message into the **HyperAMP Shared Memory TX Queue**.
+ * 
+ * 4. **Downlink Command Execution**:
+ *    - Receives downlink commands from the Frontend.
+ *    - Schedules downlink messages (confirmed/unconfirmed) to be sent via the Network Server.
+ *    - Handles timing constraints (RX1/RX2 windows) if managed locally.
+ * 
+ * 5. **Session Monitoring**:
+ *    - Monitors connectivity to the LoRa Gateway Bridge.
+ *    - Tracks device activation status (OTAA/ABP).
+ * 
+ * @note Assumes decryption is handled upstream (by NS) or keys are available in the session context.
+ * @note Optimized for low-frequency, small-payload uplinks typical of LoRaWAN.
+ * 
+ * @see engine_iot_dev_run()
+ */
+void engine_iot_lora_run(IoTBackendSession *sess){}
+
+
+
+/**
+ * @brief Core execution loop for Ethernet POWERLINK session data ingestion and PDO/SDO forwarding.
+ * 
+ * This function drives the high-performance data pipeline for **Ethernet POWERLINK**. It accesses
+ * the `IoTBackendSession` managing the POWERLINK stack (MN or CN mode), extracts real-time 
+ * Process Data Objects (PDOs) and Service Data Objects (SDOs), and forwards them via HyperAMP.
+ * 
+ * @param sess Pointer to the active IoTBackendSession instance for POWERLINK.
+ * 
+ * @details The function executes a cyclic process for "POWERLINK-Cycle-to-Proxy" data flow:
+ * 
+ * 1. **Real-Time Data Extraction**:
+ *    - Intercepts or reads data from the POWERLINK cycle buffer.
+ *    - Extracts **PDOs** (Process Data Objects) mapped to specific Object Dictionary entries.
+ *    - Captures **SDO** (Service Data Objects) responses for configuration and diagnostics.
+ *    - Synchronizes with the SoC (Start of Cycle) event for deterministic timing.
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Encapsulates industrial data into the **Backend Proxy Protocol**.
+ *    - Headers include:
+ *      - Protocol Type: `PROTOCOL_POWERLINK`.
+ *      - Node ID (MN or CN identifier).
+ *      - Object Index/Sub-index references.
+ *      - Cycle Counter and Phase timestamp.
+ * 
+ * 3. **Direct Enqueueing**:
+ *    - Inserts time-critical messages into the **HyperAMP Shared Memory TX Queue**.
+ *    - Prioritizes PDO updates to minimize jitter for frontend visualization/control.
+ * 
+ * 4. **Downlink Command Execution**:
+ *    - Receives setpoint changes or configuration commands from the Frontend.
+ *    - Writes to PDO mapping areas for immediate effect in the next cycle.
+ *    - Initiates SDO transfers for parameter configuration.
+ * 
+ * 5. **State & Error Handling**:
+ *    - Monitors POWERLINK network state (Pre-Operational, Operational).
+ *    - Detects node guard failures or communication errors.
+ * 
+ * @note Requires precise timing and potentially real-time kernel patches (PREEMPT_RT) for MN operation.
+ * @note Handles strict cycle synchronization requirements inherent to POWERLINK.
+ * 
+ * @see engine_iot_dev_run()
+ */
+void engine_iot_powerlink_run(IoTBackendSession *sess){}
+
 /**
  * @brief Core execution loop for IoT device data ingestion and direct proxy message forwarding.
  * 
@@ -2350,319 +2639,12 @@ void engine_iot_dev_run(struct BackendEngine_ *eng){
  * IoTBackendSession *backend_zigbee_sess;
  * IoTBackendSession *backend_lora_sess;
  * IoTBackendSession *backend_powerlink_sess;
- */    
-
-}
-
-
-/**
- * @brief Main loop function of the engine, handling message processing and data transmission cyclically
- * 
- * This function executes a continuous loop consisting of four main steps. After completing all steps,
- * it returns to the first step to implement the core operation of the backend engine.
- * 
- * @details The loop process is as follows:
- * 
- * 1. Read data from the RX queue of the shared memory queue owned by the BackendEngine instance,
- *    and process them sequentially through the backend proxy protocol stack.
- *    
- *    If any data is read, there are two cases:
- *    (a) For device messages, strategy messages, and session messages:
- *        The backend proxy protocol stack performs corresponding processing for each type, constructs
- *        response packets, and returns them to the frontend proxy through the shared memory's TX queue.
- *    (b) For sessions that receive data messages:
- *        These sessions are placed into the frontend-to-backend active queue for processing in step (2).
- *     
- *    If no data message is found, the procedure jumps to step (3).
- * 
- * 2. Access and process session instances in the frontend-to-backend active queue sequentially:
- *    Read data messages from these sessions, extract and process the payload, then send the processed
- *    payload through the socket corresponding to the session.
- * 
- * 3. Check sockets with events in the epoll list (focusing on those with received data), handling two scenarios:
- *    (a) If a socket close event is detected (e.g., TCP four-way handshake), construct a session close
- *        message and send it to the frontend proxy through the shared memory's TX queue.
- *    (b) If data is detected, read the data, construct a data message, place it into the send buffer of the
- *        session instance corresponding to the socket, and add the session instance to the
- *        backend-to-frontend active queue.
- *    
- *    If no data is found in the socket set managed by the epoll list, the function returns directly to step (1).
- * 
- * 4. Sequentially process sessions in the backend-to-frontend active queue:
- *    Read data messages from these sessions and send them to the frontend proxy through the shared memory's TX queue.
- * 
- * After completing the above four steps, the function returns to step (1) to continue the loop.
  */
-
-void engine_run()
-{
-    BackendEngine                   *eng;
-    struct SharedMemoryPoolQueue    *rx_queue, *tx_queue;
-    volatile HyperampShmQueue       *hyper_rx_queue, *hyper_tx_queue;
-    struct BackendSessionQueue      *active_queue_f2b, *active_queue_b2f;
-    struct BackendSession           *cur_sess, *next_sess;
-    struct BackendSessionPool       *sess_pool;
-    struct BackendSessionPoolOps    *sess_pool_ops;
-    NetPoller                       *net_poller;
-    uint8_t                         *proxy_msg;
-    size_t                          msg_size;
-    int                             ret;
-
-    eng = get_global_backend_engine();
-
-    if(NULL == eng){
-        error_print("engine_run failed: the global backend engine is not initialized!");
-        return ;
-    }
-
-/* 
- * rx_queue: Local receive queue, which actually maps to the front-end's transmit queue (tx_queue).
- * Data sent by the front-end through its tx_queue will be received by the local side via this rx_queue.
- * 
- * tx_queue: Local transmit queue, which is used as the front-end's receive queue (rx_queue).
- * Data sent by the local side through this tx_queue will be received by the front-end via its rx_queue.
- */
-    if(NULL == eng->rx_queue || NULL == eng->tx_queue){
-        error_print("engine_run failed: The global backend engine's RX queue or TX queue has not been initialized!");
-        return ;
-    }
-
-    rx_queue = eng->rx_queue;
-    tx_queue = eng->tx_queue;
+    if(NULL != backend_bluetooth_sess)
+        engine_iot_bluetooth_run(backend_bluetooth_sess);
+    
 
 
-/* 
- * hyper_rx_queue: HyperAMP receive queue instance for cross-OS shared memory communication.
- * This local receive queue maps to the front-end's HyperAMP transmit queue (hyper_tx_queue).
- * Data sent by the front-end through its hyper_tx_queue is received locally via this hyper_rx_queue.
- * 
- * hyper_tx_queue: HyperAMP transmit queue instance for cross-OS shared memory communication.
- * This local transmit queue serves as the front-end's HyperAMP receive queue (hyper_rx_queue).
- * Data sent locally through this hyper_tx_queue is received by the front-end via its hyper_rx_queue.
- * 
- * hyper_amp_data_region: The memory region where cross-OS shared memory data is stored,
- * which is the underlying storage for data transmitted via HyperAMP queues.
- */
-    if(NULL == eng->hyper_rx_queue || NULL == eng->hyper_tx_queue || NULL == eng->hyper_amp_data_region){
-        error_print("engine_run failed: The global backend engine's HyperAMP RX queue, HyperAMP TX queue or HyperAMP shared memory data region has not been initialized!");
-        return ;
-    }
-
-    hyper_rx_queue = eng->hyper_rx_queue;
-    hyper_tx_queue = eng->hyper_tx_queue;
-    (void)hyper_rx_queue;
-    (void)hyper_tx_queue;
-
-    BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
-    BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
-
-    if(NULL == active_queue_f2b || NULL == active_queue_b2f){
-        error_print("engine_run failed: The global backend engine's f2b session queue or b2f session queue has not been initialized!");
-        return ;
-    }
-
-    if(NULL == eng->sess_pool || NULL == eng->sess_pool->ops){
-        error_print("engine_run failed: Global backend engine's session pool (sess_pool) or its operation set (ops) is not initialized!");
-        return ;
-    }
-
-    sess_pool       = eng->sess_pool;
-    sess_pool_ops   = sess_pool->ops;
-
-    net_poller      = &eng->poller;
-
-    do{
-/*
- * STEP (1)
- */
-eng_run_step1:
-/* 
- * Acquire access lock for the RX queue.
- */
-
-        if(0)
-            goto eng_run_step1;
-
-        ret = SHARED_MEM_QUEUE_LOCK(rx_queue);
-
-/* 
- * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid lock handle, shared memory pool corruption)
- * Failed to acquire the lock; print error message and exit the current flow.
- */
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
-            error_print("engine_run failed: failed to get the lock of the RX queue!");
-            return;
-        }
-
-/* 
- * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates lock acquisition timed out (temporary unavailability, e.g., lock held by another process)
- * No error occurred; jump to eng_run_step3 to retry or proceed with alternative logic.
- */
-        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-            goto eng_run_step3;
-        }
-
-        do{
-    /*
-     * Retrieve data from the RX queue.
-     */
-            ret = backend_engine_rx_queue_get(rx_queue, (void **)&proxy_msg, PROXY_MSG_HDR_PLUS_MAX_SIZE, &msg_size);
-
-    /*
-     * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid queue handle, shared memory access exception, etc.)
-     * Processing cannot continue; print error message and return directly.
-     */
-            if(BACKEND_PROXY_PROCESS_ERROR == ret){
-                error_print("engine_run failed: failed to get data from RX queue!");
-                return;
-            }
-
-    /*
-     * If returning BACKEND_PROXY_PROCESS_AGAIN, it indicates temporary inability to retrieve data (e.g., empty queue, resource temporarily occupied, etc., non-error state)     
-     * No error reporting needed; jump to eng_run_step2 to execute the next process.
-     */
-            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-                goto eng_run_step2;
-            }
-
-    /*
-     * Process the proxy message.
-     */
-            backend_proxy_msg_process(proxy_msg);
-
-        }while(BACKEND_PROXY_PROCESS_OK == ret);
-
-/*
- * STEP (2)
- */
-eng_run_step2:
-
-/*
- * Recall the BACKEND_ENGINE_GET_F2B_QUEUE again to update active_queue_f2b, because the STEP (1) procedure may renew the front-to-back queue (queue_f2b) of the session pool.
- */
-        BACKEND_ENGINE_GET_F2B_QUEUE(eng, active_queue_f2b);
-
-        TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess){
-/*
- * Call the data_process_f2b function pointer in the session pool's operation set (sess_pool_ops), which attempts to send the front-to-end to back-end data maintained by the 
- * current session (cur_sess) via the socket maintained by this session.
- *
- * The return value corresponds to three scenarios:
- * Returns BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
- * Returns BACKEND_PROXY_PROCESS_AGAIN: Not all data has been sent, and no errors occurred.
- * Returns BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
- */
-            ret = sess_pool_ops->data_process_f2b(cur_sess);
-
-/*
- * If data_process_f2b returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the front-to-back (F2B) message queue have been sent via the session's socket. 
- * Such sessions should be detached from the F2B active queue, and their "linked to queue" state flag should be cleared.
- */
-            if(BACKEND_PROXY_PROCESS_OK == ret){
-                TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
-                cur_sess->state_f2b &= ~BACKEND_SESS_LINKED_TO_QUEUE;
-            }
-/*
- * If data_process_f2b returns BACKEND_PROXY_PROCESS_ERROR, it means an error occurs when trying to send data via the socket of the session. This type of session should not only be 
- * detached from the front-to-end active queue, but also be removed from the session pool.
- */
-            if(BACKEND_PROXY_PROCESS_ERROR == ret){
-                TAILQ_REMOVE(active_queue_f2b, cur_sess, entries_f2b);
-                sess_pool_ops->delete_sess(sess_pool, cur_sess);
-            }
- /*
-  * Nothing to do when not all data has been sent and there are no errors.
-  */
-        } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_f2b, entries_f2b, next_sess)
-
-/*
- * Complete data reception from the shared memory region for this operation.
- * Unlock the RX queue to allow the front-end to write data into it.
- */
-    SHARED_MEM_QUEUE_UNLOCK(rx_queue);
-
-/*
- * STEP (3)
- */
-eng_run_step3:
-/*
- * The execution process of poller_run function is as follows:
- * (1) Traverse the sockets in the epoll list, read data from them, and insert the data into the back-to-front message queue.
- * (2) Mark the sessions that have received data as active back-to-front active sessions.
- */
-        if(0)
-            goto eng_run_step3;
-
-        poller_run(eng, net_poller);
-
-/*
- * STEP (4)
- */
-eng_run_step4:
-/*
- * Recall the BACKEND_ENGINE_GET_B2F_QUEUE again to update active_queue_b2f, because the STEP (3) procedure may renew the front-to-back queue (queue_b2f) of the session pool.
- */
-        if(0)
-            goto eng_run_step4;
-/* 
- * Acquire access lock for the TX queue.
- */
-        ret = SHARED_MEM_QUEUE_LOCK(tx_queue);
-
-/* 
- * If returning BACKEND_PROXY_PROCESS_ERROR, it indicates a system-level error (e.g., invalid lock handle, shared memory pool corruption)
- * Failed to acquire the lock; print error message and exit the current flow.
- */
-        if(BACKEND_PROXY_PROCESS_ERROR == ret){
-            error_print("engine_run failed: failed to get the lock of the TX queue!");
-            return;
-        }
-
-        BACKEND_ENGINE_GET_B2F_QUEUE(eng, active_queue_b2f);
-
-        TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess){
-/*
- * Call the data_process_b2f function pointer from the session pool's operation set (sess_pool_ops). This function attempts to send the back-to-front 
- * (B2F) data maintained by the current session (cur_sess) via the shared-memory TX queue.
- *
- * Return value scenarios:
- * - BACKEND_PROXY_PROCESS_OK: All data has been sent successfully.
- * - BACKEND_PROXY_PROCESS_AGAIN: Not all data was sent, and no errors occurred.
- * - BACKEND_PROXY_PROCESS_ERROR: An error occurred during the sending process.
- */
-            ret = sess_pool_ops->data_process_b2f(cur_sess);
-
-/*
- * If data_process_b2f returns BACKEND_PROXY_PROCESS_OK, this indicates all message segments in the back-to-front (B2F) message queue have been successfully
- * sent via the shared memory TX queue. Such sessions should be detached from the B2F active queue.
- */
-            if(BACKEND_PROXY_PROCESS_OK == ret){
-                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
-                cur_sess->state_b2f &= ~BACKEND_SESS_LINKED_TO_QUEUE;
-            }
-/*
- * If data_process_b2f returns BACKEND_PROXY_PROCESS_ERROR, an error occurred while attempting to send data via the session's socket. Such sessions need to 
- * be both detached from the B2F active queue and removed from the session pool.
- */
-            if(BACKEND_PROXY_PROCESS_ERROR == ret){
-                TAILQ_REMOVE(active_queue_b2f, cur_sess, entries_b2f);
-                sess_pool_ops->delete_sess(sess_pool, cur_sess);
-            }
-/*
- * If data_process_b2f returns BACKEND_PROXY_PROCESS_AGAIN, the shared-memory TX queue is full (not all data sent, no errors). Sending to the TX queue should 
- * stop, and ownership of the shared-memory TX queue should be transferred to the front-end. The front-end will then read this data from its RX queue, which
- * maps to the local TX queue (queue mapping: local TX <---> front-end RX).
- */
-            if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-                break;
-            }
-        } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess)
-
-        SHARED_MEM_QUEUE_UNLOCK(tx_queue);
-/*
- * Go back to STEP 1.
- */
-    }while(1);
 }
 
 
