@@ -1553,6 +1553,11 @@ init_iot_sess_error:
         backend_powerlink_sess = NULL;
     }
 
+    if(NULL != backend_modbustcp_sess){
+        free(backend_modbustcp_sess);
+        backend_modbustcp_sess = NULL;
+    }
+
     return BACKEND_PROXY_PROCESS_ERROR;
 }
 
@@ -2352,11 +2357,17 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
     uint8_t                 data[1024];
     IotMsgBuffer            msg_buf;
     GeneralProxyMsgHeader   proxy_msg_hdr;
+    uint8_t                 res_buf[100] = {0};
+    uint8_t                 *res_ptr;
+
+
+
 
     do{
         memset(&msg_buf, 0, sizeof(IotMsgBuffer));
         memset(data, 0, sizeof(data));
         msg_buf.data = data;
+        msg_buf.len  = sizeof(data);
 
         ret = sess->recv_from_remote(sess, &msg_buf, 0);
 
@@ -2370,6 +2381,21 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;
             proxy_msg_hdr.outer_header.backend_sess_id = 0;
             proxy_msg_hdr.outer_header.proxy_msg_type = PROXY_MSG_TYPE_IOT;
+
+            proxy_msg_hdr.inner_header.iot_hdr.dev_port_id  = 0;
+            proxy_msg_hdr.inner_header.iot_hdr.opcode       = 0;
+            proxy_msg_hdr.inner_header.iot_hdr.proto_type   = IOT_PROTO_TYPE_BLUETOOTH;
+            proxy_msg_hdr.inner_header.iot_hdr.proto_ver    = 1;
+            proxy_msg_hdr.inner_header.iot_hdr.payload_len  = msg_buf.len + get_iot_addr_length(IOT_PROTO_TYPE_BLUETOOTH);
+
+            proxy_msg_hdr.iot_addr_len                      = get_iot_addr_length(IOT_PROTO_TYPE_BLUETOOTH);
+            proxy_msg_hdr.iot_addr.addr_type                = IOT_PROTO_TYPE_BLUETOOTH;
+            proxy_msg_hdr.iot_addr.addr_info.bt_addr.port   = msg_buf.addr.addr_info.bt_addr.port;
+            memcpy(proxy_msg_hdr.iot_addr.addr_info.bt_addr.mac, msg_buf.addr.addr_info.bt_addr.mac, sizeof(msg_buf.addr.addr_info.bt_addr.mac));
+
+            res_ptr = res_buf;
+            build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
+            //msg_buf.addr;
         }
 
     }while(BACKEND_PROXY_PROCESS_OK == ret);

@@ -758,6 +758,67 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
  * @note Automatically updates sess->rx_packets and sess->rx_bytes on success
  */
 int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
+    ssize_t             rcv_size;
+    struct sockaddr_l2  remote_addr;
+    socklen_t           addr_len;
+    int                 ret;
+
+    /*
+     * client receive data directly.
+     */
+    if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+        rcv_size = recv(sess->dev_fd, msg_buf->data, msg_buf->len, 0);
+
+    /*
+     * receive data successfully.
+     */
+        if (rcv_size > 0) {
+            msg_buf->len = rcv_size;
+            addr_len = sizeof(remote_addr);
+            memset(&remote_addr, 0, addr_len);
+
+    /*
+     * get peer address and port.
+     */
+            ret = getpeername(sess->dev_fd, (struct sockaddr *)&remote_addr, &addr_len);
+
+            if(ret < 0){
+                error_print("bluetooth_recv_from_remote failed: failed to get remote address info!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+             if (remote_addr.l2_family != AF_BLUETOOTH) {
+                error_print("get_l2cap_peer_info failed: Socket is not a Bluetooth L2CAP socket!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            msg_buf->addr.addr_type                 = IOT_PROTO_TYPE_BLUETOOTH;
+            msg_buf->addr.addr_info.bt_addr.port    = remote_addr.l2_psm;
+            ba2str(&remote_addr.l2_bdaddr, (char *)msg_buf->addr.addr_info.bt_addr.mac);
+            return BACKEND_PROXY_PROCESS_OK;
+        }else if(0 == rcv_size){
+            error_print("get_l2cap_peer_info failed: Connection closed by peer!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }else{
+            error_print("rcv_size < 0!\n");
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // In non-blocking mode, no data available is a normal condition.
+                return BACKEND_PROXY_PROCESS_AGAIN;
+            } 
+            else if (errno == EINTR) {
+                // Interrupted by a signal. Usually retryable; returning AGAIN lets the upper layer decide.
+                return BACKEND_PROXY_PROCESS_AGAIN;
+            } 
+            else {
+                // Real error (e.g., ECONNRESET, EBADF, etc.)
+                error_print("read_bluetooth_nonblocking: Recv failed with system error!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+        }//
+
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
