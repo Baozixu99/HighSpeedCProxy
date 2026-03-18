@@ -453,6 +453,42 @@ typedef struct IotSockNode_ {
 TAILQ_HEAD(IotSockList_, IotSockNode_);
 typedef struct IotSockList_ IotSockList;
 
+
+/**
+ * @brief Working mode of an IoT session/device.
+ * 
+ * Defines the operational role of the entity in the IoT architecture.
+ * This dictates the connection behavior (initiator vs listener) and data flow direction.
+ * 
+ * - CLIENT_MODE: The device initiates connections and reports data (e.g., Sensors, Actuators).
+ * - SERVER_MODE: The device listens for connections and manages clients (e.g., Gateways, Hubs).
+ */
+typedef enum IotWorkMode_ {
+    /** 
+     * @brief Client Mode (Initiator / Edge Device).
+     * 
+     * Characteristics:
+     * - Actively initiates connections to a server/gateway.
+     * - Primary data flow: Uplink (Device -> Server).
+     * - Responsible for auto-reconnection on link failure.
+     * - Typical devices: Temperature sensors, Smart plugs, Wearables.
+     * - Network behavior: Uses connect(), no listen_fd.
+     */
+    IOT_WORK_MODE_CLIENT = 0,
+
+    /** 
+     * @brief Server Mode (Listener / Gateway / Hub).
+     * 
+     * Characteristics:
+     * - Passively waits for incoming connections from clients.
+     * - Primary data flow: Downlink management & Uplink aggregation.
+     * - Responsible for accepting new clients and managing multiple sessions.
+     * - Typical devices: IoT Gateways, Edge Servers, Modbus TCP Masters (acting as servers).
+     * - Network behavior: Uses bind() + listen() + accept(), owns listen_fd.
+     */
+    IOT_WORK_MODE_SERVER = 1
+} IotWorkMode;
+
 /**
  * @brief IoT backend session object (for Bluetooth/CAN/Zigbee/LoRa/OpenPowerLink)
  * @note Each IoT device has exactly one corresponding session (1:1 mapping)
@@ -461,9 +497,10 @@ typedef struct IotSockList_ IotSockList;
 typedef struct IoTBackendSession_ {
     // 1. Session core identification (1:1 binding with IoT device)
     int                 sess_type;           // IoT session type (matches protocol type)
+    int                 sess_role;
     int                 dev_id;              // Associated IoT device ID (global unique)
     int                 sess_id;             // IoT session ID (same as device's sess_id)
-    IotSessMode         working_mode;        // Session working mode (client/gateway)
+    IotWorkMode         working_mode;        // Session working mode (client/gateway)
     
     // 2. Link state management (simplified for IoT 1:1 mapping)
     IotSessLinkState    sess_dev_link_state; // Session-device link state

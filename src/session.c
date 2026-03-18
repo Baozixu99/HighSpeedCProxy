@@ -245,9 +245,11 @@ void delete_session(struct BackendSession* sess)
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
-    int sk;
-    struct sockaddr_l2 loc_addr;
-
+    int     sk, flags;
+    struct  sockaddr_l2 loc_addr, rem_addr;
+    struct  timeval tv;
+    char    dest[18] = "A8:41:F4:8C:7F:E6";
+// "A8:41:F4:8C:7F:E6";
     // Validate input parameters
     if (NULL == dev || NULL == sess) {
         error_print("engine_init_bluetooth_session failed: invalid input parameters!\n");
@@ -261,7 +263,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
 
     // 1. Create Socket
     // Fixed to SOCK_DGRAM for connectionless communication
-    sk = socket(AF_BLUETOOTH, SOCK_DGRAM, BTPROTO_L2CAP);
+    sk = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);;
     if (sk < 0) {
         error_print("engine_init_bluetooth_session failed: socket creation failed!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -269,24 +271,86 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
 
     // 2. Configure Local Address
     // Hardcoded PSM 0x1001
+    memset(&loc_addr, 0, sizeof(loc_addr));
     loc_addr.l2_family  = AF_BLUETOOTH;
     bacpy(&loc_addr.l2_bdaddr, BDADDR_ANY); // Bind to all local adapters
     loc_addr.l2_psm     = htobs(0x1001);        // Hardcoded PSM value
 
-    // 3. Bind the socket (Server Mode Only)
+    if (bind(sk, (struct sockaddr *)&loc_addr, sizeof(loc_addr)) < 0) {
+        error_print("engine_init_bluetooth_session failed: bind failed (may require root privileges or PSM is in use)!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    // 3. Bind and listen the socket (Server Mode Only), or connect to server (Client Mode Only)
     // working_mode == 1 indicates the device acts as a server and must bind to the PSM
-    if (1 == dev->config.working_mode) {
-        if (bind(sk, (struct sockaddr *)&loc_addr, sizeof(loc_addr)) < 0) {
-            error_print("engine_init_bluetooth_session failed: bind failed (may require root privileges or PSM is in use)\n");
+    if (IOT_WORK_MODE_SERVER == dev->config.working_mode) {
+        if(listen(sk, 1) < 0){
+            error_print("engine_init_bluetooth_session failed: listen failed!\n");
             close(sk);
             return BACKEND_PROXY_PROCESS_ERROR;
         }
+
+        TAILQ_INIT(&sess->sock_list);
+/*
+ * accept will be called in engine operation loop.
+ */
+
+    }else if(IOT_WORK_MODE_CLIENT == dev->config.working_mode){
+/*
+ * Connect to remote note.
+ */
+        memset(&rem_addr, 0, sizeof(rem_addr));
+        rem_addr.l2_family = AF_BLUETOOTH;
+        rem_addr.l2_psm = htobs(0x1001);
+        str2ba(dest, &rem_addr.l2_bdaddr);
+
+        tv.tv_sec   = 5;
+        tv.tv_usec  = 0;
+        setsockopt(sk, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(sk, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+        if(connect(sk, (struct sockaddr *)&rem_addr, sizeof(rem_addr)) < 0){
+            error_print("engine_init_bluetooth_session failed: connect failed!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }else{
+        error_print("engine_init_bluetooth_session failed: unsupported working mode!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * Set to unblock mode.
+ */
+    flags = fcntl(sk, F_GETFL, 0);
+
+    if (flags == -1) {
+        error_print("engine_init_bluetooth_session failed: failed to get socket flags!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if (fcntl(sk, F_SETFL, flags | O_NONBLOCK) == -1) {
+        error_print("engine_init_bluetooth_session failed: failed to set non-blocking mode!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     // Assign the file descriptor to the session
     // Note: Remote address is not resolved here. 
     // The proxy frontend will provide the destination address dynamically during data transmission.
-    sess->dev_fd = sk;
+    sess->working_mode = dev->config.working_mode;
+
+    if (IOT_WORK_MODE_CLIENT == dev->config.working_mode) {
+        sess->dev_fd = sk;      // Client: single connected fd
+        sess->listen_fd = -1;   // Not used
+    } else { // SERVER
+        sess->listen_fd = sk;   // Server: listening fd
+        sess->dev_fd = -1;      // No single device fd
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -637,6 +701,7 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
     utils_print("In %s\n", __func__);
     struct sockaddr_l2  remote_addr;
     int                 snd_size;
+    IotSockNode         *node, *next_node; 
 
     utils_print("MAC address = %s, port = %d\n", msg_buf->addr.addr_info.bt_addr.mac, msg_buf->addr.addr_info.bt_addr.port);
     utils_print("Bluetooth message = %s\n", msg_buf->data);
@@ -646,13 +711,30 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
     str2ba((const char *)msg_buf->addr.addr_info.bt_addr.mac, &remote_addr.l2_bdaddr);
     remote_addr.l2_psm = htobs(msg_buf->addr.addr_info.bt_addr.port);
 
+
+#if 0
     snd_size = sendto(sess->dev_fd, msg_buf->data, msg_buf->len, 0, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
 
     if(snd_size < 0){
         error_print("bluetooth_send_to_remote failed: unable to send bluetooth message to remode!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+#endif
 
+    if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+        snd_size = send(sess->dev_fd, msg_buf->data, msg_buf->len, 0);
+
+        if(snd_size < 0){
+            error_print("bluetooth_send_to_remote failed: unable to send bluetooth message to remode!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }else{
+    // Iterate through the socket list to select matching sockets and perform send operations
+        TAILQ_FOREACH_SAFE(node, &sess->sock_list, entries, next_node){
+
+        }
+
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 }
