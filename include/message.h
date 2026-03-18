@@ -640,9 +640,9 @@ typedef struct IotMsgHeader_{
  * @brief Bluetooth device address (MAC + port/channel)
  */
 typedef struct {
-    uint8_t mac[6];      /**< Bluetooth MAC address (6 bytes) */
-    uint16_t port;       /**< Bluetooth port/channel number */
-} __attribute__((packed))IotBtAddr;
+    uint8_t  mac[18];        /**< Bluetooth MAC string (e.g., "AA:BB:CC:DD:EE:FF" + '\0') */
+    uint16_t port;       /**< Bluetooth port/channel number (PSM or CID) */
+} __attribute__((packed)) IotBtAddr;
 
 
 /**

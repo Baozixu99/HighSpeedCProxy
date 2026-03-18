@@ -500,6 +500,7 @@ extern IoTBackendSession *backend_can_sess;
 extern IoTBackendSession *backend_zigbee_sess;
 extern IoTBackendSession *backend_lora_sess;
 extern IoTBackendSession *backend_powerlink_sess;
+extern IoTBackendSession *backend_modbustcp_sess;
 
 
 int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);

@@ -1810,7 +1810,8 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
     IoTBackendSession   *iot_sess;
     IotBtAddr           *bt_addr;
     uint8_t             *iot_payload;
-//    uint16_t            data_len;
+    IotMsgBuffer        iot_msg_buf;
+    int                 ret;
 
     iot_sess = backend_bluetooth_sess;
     (void)iot_sess;
@@ -1820,11 +1821,22 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
 
     (void)bt_addr;
     (void)iot_payload;
-//    bt_addr->mac;
-//    bt_addr->port;
+
+    if(iot_header->payload_len > BACKEND_BLUETOOTH_MAX_PAYLOAD){
+        error_print("backend_proxy_bluetooth_msg_process failed: message length exceeds the maximum limit!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    memset(&iot_msg_buf, 0, sizeof(iot_msg_buf));
+    memcpy(iot_msg_buf.addr.addr_info.bt_addr.mac, bt_addr->mac, sizeof(bt_addr->mac));
+    iot_msg_buf.addr.addr_info.bt_addr.port = bt_addr->port;
+    iot_msg_buf.data                        = iot_payload;
+    iot_msg_buf.len                         = iot_header->payload_len;
 
 
-    return BACKEND_PROXY_PROCESS_OK;
+    ret = iot_sess->send_to_remote(iot_sess, &iot_msg_buf);
+
+    return ret;
 }
 
 /**

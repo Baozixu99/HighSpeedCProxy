@@ -261,7 +261,8 @@ typedef enum {
     IOT_DEV_TYPE_ZIGBEE,         // Zigbee device (802.15.4)
     IOT_DEV_TYPE_CAN,            // CAN bus device (CAN 2.0/CAN FD)
     IOT_DEV_TYPE_LORA,           // LoRa/LoRaWAN device
-    IOT_DEV_TYPE_POWERLINK       // OpenPowerLink (Ethernet POWERLINK) device
+    IOT_DEV_TYPE_POWERLINK,      // OpenPowerLink (Ethernet POWERLINK) device
+    IOT_DEV_TYPE_MODBUSTCP       //  Modbus TCP device (Modbus protocol over TCP/IP).
 } IotDevType;
 
 /**

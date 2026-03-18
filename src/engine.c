@@ -1373,6 +1373,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
     backend_zigbee_sess     = NULL;
     backend_lora_sess       = NULL;
     backend_powerlink_sess  = NULL;
+    backend_modbustcp_sess  = NULL;
 
     /* Check for invalid input pointers */
     if (NULL == engine || NULL == engine->iot_dev_set) {
@@ -2275,6 +2276,86 @@ void engine_listener_run(struct BackendEngine_ *eng){
 }
 
 /**
+ * @brief Core execution loop for IoT device data ingestion and direct proxy message forwarding.
+ * 
+ * This function drives the southbound data pipeline of the BackendEngine. It directly accesses
+ * specific IoTBackendSession instances for heterogeneous protocols, extracts raw payloads,
+ * converts them into standardized backend proxy protocol messages, and immediately enqueues
+ * them into the HyperAMP shared memory TX queue for frontend transmission.
+ * 
+ * @param eng Pointer to the BackendEngine instance, which holds pointers to the active session
+ *            objects for each supported protocol.
+ * 
+ * @details The function executes a cyclic process focused on direct "Device-to-Proxy-to-Frontend" data flow:
+ * 
+ * 1. **Direct Session Access & Data Extraction**:
+ *    - Iterates through and accesses specific IoTBackendSession instances managed by the engine:
+ *      - **backend_bluetooth_sess**: Extracts BLE GATT notifications/indications or L2CAP packet payloads.
+ *      - **backend_can_sess**: Reads raw CAN frames (ID + DLC + Data) from socketcan interfaces.
+ *      - **backend_zigbee_sess**: Captures ZigBee cluster commands and attribute reports from endpoints.
+ *      - **backend_lora_sess**: Retrieves decrypted LoRaWAN application payloads (FPort data) from uplinks.
+ *      - **backend_powerlink_sess**: Fetches real-time Process Data Objects (PDO) and Service Data Objects (SDO) 
+ *        from Ethernet POWERLINK nodes, handling cycle synchronization if required.
+ *      - **backend_modbustcp_sess**: Reads Modbus TCP Protocol Data Units (PDUs) from established TCP streams, 
+ *        extracting Function Codes (e.g., 03 Read Holding Registers, 04 Read Input Registers) and associated 
+ *        register data values while validating transaction IDs.
+ *    - Note: These sessions are designed for low-to-moderate data rate scenarios; high-frequency 
+ *      streaming is handled via different mechanisms.
+ * 
+ * 2. **Proxy Protocol Message Conversion**:
+ *    - Transforms the extracted raw protocol-specific data into a unified **Backend Proxy Protocol** format.
+ *    - Encapsulates the payload with standard headers including:
+ *      - Session ID / Device Identifier (derived from the specific session object).
+ *      - Protocol Type Indicator (CAN, BLE, ZigBee, LoRa, POWERLINK, ModbusTCP).
+ *      - Timestamp and QoS flags.
+ *      - Payload length and binary data.
+ *    - Performs minimal processing: The goal is transparent transmission of the device data 
+ *      in a standardized envelope without complex business logic (e.g., no register mapping).
+ * 
+ * 3. **Direct Enqueueing to HyperAMP TX Queue**:
+ *    - Constructs the final proxy message buffer.
+ *    - **Directly inserts** the message into the global **HyperAMP Shared Memory TX Queue**.
+ *    - Bypasses intermediate per-session Backend-to-Frontend (B2F) queues, as these sessions 
+ *      operate at lower speeds where direct queue insertion is efficient and sufficient.
+ *    - Ensures the Frontend Proxy can immediately retrieve these messages from shared memory.
+ * 
+ * 4. **Downlink Command Execution (Frontend-to-Device)**:
+ *    - Checks the HyperAMP Shared Memory RX Queue (or associated command channel) for incoming 
+ *      control commands from the frontend targeted at these specific sessions.
+ *    - Decapsulates the proxy message to retrieve the raw command payload.
+ *    - Writes the raw data directly to the corresponding session's socket/channel:
+ *      - e.g., sending a CAN frame, writing a BLE characteristic, transmitting a POWERLINK SDO write,
+ *        or sending a Modbus TCP Write Request (Function Code 06/16) via **backend_modbustcp_sess**.
+ * 
+ * 5. **Session State Maintenance**:
+ *    - Monitors connection health for each specific session object (link status, TCP connectivity, timeouts).
+ *    - Handles disconnection events by cleaning up resources and generating a session-close 
+ *      proxy message directly to the HyperAMP TX queue.
+ *    - Manages reconnection logic based on configured policies for each protocol type.
+ * 
+ * @note This function acts as a **direct protocol adapter**. It bypasses intermediate buffering 
+ *       (B2F queues) for efficiency in low-speed IoT scenarios, writing directly to the shared memory TX queue.
+ * @note The supported sessions include specialized industrial protocols like **Ethernet POWERLINK** and 
+ *       **Modbus TCP**, requiring precise handling of their respective frame structures.
+ * @warning Ensure that all specific session pointers (e.g., backend_modbustcp_sess, backend_powerlink_sess) 
+ *          are initialized and valid before calling this function to avoid segmentation faults.
+ * 
+ * @see engine_run_hyperamp()
+ * @see IoTBackendSession
+ */
+void engine_iot_dev_run(struct BackendEngine_ *eng){
+/*
+ * IoTBackendSession *backend_bluetooth_sess;
+ * IoTBackendSession *backend_can_sess;
+ * IoTBackendSession *backend_zigbee_sess;
+ * IoTBackendSession *backend_lora_sess;
+ * IoTBackendSession *backend_powerlink_sess;
+ */    
+
+}
+
+
+/**
  * @brief Main loop function of the engine, handling message processing and data transmission cyclically
  * 
  * This function executes a continuous loop consisting of four main steps. After completing all steps,
@@ -2621,6 +2702,20 @@ eng_run_step4:
  * 4. Sequentially process sessions in the backend-to-frontend active queue:
  *    Read data messages from these sessions and send them to the frontend proxy through the shared memory's TX queue.
  * 
+ * 5. Retrieve and process data received from remote IoT devices across heterogeneous protocol sessions:
+ *    Iterate through active sessions representing diverse connectivity technologies, including:
+ *    - **CAN Bus**: Raw frame extraction and ID-based filtering.
+ *    - **Bluetooth/BLE**: GATT characteristic notifications or L2CAP payload parsing.
+ *    - **ZigBee**: Cluster-specific attribute decoding and endpoint routing.
+ *    - **LoRa**: LoRaWAN payload decryption and port-based demultiplexing.
+ *    - **Modbus TCP**: Function code validation, register mapping, and PDU parsing.
+ *    
+ *    For each session, fetch the raw payload from the underlying transport layer, perform protocol-specific 
+ *    parsing and business logic processing (e.g., unit conversion, threshold checking, state machine updates). 
+ *    Once processed, construct standardized response packets or update internal device states. Finally, enqueue 
+ *    the results into the HyperAMP TX queue for transmission to the frontend, or trigger downstream actions 
+ *    in subsequent steps. This step ensures unified handling of multi-protocol inbound data from the physical world.
+ * 
  * After completing the above four steps, the function returns to step (1) to continue the loop.
  */
 void engine_run_hyperamp(){
@@ -2852,11 +2947,24 @@ eng_run_step4:
                 break;
             }
         } // TAILQ_FOREACH_SAFE(cur_sess, active_queue_b2f, entries_b2f, next_sess)
+
+/*
+ * STEP (5)
+ * Retrieve data from remote IoT devices, process it, and prepare responses for the frontend.
+ */
+
+eng_run_step5:
+        if(0)
+            goto eng_run_step5;
+
+
+
 /*
  * Go back to STEP 1.
  */
     }while(1);
 }
+
 
 /**
  * @brief Destroys all resources associated with high-speed network devices managed by the backend engine

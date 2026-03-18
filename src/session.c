@@ -14,6 +14,7 @@ IoTBackendSession *backend_can_sess;
 IoTBackendSession *backend_zigbee_sess;
 IoTBackendSession *backend_lora_sess;
 IoTBackendSession *backend_powerlink_sess;
+IoTBackendSession *backend_modbustcp_sess;
 
 /**
  * @brief Allocates and initializes a SessMsgSeg structure
@@ -633,6 +634,26 @@ int cleanup_powerlink_iot_session(IotDevice *dev, IoTBackendSession *sess){
  * @note Automatically updates sess->tx_packets and sess->tx_bytes on success
  */
 int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
+    utils_print("In %s\n", __func__);
+    struct sockaddr_l2  remote_addr;
+    int                 snd_size;
+
+    utils_print("MAC address = %s, port = %d\n", msg_buf->addr.addr_info.bt_addr.mac, msg_buf->addr.addr_info.bt_addr.port);
+    utils_print("Bluetooth message = %s\n", msg_buf->data);
+
+    memset(&remote_addr, 0, sizeof(remote_addr));
+    remote_addr.l2_family = AF_BLUETOOTH;
+    str2ba((const char *)msg_buf->addr.addr_info.bt_addr.mac, &remote_addr.l2_bdaddr);
+    remote_addr.l2_psm = htobs(msg_buf->addr.addr_info.bt_addr.port);
+
+    snd_size = sendto(sess->dev_fd, msg_buf->data, msg_buf->len, 0, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
+
+    if(snd_size < 0){
+        error_print("bluetooth_send_to_remote failed: unable to send bluetooth message to remode!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
