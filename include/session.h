@@ -435,6 +435,24 @@ typedef struct IotSessMsgQueue_ {
 
 struct IotMsgBuffer_;
 typedef struct IotMsgBuffer_ IotMsgBuffer;
+
+
+/**
+ * @brief Socket node for managing multiple file descriptors within a single session.
+ * 
+ * Some IoT sessions (e.g., Bluetooth Gateway, Modbus TCP Server) may involve 
+ * multiple sockets: one listening socket, one or more connected client sockets, 
+ * or separate control/data channels. This struct allows tracking them in a list.
+ */
+typedef struct IotSockNode_ {
+    int                     fd;                  // The file descriptor of the socket
+    TAILQ_ENTRY(IotSockNode_) entries;           // Linkage member for the TAILQ
+} IotSockNode;
+
+// Define the TAILQ head type for the list of IotSockNode
+TAILQ_HEAD(IotSockList_, IotSockNode_);
+typedef struct IotSockList_ IotSockList;
+
 /**
  * @brief IoT backend session object (for Bluetooth/CAN/Zigbee/LoRa/OpenPowerLink)
  * @note Each IoT device has exactly one corresponding session (1:1 mapping)
@@ -466,6 +484,8 @@ typedef struct IoTBackendSession_ {
     
     // 6. Hardware/IO related (IoT device access)
     int                 dev_fd;              // Bound device file descriptor (same as device's fd)
+    int                 listen_fd;           // Listening socket for connection-oriented protocols (e.g., Bluetooth L2CAP, Modbus TCP). 
+    IotSockList         sock_list;           // Head of the linked list for socket nodes
     uint32_t            io_timeout;          // IO operation timeout (ms, e.g., 5000)
     
     // 7. Statistics (session-level performance metrics)
