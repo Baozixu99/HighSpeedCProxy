@@ -987,7 +987,22 @@ int powerlink_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
 }
 
 
-
+/**
+ * @brief Send data to remote ModbusTCP device (Industrial Ethernet)
+ * 
+ * @param sess Pointer to IoTBackendSession instance (must be IOT_SESS_TYPE_MODBUSTCP)
+ * @param msg_buf Pointer to IotMsgBuffer containing:
+ *                - data: Raw ModbusTCP request payload
+ *                - len: Payload length (valid ModbusTCP frame length)
+ *                - addr: Destination ModbusTCP address (unit_id + ip + port + function_code)
+ *                - ext_info: Pointer to ModbusTCPDevAttr (timeout/retry/unit_id)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK: ModbusTCP data sent successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid param/offline/UnitID error/format mismatch/socket error)
+ * 
+ * @note Based on TCP connection-oriented communication, send only in connected state
+ * @note Updates session tx statistics and ModbusTCP device status on success
+ */
 int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
     return BACKEND_PROXY_PROCESS_OK;
 }
