@@ -626,9 +626,6 @@ create_sess_error:
  * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
  */
 
-
-    *sess = new_sess;
-
     resp_dat.status = SESS_OP_STATUS_SUCCESS;
     resp_dat.code   = SESS_OP_CODE_SUCCESS;
 
@@ -645,6 +642,7 @@ create_sess_error:
         goto recycle_sess_node;
     }
 
+    *sess = new_sess;
 
     return BACKEND_PROXY_PROCESS_OK;
 
