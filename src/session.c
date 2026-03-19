@@ -543,6 +543,26 @@ int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+
+/**
+ * @brief Initialize ModbusTCP communication session for IoT device
+ * @param dev Pointer to IotDevice instance (pre-initialized device)
+ * @param sess Pointer to IoTBackendSession instance (memory pre-allocated)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK (0): Session initialized successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR (-1): Session initialization failed
+ *
+ * @note This function only initializes session context, NOT device hardware.
+ *       Device initialization is completed in the prior stage.
+ *       The memory of IoTBackendSession is pre-allocated, no need to manage.
+ *       1. Binds session context to the corresponding ModbusTCP device
+ *       2. Configures session state and TCP communication parameters
+ *       3. Sets up data buffer and Modbus frame processing logic
+ *       4. Prepares session for subsequent ModbusTCP communication
+ *
+ * @warning Device hardware initialization must be completed before calling
+ * @warning Session memory is managed externally, do not free in this function
+ */
 int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
     return BACKEND_PROXY_PROCESS_OK;
 }
