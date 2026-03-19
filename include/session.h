@@ -303,6 +303,10 @@ typedef enum {
         break;                                    \
     }\
     \
+    utils_print("epoll_ctl sockfd:%d \n", (sess)->net_channel.sock_fd); \
+    utils_print("epoll_ctl op:%d \n", op); \
+    utils_print("epoll_ctl events:%d \n", ev.events); \
+    utils_print("epfd: %d\n",((NetPoller*)(sess)->net_channel.arg)->epfd); \
     /* Get raw return value from epoll_ctl */ \
     epoll_ret = epoll_ctl(((NetPoller*)(sess)->net_channel.arg)->epfd, \
                           op, \
@@ -310,6 +314,8 @@ typedef enum {
                           &ev); \
     \
     /* Convert to predefined status codes */ \
+    utils_print("epoll_ctl ret:%d \n", epoll_ret); \
+    if(epoll_ret != 0 ) perror("epoll_ctl faild! \n"); \
     *(ret_ptr) = (epoll_ret == 0) ? BACKEND_PROXY_PROCESS_OK : BACKEND_PROXY_PROCESS_ERROR; \
 } while(0)
 
