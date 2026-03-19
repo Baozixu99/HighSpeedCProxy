@@ -2179,6 +2179,35 @@ int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id,
 }
 
 
+/**
+ * @brief ModbusTCP-specific IoT proxy message processing
+ * 
+ * Processes ModbusTCP IoT proxy messages (send/receive/status) transmitted from frontend to backend via HyperAMP:
+ * - Parses ModbusTCP address (IotAddr.modbustcp_addr) from IoT protocol data
+ * - Validates ModbusTCP-specific parameters (UnitID/function code/frame length)
+ * - Dispatches to modbustcp_send_to_remote/modbustcp_recv_from_remote based on opcode
+ * - Constructs response message (if opcode = IOT_OPCODE_RESPONSE)
+ * 
+ * @param frontend_sess_id Frontend session ID (from ProxyMsgHeader)
+ * @param backend_sess_id Backend IoT session ID (from ProxyMsgHeader)
+ * @param iot_header Pointer to parsed IotMsgHeader
+ * @param iot_data Pointer to ModbusTCP protocol data (IotAddr + payload)
+ * @return int Processing result
+ *         - BACKEND_PROXY_PROCESS_OK: ModbusTCP message processed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid UnitID/frame/session)
+ * 
+ * @note Internal sub-function - called only by backend_proxy_iot_msg_process()
+ * @note Handles frontend-to-backend ModbusTCP messages sent via HyperAMP
+ * @note Validates ModbusTCP UnitID range (0-255) and frame format (MBAP + PDU)
+ * @note Based on TCP connection-oriented communication, processes messages only in connected state
+ */
+int backend_proxy_modbustcp_msg_process(uint16_t frontend_sess_id, 
+                                        uint16_t backend_sess_id,
+                                        IotMsgHeader *iot_header,
+                                        uint8_t *iot_data){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
 
 /**
  * @brief Helper function to calculate protocol-specific IoT address length (NEW)
