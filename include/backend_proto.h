@@ -130,7 +130,7 @@ int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data);
 
-int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id, 
+int backend_proxy_modbustcp_msg_process(uint16_t frontend_sess_id, 
                                         uint16_t backend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data);
