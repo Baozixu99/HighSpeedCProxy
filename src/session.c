@@ -543,6 +543,9 @@ int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
+    return BACKEND_PROXY_PROCESS_OK;
+}
 
 
 /**

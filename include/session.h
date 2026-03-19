@@ -610,6 +610,8 @@ int engine_init_lora_session(IotDevice *dev, IoTBackendSession *sess);
 
 int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess);
 
+int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess);
+
 void backend_iot_sess_destroy(void);
 
 
