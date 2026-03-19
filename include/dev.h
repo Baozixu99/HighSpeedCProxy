@@ -329,15 +329,29 @@ typedef struct PowerLinkDevAttr_ {
     uint16_t    plk_tx_pdo_len;  // Length of transmitted PDO (Process Data Object)
 } PowerLinkDevAttr;
 
+
+/**
+ * @brief ModbusTCP device specific parameters (Industrial Ethernet)
+ */
+typedef struct ModbusTCPDevAttr_{
+    uint16_t    mb_port;         // ModbusTCP port number (default: 502)
+    uint8_t     mb_mac[6];       // Device MAC address (6 bytes)
+    uint8_t     mb_unit_id;      // Modbus Unit ID / Slave ID (range: 0-255)
+    uint8_t     mb_proto_ver;    // Modbus protocol version (0x00: ModbusTCP, 0x01: ModbusRTU over TCP)
+    uint32_t    mb_timeout_ms;   // ModbusTCP communication timeout (unit: ms)
+    uint8_t     mb_retry_cnt;    // Modbus request retry count (0 = no retry)
+} ModbusTCPDevAttr;
+
 /**
  * @brief Union for IoT device specific attributes (memory optimization)
  */
 typedef union {
-    BluetoothDevAttr    bt_attr;     // Bluetooth device attributes
-    CANDevAttr          can_attr;    // CAN device attributes
-    ZigbeeDevAttr       zigbee_attr; // Zigbee device attributes
-    LoRaDevAttr         lora_attr;   // LoRa device attributes
-    PowerLinkDevAttr    plk_attr;    // OpenPowerLink device attributes
+    BluetoothDevAttr    bt_attr;         // Bluetooth device attributes
+    CANDevAttr          can_attr;        // CAN device attributes
+    ZigbeeDevAttr       zigbee_attr;     // Zigbee device attributes
+    LoRaDevAttr         lora_attr;       // LoRa device attributes
+    PowerLinkDevAttr    plk_attr;        // OpenPowerLink device attributes
+    ModbusTCPDevAttr    mb_attr;         // ModbusTCP device attributes
 } IotDevSpecificAttr;
 
 /**
