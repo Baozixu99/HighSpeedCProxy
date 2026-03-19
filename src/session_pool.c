@@ -538,6 +538,7 @@ create_sess_error:
     net_channel->sock_fd    = fd;
     net_channel->arg        = &engine->poller;
     net_channel->sess       = new_sess;
+    net_channel->status     = EPOLL_REG_STATUS_UNREGISTERED;
 
 /*
  * Initialize session object.
@@ -594,28 +595,7 @@ create_sess_error:
 
     utils_print("In %s, the ret of HIGH_SPEED_NET_DEV_INSERT_SESSION_NODE is %d\n", __func__, ret);
 
-/*
- * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
- */
 
-
-    *sess = new_sess;
-
-    resp_dat.status = SESS_OP_STATUS_SUCCESS;
-    resp_dat.code   = SESS_OP_CODE_SUCCESS;
-
-    ret = backend_proxy_send_sess_msg_to_frontend_via_shmem(new_sess, SESS_MSG_CREATE, &resp_dat);
-    
-    if(BACKEND_PROXY_PROCESS_OK != ret){
-        error_print("high_speed_create_sess_active failed: failed to push the session creat-response message into the tx queue!");
-/*
- * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
- * We want the backend proxy protocol to try again by sending a message to notify that the establishment procedure has failed.
- */
-        resp_dat.status = SESS_OP_STATUS_FAIL;
-        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
-        goto recycle_sess_node;
-    }
 /*
  * Finally, register the socket belonging to the newly created session with the epoll instance.
  */
@@ -641,6 +621,31 @@ create_sess_error:
     }
 
     utils_print("high_speed_create_sess_active returns successfully!\n");
+
+/*
+ * Generate a session create-response message, deliver it to the shared queue. The front-end will receive this message and complete the handshake procedure.
+ */
+
+
+    *sess = new_sess;
+
+    resp_dat.status = SESS_OP_STATUS_SUCCESS;
+    resp_dat.code   = SESS_OP_CODE_SUCCESS;
+
+    ret = backend_proxy_send_sess_msg_to_frontend_via_shmem(new_sess, SESS_MSG_CREATE, &resp_dat);
+    
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("high_speed_create_sess_active failed: failed to push the session creat-response message into the tx queue!");
+/*
+ * The backend proxy should generate and send a create-response message to notify the frontend proxy that the create-command has failed.
+ * We want the backend proxy protocol to try again by sending a message to notify that the establishment procedure has failed.
+ */
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.status = SESS_OP_CODE_RESOURCE_INSUFFICIENT;
+        goto recycle_sess_node;
+    }
+
+
     return BACKEND_PROXY_PROCESS_OK;
 
 recycle_sess_node:

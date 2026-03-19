@@ -295,9 +295,13 @@ typedef enum {
     if ((sess)->net_channel.status == EPOLL_REG_STATUS_UNREGISTERED) { \
         op = EPOLL_CTL_ADD; \
         (sess)->net_channel.status = EPOLL_REG_STATUS_REGISTERED; \
-    } else { \
+    } else if ((sess)->net_channel.status == EPOLL_REG_STATUS_REGISTERED){ \
         op = EPOLL_CTL_MOD; \
-    } \
+    } else{\
+        utils_print("BACKEND_SESS_REGISTER_EPOLL failed: invalid net_channel status\n!"); \
+        *(ret_ptr) = BACKEND_PROXY_PROCESS_ERROR; \
+        break;                                    \
+    }\
     \
     /* Get raw return value from epoll_ctl */ \
     epoll_ret = epoll_ctl(((NetPoller*)(sess)->net_channel.arg)->epfd, \
