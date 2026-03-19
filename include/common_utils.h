@@ -103,5 +103,6 @@ void proxy_dev_msg_content_dump(const uint8_t* header);
 void proxy_strgy_msg_content_dump(const uint8_t* header);
 void proxy_sess_msg_content_dump(const uint8_t* header);
 void proxy_data_msg_content_dump(const uint8_t* header);
+int parse_proxy_protocol_and_print(const uint8_t *buffer);
 
 #endif

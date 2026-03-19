@@ -1,5 +1,7 @@
 #include "common_utils.h"
 #include "message.h"
+#include "session.h"
+#include <inttypes.h>
 
 void error_print(char *error){
     printf("%s\n", error);
@@ -602,3 +604,282 @@ void proxy_data_msg_content_dump(const uint8_t* header){
         if (proxy_hdr->payload_len > 32) printf("  ... (%u bytes total)\n", proxy_hdr->payload_len);
     }
 }
+
+
+
+
+/**
+ * @brief Parses the custom proxy protocol packet and prints details directly.
+ * 
+ * @note This function does NOT take a buffer length parameter. It relies entirely 
+ * on the 'payload_len' field in the ProxyMsgHeader. Ensure the input buffer is 
+ * valid and large enough to avoid segmentation faults.
+ * 
+ * @param buffer Pointer to the input buffer containing the full packet.
+ * @return int: BACKEND_PROXY_PROCESS_OK on success, BACKEND_PROXY_PROCESS_ERROR on failure.
+ */
+int parse_proxy_protocol_and_print(const uint8_t *buffer) {
+    if (!buffer) {
+        printf("[PROXY_PARSE_ERR] Input buffer is NULL.\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    /* 1. Parse Proxy Header */
+    const ProxyMsgHeader *hdr = (const ProxyMsgHeader *)buffer;
+    
+    if (hdr->version != 1) {
+        printf("[PROXY_PARSE_ERR] Invalid protocol version: %u (Expected 1).\n", hdr->version);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    const uint8_t *payload_start = buffer + sizeof(ProxyMsgHeader);
+    
+    printf("=== Proxy Packet Received ===\n");
+    printf("Header: Ver=%u, Type=%u, F-SID=%u, B-SID=%u, PayloadLen=%u\n",
+           hdr->version, hdr->proxy_msg_type, hdr->frontend_sess_id, 
+           hdr->backend_sess_id, hdr->payload_len);
+
+    /* 2. Dispatch based on message type */
+    switch (hdr->proxy_msg_type) {
+        case PROXY_MSG_TYPE_DEV: {
+            if (hdr->payload_len < sizeof(DevMsgHeader)) {
+                printf("[PROXY_PARSE_ERR] Device message payload too short.\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            const DevMsgHeader *dev_hdr = (const DevMsgHeader *)payload_start;
+            
+            const char *type_str = (dev_hdr->msg_type == DEV_MSG_DISABLE) ? "DISABLE" : 
+                                   (dev_hdr->msg_type == DEV_MSG_ENABLE) ? "ENABLE" : "QUERY";
+            const char *action_str = (dev_hdr->action_type == ACTION_TYPE_COMMAND) ? "CMD" : "RESP";
+
+            printf("[DEVICE MSG] Type=%s(%u), Action=%s(%u), MsgID=%u, SubLen=%u\n", 
+                   type_str, dev_hdr->msg_type, action_str, dev_hdr->action_type, 
+                   dev_hdr->msg_id, dev_hdr->payload_len);
+
+            size_t content_offset = sizeof(DevMsgHeader);
+            /* Check for underflow just in case, though logic above should prevent it */
+            if (hdr->payload_len < content_offset) { 
+                 return BACKEND_PROXY_PROCESS_ERROR; 
+            }
+            
+            uint16_t content_len = hdr->payload_len - content_offset;
+            const uint8_t *content = payload_start + content_offset;
+
+            if (content_len > 0) {
+                printf("  Content Hex: ");
+                for (uint16_t i = 0; i < content_len && i < 16; i++) {
+                    printf("%02X ", content[i]);
+                }
+                if (content_len > 16) printf("...");
+                printf("\n");
+                
+                if (dev_hdr->action_type == ACTION_TYPE_RESPONSE && content_len >= 2) {
+                    printf("  -> Result: Success=%u, ErrCode=%u\n", content[0], content[1]);
+                }
+            } else {
+                printf("  Content: (Empty)\n");
+            }
+            break;
+        }
+
+        case PROXY_MSG_TYPE_STRGY: {
+            if (hdr->payload_len < sizeof(StrgyMsgHeader)) {
+                printf("[PROXY_PARSE_ERR] Strategy message payload too short.\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            const StrgyMsgHeader *strgy_hdr = (const StrgyMsgHeader *)payload_start;
+            
+            const char *type_str = (strgy_hdr->msg_type == STRGY_MSG_SET) ? "SET" : "QUERY";
+            const char *action_str = (strgy_hdr->action_type == ACTION_TYPE_COMMAND) ? "CMD" : "RESP";
+
+            printf("[STRATEGY MSG] Type=%s(%u), Action=%s(%u), MsgID=%u, SubLen=%u\n", 
+                   type_str, strgy_hdr->msg_type, action_str, strgy_hdr->action_type, 
+                   strgy_hdr->msg_id, strgy_hdr->payload_len);
+            break;
+        }
+
+        case PROXY_MSG_TYPE_SESS: {
+            if (hdr->payload_len < sizeof(SessMsgHeader)) {
+                printf("[PROXY_PARSE_ERR] Session message payload too short.\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            const SessMsgHeader *sess_hdr = (const SessMsgHeader *)payload_start;
+
+            if (sess_hdr->ip_version != SESS_IPV4_PROTO && sess_hdr->ip_version != SESS_IPV6_PROTO) {
+                printf("[PROXY_PARSE_ERR] Invalid IP Version: %u (Must be 4 or 6).\n", sess_hdr->ip_version);
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            const char *type_str = (sess_hdr->msg_type == SESS_MSG_CREATE) ? "CREATE" : "CLOSE";
+            const char *action_str = (sess_hdr->action_type == ACTION_TYPE_COMMAND) ? "CMD" : "RESP";
+            const char *ip_str = (sess_hdr->ip_version == SESS_IPV4_PROTO) ? "IPv4" : "IPv6";
+
+            printf("[SESSION MSG] Type=%s(%" PRIu16 "), Action=%s(%" PRIu16 "), IP=%s(%" PRIu16 ")\n", 
+                type_str, sess_hdr->msg_type, action_str, sess_hdr->action_type, ip_str, sess_hdr->ip_version);
+
+            size_t header_consumed = sizeof(SessMsgHeader);
+            if (hdr->payload_len < header_consumed) {
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            
+            uint16_t inner_len = hdr->payload_len - header_consumed;
+            const uint8_t *inner_payload = payload_start + header_consumed;
+
+            if (sess_hdr->msg_type == SESS_MSG_CREATE && sess_hdr->action_type == ACTION_TYPE_COMMAND) {
+                if (sess_hdr->ip_version == SESS_IPV4_PROTO) {
+                    if (inner_len < sizeof(SessParaIPv4)) {
+                        printf("[PROXY_PARSE_ERR] IPv4 Create payload incomplete.\n");
+                        return BACKEND_PROXY_PROCESS_ERROR;
+                    }
+                    const SessParaIPv4 *v4 = (const SessParaIPv4 *)inner_payload;
+                    printf("  -> Target: DevID=%u, Proto=%u, Addr=%u.%u.%u.%u:%u\n",
+                           v4->dev_id, v4->trans_proto,
+                           v4->ipv4_addr.data[0], v4->ipv4_addr.data[1], 
+                           v4->ipv4_addr.data[2], v4->ipv4_addr.data[3],
+                           v4->port);
+                } else {
+                    if (inner_len < sizeof(SessParaIPv6)) {
+                        printf("[PROXY_PARSE_ERR] IPv6 Create payload incomplete.\n");
+                        return BACKEND_PROXY_PROCESS_ERROR;
+                    }
+                    const SessParaIPv6 *v6 = (const SessParaIPv6 *)inner_payload;
+                    printf("  -> Target: DevID=%u, Proto=%u, Addr=IPv6(%02x%02x:...)\n",
+                           v6->dev_id, v6->trans_proto,
+                           v6->ipv6_addr.data[0], v6->ipv6_addr.data[1]);
+                }
+            } else if (sess_hdr->action_type == ACTION_TYPE_RESPONSE) {
+                if (inner_len < 2) {
+                    printf("[PROXY_PARSE_ERR] Session Response payload too short.\n");
+                    return BACKEND_PROXY_PROCESS_ERROR;
+                }
+                printf("  -> Result: Success=%u, ErrCode=%u\n", inner_payload[0], inner_payload[1]);
+            } else {
+                printf("  -> Content: (Empty or Command Close)\n");
+            }
+            break;
+        }
+
+        case PROXY_MSG_TYPE_DATA: {
+            printf("[DATA MSG] Raw Data Length: %u bytes\n", hdr->payload_len);
+            if (hdr->payload_len > 0) {
+                printf("  First 16 bytes: ");
+                uint16_t print_len = (hdr->payload_len < 16) ? hdr->payload_len : 16;
+                for (uint16_t i = 0; i < print_len; i++) {
+                    printf("%02X ", payload_start[i]);
+                }
+                printf("\n");
+            }
+            break;
+        }
+
+        case PROXY_MSG_TYPE_IOT: {
+            if (hdr->payload_len < sizeof(IotMsgHeader)) {
+                printf("[PROXY_PARSE_ERR] IoT message payload too short for header.\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            const IotMsgHeader *iot_hdr = (const IotMsgHeader *)payload_start;
+
+            const char *proto_str = "UNKNOWN";
+            switch (iot_hdr->proto_type) {
+                case IOT_PROTO_TYPE_BLUETOOTH: proto_str = "BLUETOOTH"; break;
+                case IOT_PROTO_TYPE_ZIGBEE: proto_str = "ZIGBEE"; break;
+                case IOT_PROTO_TYPE_CAN: proto_str = "CAN"; break;
+                case IOT_PROTO_TYPE_LORA: proto_str = "LORA"; break;
+                case IOT_PROTO_TYPE_POWERLINK: proto_str = "POWERLINK"; break;
+                case IOT_PROTO_TYPE_MODBUSTCP: proto_str = "MODBUS_TCP"; break;
+            }
+
+            printf("[IOT MSG] Proto=%s(%u), Opcode=%u, PortID=%u, PayloadLen=%u\n",
+                   proto_str, iot_hdr->proto_type, iot_hdr->opcode, 
+                   iot_hdr->dev_port_id, iot_hdr->payload_len);
+
+            size_t header_consumed = sizeof(IotMsgHeader);
+            if (hdr->payload_len < header_consumed) {
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            size_t addr_size = 0;
+            switch (iot_hdr->proto_type) {
+                case IOT_PROTO_TYPE_BLUETOOTH: addr_size = sizeof(IotBtAddr); break;
+                case IOT_PROTO_TYPE_CAN: addr_size = sizeof(IotCanAddr); break;
+                case IOT_PROTO_TYPE_ZIGBEE: addr_size = sizeof(IotZigbeeAddr); break;
+                case IOT_PROTO_TYPE_LORA: addr_size = sizeof(IotLoraAddr); break;
+                case IOT_PROTO_TYPE_POWERLINK: addr_size = sizeof(IotPowerLinkAddr); break;
+                case IOT_PROTO_TYPE_MODBUSTCP: addr_size = sizeof(IotModbusTcpAddr); break;
+                default:
+                    printf("[PROXY_PARSE_ERR] Unknown IoT Protocol Type: %u\n", iot_hdr->proto_type);
+                    return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            /* Calculate total expected length inside payload */
+            /* Note: We trust iot_hdr->payload_len here as well */
+            if ((size_t)hdr->payload_len < header_consumed + addr_size + iot_hdr->payload_len) {
+                printf("[PROXY_PARSE_ERR] IoT message internal length mismatch.\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            const uint8_t *addr_ptr = payload_start + header_consumed;
+            const uint8_t *data_ptr = addr_ptr + addr_size;
+
+            printf("  Address Info: ");
+            switch (iot_hdr->proto_type) {
+                case IOT_PROTO_TYPE_BLUETOOTH: {
+                    const IotBtAddr *addr = (const IotBtAddr *)addr_ptr;
+                    /* Ensure null termination for safety */
+                    char safe_mac[19];
+                    memcpy(safe_mac, addr->mac, 18);
+                    safe_mac[18] = '\0';
+                    printf("MAC=%s, Port=%u\n", safe_mac, addr->port);
+                    break;
+                }
+                case IOT_PROTO_TYPE_CAN: {
+                    const IotCanAddr *addr = (const IotCanAddr *)addr_ptr;
+                    printf("BusID=%u, CanID=0x%X, Port=%u\n", addr->bus_id, addr->can_id, addr->port);
+                    break;
+                }
+                case IOT_PROTO_TYPE_ZIGBEE: {
+                    const IotZigbeeAddr *addr = (const IotZigbeeAddr *)addr_ptr;
+                    printf("PAN=0x%04X, EP=%u, MAC=", addr->pan_id, addr->endpoint);
+                    for(int i=0; i<8; i++) printf("%02X", addr->mac[i]);
+                    printf("\n");
+                    break;
+                }
+                case IOT_PROTO_TYPE_LORA: {
+                    const IotLoraAddr *addr = (const IotLoraAddr *)addr_ptr;
+                    printf("DevEUI=%llu, Port=%u, Band=%u\n", (unsigned long long)addr->dev_eui, addr->port, addr->freq_band);
+                    break;
+                }
+                case IOT_PROTO_TYPE_POWERLINK: {
+                    const IotPowerLinkAddr *addr = (const IotPowerLinkAddr *)addr_ptr;
+                    printf("NodeID=%u, PDO=%u, MAC=", addr->node_id, addr->pdo_id);
+                    for(int i=0; i<6; i++) printf("%02X", addr->mac[i]);
+                    printf("\n");
+                    break;
+                }
+                case IOT_PROTO_TYPE_MODBUSTCP: {
+                    const IotModbusTcpAddr *addr = (const IotModbusTcpAddr *)addr_ptr;
+                    printf("IP=%u.%u.%u.%u, Port=%u\n", addr->ip[0], addr->ip[1], addr->ip[2], addr->ip[3], addr->port);
+                    break;
+                }
+            }
+
+            if (iot_hdr->payload_len > 0) {
+                printf("  IoT Payload (First 16 bytes): ");
+                uint16_t print_len = (iot_hdr->payload_len < 16) ? iot_hdr->payload_len : 16;
+                for (uint16_t i = 0; i < print_len; i++) {
+                    printf("%02X ", data_ptr[i]);
+                }
+                printf("\n");
+            }
+            break;
+        }
+
+        default:
+            printf("[PROXY_PARSE_ERR] Unknown Proxy Message Type: %u\n", hdr->proxy_msg_type);
+            return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    printf("===========================\n");
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
