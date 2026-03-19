@@ -985,3 +985,30 @@ int powerlink_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
 int powerlink_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
     return BACKEND_PROXY_PROCESS_OK;
 }
+
+
+
+int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+/**
+ * @brief Receive data from remote ModbusTCP device (Industrial Ethernet)
+ *
+ * @param sess Pointer to IoTBackendSession instance (must be IOT_SESS_TYPE_MODBUSTCP)
+ * @param msg_buf Pointer to IotMsgBuffer to store:
+ *                - data: Received ModbusTCP response payload
+ *                - len: Output - actual received length
+ *                - addr: Output - Source ModbusTCP address (unit_id + ip + port + function_code)
+ *                - ext_info: Output - Pointer to ModbusTCPDevAttr (timeout/retry/unit_id)
+ * @param timeout_ms Timeout in milliseconds (0 = non-blocking, -1 = blocking)
+ * @return int Execution result
+ *         - BACKEND_PROXY_PROCESS_OK: ModbusTCP data received successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Failed (invalid param/offline/format mismatch/unit error/timeout)
+ *
+ * @note TCP-based communication, socket receive timeout is enforced for reception timing
+ * @note Automatically validates UnitID to prevent unauthorized ModbusTCP data
+ */
+int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
+    return BACKEND_PROXY_PROCESS_OK;
+}

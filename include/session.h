@@ -585,6 +585,8 @@ int lora_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int ti
 int powerlink_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
 int powerlink_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
 
+int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf);
+int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms);
 
 int session_send(struct BackendSession* sess, const uint8_t* data, uint32_t size);
 int session_recv(struct BackendSession* sess, uint8_t* data, uint32_t size);
