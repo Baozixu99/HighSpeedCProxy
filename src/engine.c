@@ -774,11 +774,11 @@ hs_net_error:
  * @param type_str String representation of device type (bluetooth/can/zigbee/lora)
  * @return Corresponding IotDevType enum value, IOT_DEV_TYPE_UNKNOWN if not matched
  */
-IotDevType dev_type_str_to_enum(const char *type_str) {
-    if (strcmp(type_str, "bluetooth") == 0) return IOT_DEV_TYPE_BLUETOOTH;
-    if (strcmp(type_str, "can") == 0) return IOT_DEV_TYPE_CAN;
-    if (strcmp(type_str, "zigbee") == 0) return IOT_DEV_TYPE_ZIGBEE;
-    if (strcmp(type_str, "lora") == 0) return IOT_DEV_TYPE_LORA;
+IotProtoType dev_type_str_to_enum(const char *type_str) {
+    if (strcmp(type_str, "bluetooth") == 0) return IOT_PROTO_TYPE_BLUETOOTH;
+    if (strcmp(type_str, "can") == 0) return IOT_PROTO_TYPE_CAN;
+    if (strcmp(type_str, "zigbee") == 0) return IOT_PROTO_TYPE_ZIGBEE;
+    if (strcmp(type_str, "lora") == 0) return IOT_PROTO_TYPE_LORA;
     return IOT_DEV_TYPE_UNKNOWN;
 }
 
@@ -1197,16 +1197,19 @@ int engine_init_iot_devices(BackendEngine *engine) {
         snprintf(key, sizeof(key), "%s:dev_type", section);
         const char *dev_type_str = iniparser_getstring(ini, key, "unknown");
         if (strcasecmp(dev_type_str, "bluetooth") == 0) {
-            dev->dev_type = IOT_DEV_TYPE_BLUETOOTH;
+            dev->dev_type = IOT_PROTO_TYPE_BLUETOOTH;
         } else if (strcasecmp(dev_type_str, "zigbee") == 0) {
-            dev->dev_type = IOT_DEV_TYPE_ZIGBEE;
+            dev->dev_type = IOT_PROTO_TYPE_ZIGBEE;
         } else if (strcasecmp(dev_type_str, "can") == 0) {
-            dev->dev_type = IOT_DEV_TYPE_CAN;
+            dev->dev_type = IOT_PROTO_TYPE_CAN;
         } else if (strcasecmp(dev_type_str, "lora") == 0) {
-            dev->dev_type = IOT_DEV_TYPE_LORA;
+            dev->dev_type = IOT_PROTO_TYPE_LORA;
         } else if (strcasecmp(dev_type_str, "powerlink") == 0) {
-            dev->dev_type = IOT_DEV_TYPE_POWERLINK;
-        } else {
+            dev->dev_type = IOT_PROTO_TYPE_POWERLINK;
+        } else if (strcasecmp(dev_type_str, "modbustcp") == 0) {
+            dev->dev_type = IOT_PROTO_TYPE_MODBUSTCP;
+        }
+        else {
             fprintf(stderr, "[WARN] %s: Unsupported dev_type '%s' (skipping device)\n", section, dev_type_str);
             parse_successful = 0;
             failed_dev_count++;
@@ -1277,19 +1280,19 @@ int engine_init_iot_devices(BackendEngine *engine) {
         // -------------------------- Parse Protocol-Specific Attributes --------------------------
         int proto_parse_result = BACKEND_PROXY_PROCESS_ERROR;
         switch (dev->dev_type) {
-            case IOT_DEV_TYPE_BLUETOOTH:
+            case IOT_PROTO_TYPE_BLUETOOTH:
                 proto_parse_result = parse_bluetooth_attr(ini, section, &dev->specific_attr.bt_attr);
                 break;
-            case IOT_DEV_TYPE_CAN:
+            case IOT_PROTO_TYPE_CAN:
                 proto_parse_result = parse_can_attr(ini, section, &dev->specific_attr.can_attr);
                 break;
-            case IOT_DEV_TYPE_ZIGBEE:
+            case IOT_PROTO_TYPE_ZIGBEE:
                 proto_parse_result = parse_zigbee_attr(ini, section, &dev->specific_attr.zigbee_attr);
                 break;
-            case IOT_DEV_TYPE_LORA:
+            case IOT_PROTO_TYPE_LORA:
                 proto_parse_result = parse_lora_attr(ini, section, &dev->specific_attr.lora_attr);
                 break;
-            case IOT_DEV_TYPE_POWERLINK:
+            case IOT_PROTO_TYPE_POWERLINK:
                 proto_parse_result = parse_powerlink_attr(ini, section, &dev->specific_attr.plk_attr);
                 break;
             default:
@@ -1387,7 +1390,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
         /* Create session only for ONLINE devices */
         if(IOT_DEV_STATUS_ONLINE == iot_dev->dev_status){
             switch (iot_dev->dev_type) {
-                case IOT_DEV_TYPE_BLUETOOTH:
+                case IOT_PROTO_TYPE_BLUETOOTH:
                     /* Ensure only ONE Bluetooth device instance is supported */
                     if(NULL != backend_bluetooth_sess){
                         error_print("engine_init_iot_sessions failed: only one bluetooth device is supported in backendengine!\n");
@@ -1411,7 +1414,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                     backend_bluetooth_sess->eng = engine;
 
                     break;
-                case IOT_DEV_TYPE_CAN:
+                case IOT_PROTO_TYPE_CAN:
                     /* Ensure only ONE CAN device instance is supported */
                     if(NULL != backend_can_sess){
                         error_print("engine_init_iot_sessions failed: only one CAN device is supported in backendengine!\n");
@@ -1435,7 +1438,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                     backend_can_sess->eng = engine;
 
                     break;
-                case IOT_DEV_TYPE_ZIGBEE:
+                case IOT_PROTO_TYPE_ZIGBEE:
                     /* Ensure only ONE ZigBee device instance is supported */
                     if(NULL != backend_zigbee_sess){
                         error_print("engine_init_iot_sessions failed: only one ZigBee device is supported in backendengine!\n");
@@ -1459,7 +1462,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                     backend_zigbee_sess->eng = engine;
 
                     break;
-                case IOT_DEV_TYPE_LORA:
+                case IOT_PROTO_TYPE_LORA:
                     /* Ensure only ONE LoRa device instance is supported */
                     if(NULL != backend_lora_sess){
                         error_print("engine_init_iot_sessions failed: only one LoRa device is supported in backendengine!\n");
@@ -1483,7 +1486,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                     backend_lora_sess->eng = engine;
 
                     break;
-                case IOT_DEV_TYPE_POWERLINK:
+                case IOT_PROTO_TYPE_POWERLINK:
                     /* Ensure only ONE PowerLink device instance is supported */
                     if(NULL != backend_powerlink_sess){
                         error_print("engine_init_iot_sessions failed: only one PowerLink device is supported in backendengine!\n");
@@ -1507,7 +1510,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                     backend_powerlink_sess->eng = engine;
 
                     break;
-                case IOT_DEV_TYPE_MODBUSTCP:
+                case IOT_PROTO_TYPE_MODBUSTCP:
                     /* Ensure only ONE PowerLink device instance is supported */
                     if(NULL != backend_modbustcp_sess){
                         error_print("engine_init_iot_sessions failed: only one modbusTCP device is supported in backendengine!\n");
@@ -2704,6 +2707,7 @@ void engine_iot_dev_run(struct BackendEngine_ *eng){
  * IoTBackendSession *backend_lora_sess;
  * IoTBackendSession *backend_powerlink_sess;
  */
+    utils_print("In %s\n", __func__);
     if(NULL != backend_bluetooth_sess)
         engine_iot_bluetooth_run(backend_bluetooth_sess);
     
@@ -3003,7 +3007,7 @@ eng_run_step5:
         if(0)
             goto eng_run_step5;
 
-
+        engine_iot_dev_run(eng);
 
 /*
  * Go back to STEP 1.

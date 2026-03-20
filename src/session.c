@@ -260,6 +260,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
     sess->bound_dev         = dev;
     sess->send_to_remote    = bluetooth_send_to_remote;
     sess->recv_from_remote  = bluetooth_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_BLUETOOTH;
 
     // 1. Create Socket
     // Fixed to SOCK_DGRAM for connectionless communication
@@ -387,8 +388,9 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
 
     // 2. Bind context and function pointers
     sess->bound_dev = dev;
-    sess->send_to_remote = can_send_to_remote;
-    sess->recv_from_remote = can_recv_from_remote;
+    sess->send_to_remote    = can_send_to_remote;
+    sess->recv_from_remote  = can_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_CAN;
 
     // 3. Create Socket (RAW mode fixed)
     sk = socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -475,6 +477,7 @@ int engine_init_zigbee_session(IotDevice *dev, IoTBackendSession *sess){
     sess->bound_dev         = dev;
     sess->send_to_remote    = zigbee_send_to_remote;
     sess->recv_from_remote  = zigbee_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_ZIGBEE;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -507,6 +510,7 @@ int engine_init_lora_session(IotDevice *dev, IoTBackendSession *sess){
     sess->bound_dev         = dev;
     sess->send_to_remote    = lora_send_to_remote;
     sess->recv_from_remote  = lora_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_LORA;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -539,6 +543,7 @@ int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
     sess->bound_dev         = dev;
     sess->send_to_remote    = powerlink_send_to_remote;
     sess->recv_from_remote  = powerlink_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_POWERLINK;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -594,19 +599,19 @@ int backend_cleanup_iot_session(IoTBackendSession *sess){
 
     // Dispatch by IoT session type (paired with device type)
     switch (sess->sess_type) {
-        case IOT_DEV_TYPE_BLUETOOTH:
+        case IOT_PROTO_TYPE_BLUETOOTH:
             return cleanup_bluetooth_iot_session(sess->bound_dev, sess);
             
-        case IOT_DEV_TYPE_CAN:
+        case IOT_PROTO_TYPE_CAN:
             return cleanup_can_iot_session(sess->bound_dev, sess);
             
-        case IOT_DEV_TYPE_ZIGBEE:
+        case IOT_PROTO_TYPE_ZIGBEE:
             return cleanup_zigbee_iot_session(sess->bound_dev, sess);
             
-        case IOT_DEV_TYPE_LORA:
+        case IOT_PROTO_TYPE_LORA:
             return cleanup_lora_iot_session(sess->bound_dev, sess);
             
-        case IOT_DEV_TYPE_POWERLINK:
+        case IOT_PROTO_TYPE_POWERLINK:
             return cleanup_powerlink_iot_session(sess->bound_dev, sess);
             
         default:
@@ -781,6 +786,7 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
  * @note Automatically updates sess->rx_packets and sess->rx_bytes on success
  */
 int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
+    utils_print("In %s\n", __func__);
     ssize_t             rcv_size;
     struct sockaddr_l2  remote_addr;
     socklen_t           addr_len;
@@ -789,6 +795,8 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
     /*
      * client receive data directly.
      */
+    utils_print("Bluetooth session working mode = %d\n", sess->working_mode);
+
     if(IOT_WORK_MODE_CLIENT == sess->working_mode){
         rcv_size = recv(sess->dev_fd, msg_buf->data, msg_buf->len, 0);
 

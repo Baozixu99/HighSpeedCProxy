@@ -1942,6 +1942,7 @@ int backend_proxy_send_sess_msg_to_frontend_via_shmem(struct BackendSession *ses
  * @warning Session IDs must match the established frontend-backend communication link
  */
 int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_sess_id, uint16_t msg_len, uint8_t *msg){
+    utils_print("In %s\n", __func__);
     IotMsgHeader *iot_msg_hdr;
     uint8_t      *iot_data;
     int          ret;
@@ -1955,8 +1956,9 @@ int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_se
 
     iot_data = msg + sizeof(IotMsgHeader);
 
+    utils_print("message type =%d\n", iot_msg_hdr->proto_type);
     switch(iot_msg_hdr->proto_type){
-        case IOT_DEV_TYPE_BLUETOOTH:
+        case IOT_PROTO_TYPE_BLUETOOTH:
             if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotBtAddr)){
                 error_print("backend_proxy_iot_msg_process failed: invalid msg_len for Bluetooth protocol!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
@@ -1964,7 +1966,7 @@ int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_se
 
             ret = backend_proxy_bluetooth_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
             break;
-        case IOT_DEV_TYPE_CAN:
+        case IOT_PROTO_TYPE_CAN:
             if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotCanAddr)){
                 error_print("backend_proxy_iot_msg_process failed: invalid msg_len for CAN protocol!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
@@ -1972,7 +1974,7 @@ int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_se
 
             ret = backend_proxy_can_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
             break;
-        case IOT_DEV_TYPE_ZIGBEE:
+        case IOT_PROTO_TYPE_ZIGBEE:
             if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotZigbeeAddr)){
                 error_print("backend_proxy_iot_msg_process failed: invalid msg_len for ZigBee protocol!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
@@ -1980,7 +1982,7 @@ int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_se
 
             ret = backend_proxy_zigbee_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
             break;
-        case IOT_DEV_TYPE_LORA:
+        case IOT_PROTO_TYPE_LORA:
             if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotLoraAddr)){
                 error_print("backend_proxy_iot_msg_process failed: invalid msg_len for LoRa protocol!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
@@ -1988,12 +1990,14 @@ int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_se
 
             ret = backend_proxy_lora_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
             break;
-        case IOT_DEV_TYPE_POWERLINK:
+        case IOT_PROTO_TYPE_POWERLINK:
             if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotPowerLinkAddr)){
                 error_print("backend_proxy_iot_msg_process failed: invalid msg_len for PowerLink protocol!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
             }
             ret = backend_proxy_powerlink_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
+            break;
+        case IOT_PROTO_TYPE_MODBUSTCP:
             break;
         default:
             error_print("backend_proxy_iot_msg_process failed: unsupported protocol type!\n");
@@ -2030,6 +2034,7 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
                                         uint16_t backend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data){
+    utils_print("In %s\n", __func__);
     IoTBackendSession   *iot_sess;
     IotBtAddr           *bt_addr;
     uint8_t             *iot_payload;

@@ -382,7 +382,7 @@ typedef struct {
 typedef struct IotDevice_ {
     // Device identification information
     int                         dev_id;             // Unique device ID (global)
-    IotDevType                  dev_type;           // IoT device type
+    int                         dev_type;           // IoT device type, equal to IoT Protocol type.
     char                        *ns_name;           // Namespace name (for device grouping)
     IotDevStatus                dev_status;         // Device online/offline status
 

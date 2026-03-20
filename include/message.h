@@ -599,7 +599,8 @@ typedef struct {
  * @note Used to distinguish different IoT protocols in PROXY_MSG_TYPE_IOT payload
  */
 typedef enum {
-    IOT_PROTO_TYPE_BLUETOOTH = 1,  // Bluetooth protocol (BLE/Classic Bluetooth)
+    IOT_PROTO_TYPE_UNKNOWN = 0,
+    IOT_PROTO_TYPE_BLUETOOTH,  // Bluetooth protocol (BLE/Classic Bluetooth)
     IOT_PROTO_TYPE_ZIGBEE,         // Zigbee protocol (802.15.4)
     IOT_PROTO_TYPE_CAN,            // CAN bus protocol (CAN 2.0/CAN FD)
     IOT_PROTO_TYPE_LORA,           // LoRa/LoRaWAN protocol
