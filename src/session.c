@@ -9,12 +9,12 @@
 #include "dev.h"
 #include "common_utils.h"
 
-IoTBackendSession *backend_bluetooth_sess;
-IoTBackendSession *backend_can_sess;
-IoTBackendSession *backend_zigbee_sess;
-IoTBackendSession *backend_lora_sess;
-IoTBackendSession *backend_powerlink_sess;
-IoTBackendSession *backend_modbustcp_sess;
+IoTBackendSession *backend_bluetooth_sess   = NULL;
+IoTBackendSession *backend_can_sess         = NULL;
+IoTBackendSession *backend_zigbee_sess      = NULL;
+IoTBackendSession *backend_lora_sess        = NULL;
+IoTBackendSession *backend_powerlink_sess   = NULL;
+IoTBackendSession *backend_modbustcp_sess   = NULL;
 
 /**
  * @brief Allocates and initializes a SessMsgSeg structure

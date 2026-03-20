@@ -3,6 +3,8 @@
 #include "session.h"
 #include <inttypes.h>
 
+#define PRINT_SEPARATOR() printf("--------------------------------------------------\n")
+
 void error_print(char *error){
     printf("%s\n", error);
 }
@@ -883,3 +885,203 @@ int parse_proxy_protocol_and_print(const uint8_t *buffer) {
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+
+
+/**
+ * @brief Prints the detailed information of a GeneralProxyMsgHeader.
+ * 
+ * This function parses the outer header and, depending on the message type,
+ * parses the specific inner header and IoT address information.
+ * 
+ * @param hdr Pointer to the GeneralProxyMsgHeader structure.
+ */
+void print_general_proxy_msg_header(const GeneralProxyMsgHeader *hdr) {
+    if (hdr == NULL) {
+        printf("[ERROR] Input header pointer is NULL.\n");
+        return;
+    }
+
+    const ProxyMsgHeader *outer = &hdr->outer_header;
+    
+    printf("=== GeneralProxyMsgHeader Dump ===\n");
+    printf("[Outer Header]\n");
+    printf("  Version:          %u\n", outer->version);
+    printf("  Msg Type:         %u ", outer->proxy_msg_type);
+    
+    // Print human-readable message type
+    switch (outer->proxy_msg_type) {
+        case PROXY_MSG_TYPE_DEV:   printf("(DEV)\n"); break;
+        case PROXY_MSG_TYPE_STRGY: printf("(STRATEGY)\n"); break;
+        case PROXY_MSG_TYPE_SESS:  printf("(SESSION)\n"); break;
+        case PROXY_MSG_TYPE_DATA:  printf("(DATA)\n"); break;
+        case PROXY_MSG_TYPE_IOT:   printf("(IOT)\n"); break;
+        default:                   printf("(UNKNOWN)\n"); break;
+    }
+
+    printf("  Frontend Sess ID: %u\n", outer->frontend_sess_id);
+    printf("  Backend Sess ID:  %u\n", outer->backend_sess_id);
+    printf("  Payload Len:      %u\n", outer->payload_len);
+
+    // Parse Inner Header based on message type
+    switch (outer->proxy_msg_type) {
+        case PROXY_MSG_TYPE_DEV: {
+            const DevMsgHeader *dev = (const DevMsgHeader *)&hdr->inner_header.dev_hdr;
+            printf("[Inner Header: DEV]\n");
+            printf("  Version:       %u\n", dev->version);
+            printf("  Msg Type:      %u\n", dev->msg_type);
+            printf("  Msg ID:        %u\n", dev->msg_id);
+            printf("  Action Type:   %u\n", dev->action_type);
+            printf("  Payload Len:   %u\n", dev->payload_len);
+            break;
+        }
+
+        case PROXY_MSG_TYPE_STRGY: {
+            const StrgyMsgHeader *strgy = (const StrgyMsgHeader *)&hdr->inner_header.strgy_hdr;
+            printf("[Inner Header: STRATEGY]\n");
+            printf("  Version:       %u\n", strgy->version);
+            printf("  Msg Type:      %u\n", strgy->msg_type);
+            printf("  Msg ID:        %u\n", strgy->msg_id);
+            printf("  Action Type:   %u\n", strgy->action_type);
+            printf("  Payload Len:   %u\n", strgy->payload_len);
+            break;
+        }
+
+        case PROXY_MSG_TYPE_SESS: {
+            const SessMsgHeader *sess = (const SessMsgHeader *)&hdr->inner_header.sess_hdr;
+            printf("[Inner Header: SESSION]\n");
+            printf("  Version:       %u\n", sess->version);
+            printf("  Msg Type:      %u\n", sess->msg_type);
+            printf("  Action Type:   %u\n", sess->action_type);
+            printf("  IP Version:    %u\n", sess->ip_version);
+            printf("  Payload Len:   %u\n", sess->payload_len);
+            break;
+        }
+
+        case PROXY_MSG_TYPE_DATA: {
+            printf("[Inner Header: DATA]\n");
+            printf("  (No specific inner header to parse for DATA messages)\n");
+            break;
+        }
+
+        case PROXY_MSG_TYPE_IOT: {
+            const IotMsgHeader *iot_hdr = (const IotMsgHeader *)&hdr->inner_header.iot_hdr;
+            printf("[Inner Header: IOT]\n");
+            printf("  Proto Ver:     %u\n", iot_hdr->proto_ver);
+            printf("  Proto Type:    %u ", iot_hdr->proto_type);
+            
+            // Print human-readable protocol type
+            switch (iot_hdr->proto_type) {
+                case IOT_PROTO_TYPE_BLUETOOTH: printf("(BLUETOOTH)\n"); break;
+                case IOT_PROTO_TYPE_ZIGBEE:    printf("(ZIGBEE)\n"); break;
+                case IOT_PROTO_TYPE_CAN:       printf("(CAN)\n"); break;
+                case IOT_PROTO_TYPE_LORA:      printf("(LORA)\n"); break;
+                case IOT_PROTO_TYPE_POWERLINK: printf("(POWERLINK)\n"); break;
+                case IOT_PROTO_TYPE_MODBUSTCP: printf("(MODBUS TCP)\n"); break;
+                default:                       printf("(UNKNOWN)\n"); break;
+            }
+
+            printf("  Opcode:        %u\n", iot_hdr->opcode);
+            printf("  Dev Port ID:   %u\n", iot_hdr->dev_port_id);
+            printf("  Payload Len:   %u\n", iot_hdr->payload_len);
+            printf("  Reserve:       %u\n", iot_hdr->reserve);
+
+            // Parse IoT Address Information
+            printf("[IoT Address Info]\n");
+            printf("  Addr Len:      %u\n", hdr->iot_addr_len);
+            
+            if (hdr->iot_addr_len == 0) {
+                printf("  (Address invalid/empty as length is 0)\n");
+            } else {
+                // Check consistency between header proto_type and address type
+                if (hdr->iot_addr.addr_type != iot_hdr->proto_type) {
+                    printf("  [WARNING] Mismatch: Header proto_type (%u) != Addr type (%u)\n", 
+                           iot_hdr->proto_type, hdr->iot_addr.addr_type);
+                }
+
+                switch (hdr->iot_addr.addr_type) {
+                    case IOT_PROTO_TYPE_UNKNOWN:
+                        printf("  Type: UNKNOWN (No parsing performed)\n");
+                        break;
+
+                    case IOT_PROTO_TYPE_BLUETOOTH: {
+                        const IotBtAddr *bt = &hdr->iot_addr.addr_info.bt_addr;
+                        printf("  Type: BLUETOOTH\n");
+                        // Assuming mac is a null-terminated string or fixed length
+                        printf("  MAC:   %.17s\n", bt->mac); 
+                        printf("  Port:  %u\n", bt->port);
+                        break;
+                    }
+
+                    case IOT_PROTO_TYPE_ZIGBEE: {
+                        const IotZigbeeAddr *zb = &hdr->iot_addr.addr_info.zigbee_addr;
+                        printf("  Type: ZIGBEE\n");
+                        printf("  MAC:     ");
+                        for (int i = 0; i < 8; i++) {
+                            printf("%02X", zb->mac[i]);
+                            if (i < 7) printf(":");
+                        }
+                        printf("\n");
+                        printf("  PAN ID:  0x%04X\n", zb->pan_id);
+                        printf("  Endpoint:%u\n", zb->endpoint);
+                        break;
+                    }
+
+                    case IOT_PROTO_TYPE_CAN: {
+                        const IotCanAddr *can = &hdr->iot_addr.addr_info.can_addr;
+                        printf("  Type: CAN\n");
+                        printf("  Port:   %u\n", can->port);
+                        printf("  CAN ID: 0x%08X\n", (unsigned int)can->can_id);
+                        printf("  Bus ID: %u\n", can->bus_id);
+                        break;
+                    }
+
+                    case IOT_PROTO_TYPE_LORA: {
+                        const IotLoraAddr *lora = &hdr->iot_addr.addr_info.lora_addr;
+                        printf("  Type: LORA\n");
+                        printf("  Dev EUI:   0x%016" PRIx64 "\n", lora->dev_eui);
+                        printf("  Port:      %u\n", lora->port);
+                        printf("  Freq Band: %u\n", lora->freq_band);
+                        break;
+                    }
+
+                    case IOT_PROTO_TYPE_POWERLINK: {
+                        const IotPowerLinkAddr *pl = &hdr->iot_addr.addr_info.powerlink_addr;
+                        printf("  Type: POWERLINK\n");
+                        printf("  Node ID: %u\n", pl->node_id);
+                        printf("  MAC:     ");
+                        for (int i = 0; i < 6; i++) {
+                            printf("%02X", pl->mac[i]);
+                            if (i < 5) printf(":");
+                        }
+                        printf("\n");
+                        printf("  PDO ID:  %u\n", pl->pdo_id);
+                        break;
+                    }
+
+                    case IOT_PROTO_TYPE_MODBUSTCP: {
+                        const IotModbusTcpAddr *mb = &hdr->iot_addr.addr_info.modbus_tcp_addr;
+                        printf("  Type: MODBUS TCP\n");
+                        printf("  IP:      %u.%u.%u.%u\n", mb->ip[0], mb->ip[1], mb->ip[2], mb->ip[3]);
+                        printf("  Port:    %u\n", mb->port);
+                        break;
+                    }
+
+                    default:
+                        printf("  Type: UNSUPPORTED (%u)\n", hdr->iot_addr.addr_type);
+                        // Optional: Print raw bytes for debugging
+                        printf("  Raw Bytes: ");
+                        for(int i=0; i<16; i++) printf("%02X ", hdr->iot_addr.addr_info.raw[i]);
+                        printf("\n");
+                        break;
+                }
+            }
+            break;
+        }
+
+        default:
+            printf("[Inner Header]: Unknown proxy_msg_type (%u), cannot parse inner header.\n", outer->proxy_msg_type);
+            break;
+    }
+
+    PRINT_SEPARATOR();
+}

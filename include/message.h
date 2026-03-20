@@ -730,7 +730,7 @@ typedef struct IotMsgBuffer_ {
     void        *ext_info;       /**< Protocol-specific extended info (beyond address) */
 } IotMsgBuffer;
 
-typedef struct{
+typedef struct GeneralProxyMsgHeader_{
     ProxyMsgHeader  outer_header;
 //    ProxyMsgType    msg_type;
     union {        // Nested union to reduce memory usage (avoids redundant space)

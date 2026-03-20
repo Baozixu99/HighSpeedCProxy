@@ -105,4 +105,9 @@ void proxy_sess_msg_content_dump(const uint8_t* header);
 void proxy_data_msg_content_dump(const uint8_t* header);
 int parse_proxy_protocol_and_print(const uint8_t *buffer);
 
+
+struct GeneralProxyMsgHeader_;
+typedef struct GeneralProxyMsgHeader_ GeneralProxyMsgHeader;
+void print_general_proxy_msg_header(const GeneralProxyMsgHeader *hdr);
+
 #endif
