@@ -815,7 +815,8 @@ int parse_proxy_protocol_and_print(const uint8_t *buffer) {
 
             /* Calculate total expected length inside payload */
             /* Note: We trust iot_hdr->payload_len here as well */
-            if ((size_t)hdr->payload_len < header_consumed + addr_size + iot_hdr->payload_len) {
+//            printf("hdr->payload_len = %d, header_consumed = %zu, addr_size = %zu, iot_hdr->payload_len = %d\n", hdr->payload_len, header_consumed, addr_size, iot_hdr->payload_len);
+            if ((size_t)hdr->payload_len < header_consumed + iot_hdr->payload_len) {
                 printf("[PROXY_PARSE_ERR] IoT message internal length mismatch.\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
             }
@@ -886,7 +887,7 @@ int parse_proxy_protocol_and_print(const uint8_t *buffer) {
 }
 
 
-
+#if 0
 /**
  * @brief Prints the detailed information of a GeneralProxyMsgHeader.
  * 
@@ -1081,6 +1082,409 @@ void print_general_proxy_msg_header(const GeneralProxyMsgHeader *hdr) {
         default:
             printf("[Inner Header]: Unknown proxy_msg_type (%u), cannot parse inner header.\n", outer->proxy_msg_type);
             break;
+    }
+
+    PRINT_SEPARATOR();
+}
+#endif
+
+
+/**
+ * @brief Helper to print IotAddr based solely on type (no len param).
+ */
+void print_iot_addr_details(const IotAddr *addr) {
+    if (addr == NULL) return;
+
+    printf("  Protocol Type: %u ", addr->addr_type);
+    
+    switch (addr->addr_type) {
+        case IOT_PROTO_TYPE_UNKNOWN:
+            printf("(UNKNOWN)\n");
+            return;
+        case IOT_PROTO_TYPE_BLUETOOTH:
+            printf("(BLUETOOTH)\n");
+            {
+                const IotBtAddr *bt = &addr->addr_info.bt_addr;
+                printf("  MAC:   %.17s\n", bt->mac);
+                printf("  Port:  %u\n", bt->port);
+            }
+            break;
+        case IOT_PROTO_TYPE_ZIGBEE:
+            printf("(ZIGBEE)\n");
+            {
+                const IotZigbeeAddr *zb = &addr->addr_info.zigbee_addr;
+                printf("  MAC:     ");
+                for (int i = 0; i < 8; i++) { printf("%02X", zb->mac[i]); if(i<7) printf(":"); }
+                printf("\n  PAN ID:  0x%04X\n  Endpoint:%u\n", zb->pan_id, zb->endpoint);
+            }
+            break;
+        case IOT_PROTO_TYPE_CAN:
+            printf("(CAN)\n");
+            {
+                const IotCanAddr *can = &addr->addr_info.can_addr;
+                printf("  Port:   %u\n  CAN ID: 0x%08X\n  Bus ID: %u\n", can->port, (unsigned int)can->can_id, can->bus_id);
+            }
+            break;
+        case IOT_PROTO_TYPE_LORA:
+            printf("(LORA)\n");
+            {
+                const IotLoraAddr *lora = &addr->addr_info.lora_addr;
+                printf("  Dev EUI:   0x%016" PRIx64 "\n  Port: %u\n  Freq Band: %u\n", lora->dev_eui, lora->port, lora->freq_band);
+            }
+            break;
+        case IOT_PROTO_TYPE_POWERLINK:
+            printf("(POWERLINK)\n");
+            {
+                const IotPowerLinkAddr *pl = &addr->addr_info.powerlink_addr;
+                printf("  Node ID: %u\n  MAC: ", pl->node_id);
+                for (int i = 0; i < 6; i++) { printf("%02X", pl->mac[i]); if(i<5) printf(":"); }
+                printf("\n  PDO ID:  %u\n", pl->pdo_id);
+            }
+            break;
+        case IOT_PROTO_TYPE_MODBUSTCP:
+            printf("(MODBUS TCP)\n");
+            {
+                const IotModbusTcpAddr *mb = &addr->addr_info.modbus_tcp_addr;
+                printf("  IP:   %u.%u.%u.%u\n  Port: %u\n", mb->ip[0], mb->ip[1], mb->ip[2], mb->ip[3], mb->port);
+            }
+            break;
+        default:
+            printf("(UNSUPPORTED)\n");
+            break;
+    }
+}
+
+
+/**
+ * @brief Prints the GeneralProxyMsgHeader.
+ * 
+ * CORRECTION APPLIED: 
+ * The length validation logic for IOT messages has been fixed.
+ * Logic: hdr->payload_len MUST EQUAL (sizeof(IotMsgHeader) + iot_hdr->payload_len).
+ * Where iot_hdr->payload_len includes both the Address and the Actual Data.
+ */
+void print_general_proxy_msg_header(const GeneralProxyMsgHeader *hdr) {
+    if (hdr == NULL) {
+        printf("[ERROR] Input header pointer is NULL.\n");
+        return;
+    }
+
+    const ProxyMsgHeader *outer = &hdr->outer_header;
+    
+    printf("=== GeneralProxyMsgHeader Dump ===\n");
+    printf("[Outer Header]\n");
+    printf("  Version:          %u\n", outer->version);
+    printf("  Msg Type:         %u ", outer->proxy_msg_type);
+    
+    switch (outer->proxy_msg_type) {
+        case PROXY_MSG_TYPE_DEV:   printf("(DEV)\n"); break;
+        case PROXY_MSG_TYPE_STRGY: printf("(STRATEGY)\n"); break;
+        case PROXY_MSG_TYPE_SESS:  printf("(SESSION)\n"); break;
+        case PROXY_MSG_TYPE_DATA:  printf("(DATA)\n"); break;
+        case PROXY_MSG_TYPE_IOT:   printf("(IOT)\n"); break;
+        default:                   printf("(UNKNOWN)\n"); break;
+    }
+
+    printf("  Frontend Sess ID: %u\n", outer->frontend_sess_id);
+    printf("  Backend Sess ID:  %u\n", outer->backend_sess_id);
+    printf("  Payload Len:      %u\n", outer->payload_len);
+
+    switch (outer->proxy_msg_type) {
+        case PROXY_MSG_TYPE_DEV: {
+            const DevMsgHeader *dev = (const DevMsgHeader *)&hdr->inner_header.dev_hdr;
+            printf("[Inner Header: DEV]\n");
+            printf("  Version: %u, MsgType: %u, ID: %u, Action: %u, PayLen: %u\n",
+                   dev->version, dev->msg_type, dev->msg_id, dev->action_type, dev->payload_len);
+            break;
+        }
+        case PROXY_MSG_TYPE_STRGY: {
+            const StrgyMsgHeader *s = (const StrgyMsgHeader *)&hdr->inner_header.strgy_hdr;
+            printf("[Inner Header: STRATEGY]\n");
+            printf("  Version: %u, MsgType: %u, ID: %u, Action: %u, PayLen: %u\n",
+                   s->version, s->msg_type, s->msg_id, s->action_type, s->payload_len);
+            break;
+        }
+        case PROXY_MSG_TYPE_SESS: {
+            const SessMsgHeader *s = (const SessMsgHeader *)&hdr->inner_header.sess_hdr;
+            printf("[Inner Header: SESSION]\n");
+            printf("  Version: %u, MsgType: %u, Action: %u, IPVer: %u, PayLen: %u\n",
+                   s->version, s->msg_type, s->action_type, s->ip_version, s->payload_len);
+            break;
+        }
+        case PROXY_MSG_TYPE_DATA:
+            printf("[Inner Header: DATA] (No specific inner header)\n");
+            break;
+
+        case PROXY_MSG_TYPE_IOT: {
+            const IotMsgHeader *iot_hdr = (const IotMsgHeader *)&hdr->inner_header.iot_hdr;
+            printf("[Inner Header: IOT]\n");
+            printf("  Proto Ver:   %u\n", iot_hdr->proto_ver);
+            printf("  Proto Type:  %u ", iot_hdr->proto_type);
+            
+            // Basic validation: Ensure payload_len is at least large enough for the smallest address?
+            // Actually, we trust the type for printing, but we can log a warning if it looks too small.
+            
+            switch (iot_hdr->proto_type) {
+                case IOT_PROTO_TYPE_BLUETOOTH: printf("(BLUETOOTH)\n"); break;
+                case IOT_PROTO_TYPE_ZIGBEE:    printf("(ZIGBEE)\n"); break;
+                case IOT_PROTO_TYPE_CAN:       printf("(CAN)\n"); break;
+                case IOT_PROTO_TYPE_LORA:      printf("(LORA)\n"); break;
+                case IOT_PROTO_TYPE_POWERLINK: printf("(POWERLINK)\n"); break;
+                case IOT_PROTO_TYPE_MODBUSTCP: printf("(MODBUS TCP)\n"); break;
+                default:                       printf("(UNKNOWN)\n"); break;
+            }
+
+            printf("  Opcode:      %u\n", iot_hdr->opcode);
+            printf("  Dev Port ID: %u\n", iot_hdr->dev_port_id);
+            printf("  Payload Len: %u (Includes Addr + Data)\n", iot_hdr->payload_len);
+            printf("  Reserve:     %u\n", iot_hdr->reserve);
+
+            // --- LENGTH VALIDATION FIX ---
+            // The outer payload_len must cover: sizeof(IotMsgHeader) + iot_hdr->payload_len
+            size_t header_consumed = sizeof(IotMsgHeader);
+            
+            // Correct Logic:
+            // Total Available (outer) == Header Size + Declared Inner Payload (Addr + Data)
+            if (outer->payload_len != (header_consumed + iot_hdr->payload_len)) {
+                printf("  [WARNING] Length Mismatch!\n");
+                printf("            Outer Payload (%u) != IotHeader Size (%zu) + Inner Payload (%u)\n",
+                       outer->payload_len, header_consumed, iot_hdr->payload_len);
+                printf("            Expected: %zu, Got: %u\n", 
+                       (header_consumed + iot_hdr->payload_len), outer->payload_len);
+            } else {
+                printf("  [OK] Length validation passed.\n");
+            }
+
+            // Optional: Check if inner payload is at least big enough for the address type
+            size_t min_addr_size = 0;
+            switch (iot_hdr->proto_type) {
+                case IOT_PROTO_TYPE_BLUETOOTH: min_addr_size = sizeof(IotBtAddr); break;
+                case IOT_PROTO_TYPE_CAN:       min_addr_size = sizeof(IotCanAddr); break;
+                case IOT_PROTO_TYPE_ZIGBEE:    min_addr_size = sizeof(IotZigbeeAddr); break;
+                case IOT_PROTO_TYPE_LORA:      min_addr_size = sizeof(IotLoraAddr); break;
+                case IOT_PROTO_TYPE_POWERLINK: min_addr_size = sizeof(IotPowerLinkAddr); break;
+                case IOT_PROTO_TYPE_MODBUSTCP: min_addr_size = sizeof(IotModbusTcpAddr); break;
+                default: min_addr_size = 0; break;
+            }
+
+            if (min_addr_size > 0 && iot_hdr->payload_len < min_addr_size) {
+                printf("  [ERROR] Inner Payload (%u) is smaller than minimum Address Size (%zu) for this protocol!\n",
+                       iot_hdr->payload_len, min_addr_size);
+            }
+
+            // Print Address Info
+            // Note: Since this function takes a Struct Pointer, we assume 'hdr->iot_addr' 
+            // has been correctly populated by the caller's parsing logic.
+            printf("[IoT Address Info]\n");
+            print_iot_addr_details(&hdr->iot_addr);
+            
+            break;
+        }
+
+        default:
+            printf("[Inner Header]: Unknown type.\n");
+            break;
+    }
+
+    PRINT_SEPARATOR();
+}
+
+
+
+/**
+ * @brief Helper function to print IotAddr details.
+ * 
+ * Determines the expected size and content based solely on addr_type.
+ * No external addr_len parameter is required.
+ * 
+ * @param addr Pointer to the IotAddr structure.
+ */
+void print_iot_addr(const IotAddr *addr) {
+    if (addr == NULL) {
+        printf("  [Address] NULL\n");
+        return;
+    }
+
+    printf("  Protocol Type: %u ", addr->addr_type);
+    
+    // Print human-readable type name and determine expected size
+    int expected_size = 0;
+    switch (addr->addr_type) {
+        case IOT_PROTO_TYPE_UNKNOWN:
+            printf("(UNKNOWN)\n");
+            printf("  (No address parsing for UNKNOWN type)\n");
+            return;
+
+        case IOT_PROTO_TYPE_BLUETOOTH:
+            printf("(BLUETOOTH)\n");
+            expected_size = sizeof(IotBtAddr); // 18 + 2 = 20 bytes
+            break;
+
+        case IOT_PROTO_TYPE_ZIGBEE:
+            printf("(ZIGBEE)\n");
+            expected_size = sizeof(IotZigbeeAddr); // 8 + 2 + 1 = 11 bytes
+            break;
+
+        case IOT_PROTO_TYPE_CAN:
+            printf("(CAN)\n");
+            expected_size = sizeof(IotCanAddr); // 2 + 4 + 1 = 7 bytes
+            break;
+
+        case IOT_PROTO_TYPE_LORA:
+            printf("(LORA)\n");
+            expected_size = sizeof(IotLoraAddr); // 8 + 2 + 1 = 11 bytes
+            break;
+
+        case IOT_PROTO_TYPE_POWERLINK:
+            printf("(POWERLINK)\n");
+            expected_size = sizeof(IotPowerLinkAddr); // 2 + 6 + 2 = 10 bytes
+            break;
+
+        case IOT_PROTO_TYPE_MODBUSTCP:
+            printf("(MODBUS TCP)\n");
+            expected_size = sizeof(IotModbusTcpAddr); // 4 + 2 = 6 bytes
+            break;
+
+        default:
+            printf("(UNSUPPORTED)\n");
+            printf("  Raw Bytes: ");
+            for(int i=0; i<16; i++) printf("%02X ", addr->addr_info.raw[i]);
+            printf("\n");
+            return;
+    }
+
+    // Parse and print specific fields based on type
+    switch (addr->addr_type) {
+        case IOT_PROTO_TYPE_BLUETOOTH: {
+            const IotBtAddr *bt = &addr->addr_info.bt_addr;
+            printf("  MAC:   %.17s\n", bt->mac);
+            printf("  Port:  %u\n", bt->port);
+            break;
+        }
+
+        case IOT_PROTO_TYPE_ZIGBEE: {
+            const IotZigbeeAddr *zb = &addr->addr_info.zigbee_addr;
+            printf("  MAC:     ");
+            for (int i = 0; i < 8; i++) {
+                printf("%02X", zb->mac[i]);
+                if (i < 7) printf(":");
+            }
+            printf("\n");
+            printf("  PAN ID:  0x%04X\n", zb->pan_id);
+            printf("  Endpoint:%u\n", zb->endpoint);
+            break;
+        }
+
+        case IOT_PROTO_TYPE_CAN: {
+            const IotCanAddr *can = &addr->addr_info.can_addr;
+            printf("  Port:   %u\n", can->port);
+            printf("  CAN ID: 0x%08X\n", (unsigned int)can->can_id);
+            printf("  Bus ID: %u\n", can->bus_id);
+            break;
+        }
+
+        case IOT_PROTO_TYPE_LORA: {
+            const IotLoraAddr *lora = &addr->addr_info.lora_addr;
+            printf("  Dev EUI:   0x%016" PRIx64 "\n", lora->dev_eui);
+            printf("  Port:      %u\n", lora->port);
+            printf("  Freq Band: %u\n", lora->freq_band);
+            break;
+        }
+
+        case IOT_PROTO_TYPE_POWERLINK: {
+            const IotPowerLinkAddr *pl = &addr->addr_info.powerlink_addr;
+            printf("  Node ID: %u\n", pl->node_id);
+            printf("  MAC:     ");
+            for (int i = 0; i < 6; i++) {
+                printf("%02X", pl->mac[i]);
+                if (i < 5) printf(":");
+            }
+            printf("\n");
+            printf("  PDO ID:  %u\n", pl->pdo_id);
+            break;
+        }
+
+        case IOT_PROTO_TYPE_MODBUSTCP: {
+            const IotModbusTcpAddr *mb = &addr->addr_info.modbus_tcp_addr;
+            printf("  IP:      %u.%u.%u.%u\n", mb->ip[0], mb->ip[1], mb->ip[2], mb->ip[3]);
+            printf("  Port:    %u\n", mb->port);
+            break;
+        }
+        
+        default:
+            break;
+    }
+    
+    // Optional: Print the calculated expected size for debugging verification
+    printf("  (Expected Struct Size: %d bytes)\n", expected_size);
+}
+
+
+/**
+ * @brief Prints the detailed information of an IotMsgBuffer.
+ * 
+ * Parses buffer metadata, decodes IotAddr based on type (no len param needed),
+ * and prints a hex dump of the raw data. ext_info is not dereferenced.
+ * 
+ * @param buf Pointer to the IotMsgBuffer structure.
+ */
+void print_iot_msg_buffer(const IotMsgBuffer *buf) {
+    if (buf == NULL) {
+        printf("[ERROR] Input IotMsgBuffer pointer is NULL.\n");
+        return;
+    }
+
+    printf("=== IotMsgBuffer Dump ===\n");
+    
+    // 1. Basic Metadata
+    printf("[Metadata]\n");
+    printf("  Message ID:    %" PRIu32 "\n", buf->msg_id);
+    printf("  Timestamp:     %" PRIu64 " ms\n", buf->timestamp);
+    printf("  Data Length:   %" PRIu32 " bytes\n", buf->len);
+    printf("  Data Pointer:  %p\n", (void*)buf->data);
+    
+    if (buf->data == NULL && buf->len > 0) {
+        printf("  [WARNING] Data length is > 0 but data pointer is NULL!\n");
+    }
+
+    // 2. Extended Info (Pointer only, not dereferenced)
+    printf("[Extended Info]\n");
+    if (buf->ext_info == NULL) {
+        printf("  Ptr:           NULL\n");
+    } else {
+        printf("  Ptr:           %p (Content not parsed)\n", buf->ext_info);
+    }
+
+    // 3. Address Information (No addr_len passed)
+    printf("[Address Information]\n");
+    print_iot_addr(&buf->addr);
+
+    // 4. Raw Data Hex Dump
+    printf("[Raw Data Payload]\n");
+    if (buf->data == NULL || buf->len == 0) {
+        printf("  (No data to display)\n");
+    } else {
+        // Limit dump size to avoid flooding console
+        uint32_t dump_len = (buf->len > 64) ? 64 : buf->len;
+        
+        printf("  Showing first %u of %u bytes:\n", dump_len, buf->len);
+        for (uint32_t i = 0; i < dump_len; i++) {
+            if (i % 16 == 0) {
+                printf("  %04X: ", i);
+            }
+            printf("%02X ", buf->data[i]);
+            
+            if ((i + 1) % 16 == 0) {
+                printf("\n");
+            }
+        }
+        if (dump_len % 16 != 0) {
+            printf("\n");
+        }
+        
+        if (buf->len > 64) {
+            printf("  ... (%" PRIu32 " bytes omitted)\n", buf->len - 64);
+        }
     }
 
     PRINT_SEPARATOR();

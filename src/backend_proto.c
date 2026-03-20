@@ -1214,6 +1214,10 @@ int build_proxy_iot_message(GeneralProxyMsgHeader *header,
     /*
      * 1. Basic Parameter Validation (Safety Check)
      */
+    IotMsgHeader *iot_msg_hdr;
+    uint8_t *iot_data_msg;
+    size_t addr_info_len;
+
     if (!header || !payload || !result_msg || !(*result_msg)) {
         error_print("build_proxy_iot_message failed: NULL pointer argument!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -1228,8 +1232,24 @@ int build_proxy_iot_message(GeneralProxyMsgHeader *header,
         // Proceeding anyway as the switch statement below will handle the actual size based on proto_type
     }
 
-    uint8_t *iot_data_msg   = *result_msg;
-    size_t addr_info_len    = 0;
+
+    print_general_proxy_msg_header(header);
+
+/*
+ * Fill IoT header.
+ */
+
+    iot_data_msg                = *result_msg;
+    iot_msg_hdr                 = (IotMsgHeader *)iot_data_msg;
+    iot_msg_hdr->dev_port_id    = 0;
+    iot_msg_hdr->opcode         = 0;
+    iot_msg_hdr->proto_type     = header->inner_header.iot_hdr.proto_type;
+    iot_msg_hdr->proto_ver      = 0;
+    iot_msg_hdr->reserve        = 0;
+
+
+    iot_data_msg                = iot_data_msg + sizeof(IotMsgHeader);
+    addr_info_len               = 0;
 
     /*
      * 2. Determine the exact valid length of the specific address structure
@@ -1288,6 +1308,8 @@ int build_proxy_iot_message(GeneralProxyMsgHeader *header,
     if (payload_len > 0) {
         memcpy(iot_data_msg, payload, payload_len);
     }
+
+    iot_msg_hdr->payload_len = payload_len + addr_info_len;
 
     return BACKEND_PROXY_PROCESS_OK;
 }

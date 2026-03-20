@@ -110,4 +110,8 @@ struct GeneralProxyMsgHeader_;
 typedef struct GeneralProxyMsgHeader_ GeneralProxyMsgHeader;
 void print_general_proxy_msg_header(const GeneralProxyMsgHeader *hdr);
 
+struct IotMsgBuffer_;
+typedef struct IotMsgBuffer_ IotMsgBuffer;
+void print_iot_msg_buffer(const IotMsgBuffer *buf);
+
 #endif

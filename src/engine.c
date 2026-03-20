@@ -3008,6 +3008,7 @@ eng_run_step5:
             goto eng_run_step5;
 
         engine_iot_dev_run(eng);
+        sleep(1);
 
 /*
  * Go back to STEP 1.
