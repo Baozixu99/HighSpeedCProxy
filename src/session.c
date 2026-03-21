@@ -569,6 +569,11 @@ int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
+    if(NULL == dev || NULL == sess){
+        error_print("engine_init_modbustcp_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 

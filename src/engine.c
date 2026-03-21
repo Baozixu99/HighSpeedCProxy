@@ -1116,6 +1116,99 @@ int parse_powerlink_attr(dictionary *ini, const char *section, PowerLinkDevAttr 
     return BACKEND_PROXY_PROCESS_OK;
 }
 
+
+/**
+ * @brief Parse ModbusTCP specific attributes from INI section
+ * @param ini Pointer to iniparser dictionary object
+ * @param section Name of the target INI section (e.g., "device_106")
+ * @param mb_attr Pointer to ModbusTCPDevAttr structure to store parsed data
+ * @return int Result of the function execution
+ *         - BACKEND_PROXY_PROCESS_OK: ModbusTCP attributes parsed successfully
+ *         - BACKEND_PROXY_PROCESS_ERROR: Parsing failed (e.g., invalid Unit ID, invalid MAC address)
+ * 
+ * @note The ModbusTCP specific attributes in INI file must comply with the following format:
+ * [device_<dev_id>]
+ * mb_port = ModbusTCP port number (integer, default: 502)
+ * mb_unit_id = Modbus Unit ID / Slave ID (integer, 0-255)
+ * mb_proto_ver = Protocol version (string: "tcp" or "rtu_over_tcp", default: "tcp")
+ * mb_timeout_ms = Communication timeout in milliseconds (integer, e.g., 1000)
+ * mb_retry_cnt = Request retry count (integer, 0 = no retry)
+ * mb_mac = Device MAC address (string, format: XX:XX:XX:XX:XX:XX)
+ * 
+ * Example:
+ * [device_106]
+ * mb_port = 502
+ * mb_unit_id = 1
+ * mb_proto_ver = tcp
+ * mb_timeout_ms = 1000
+ * mb_retry_cnt = 3
+ * mb_mac = 00:12:34:56:78:9C
+ */
+int parse_modbustcp_attr(dictionary *ini, const char *section, ModbusTCPDevAttr *mb_attr) {
+    char key[128];
+
+    // 1. Parse mb_port (Default: 502)
+    snprintf(key, sizeof(key), "%s:mb_port", section);
+    mb_attr->mb_port = (uint16_t)iniparser_getint(ini, key, 502);
+
+    // 2. Parse mb_unit_id with validation (0-255)
+    snprintf(key, sizeof(key), "%s:mb_unit_id", section);
+    int unit_id_val = iniparser_getint(ini, key, 1);
+    if (unit_id_val < 0 || unit_id_val > 255) {
+        fprintf(stderr, "Invalid Modbus Unit ID %d (must be 0-255) for section: %s\n", unit_id_val, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    mb_attr->mb_unit_id = (uint8_t)unit_id_val;
+
+    // 3. Parse mb_proto_ver (tcp vs rtu_over_tcp)
+    snprintf(key, sizeof(key), "%s:mb_proto_ver", section);
+    const char *proto_str = iniparser_getstring(ini, key, "tcp");
+    if (strcmp(proto_str, "rtu_over_tcp") == 0 || strcmp(proto_str, "rtu") == 0) {
+        mb_attr->mb_proto_ver = 0x01; // ModbusRTU over TCP
+    } else if (strcmp(proto_str, "tcp") == 0) {
+        mb_attr->mb_proto_ver = 0x00; // Standard ModbusTCP
+    } else {
+        fprintf(stderr, "Unsupported Modbus protocol version '%s' (use 'tcp' or 'rtu_over_tcp') for section: %s\n", proto_str, section);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    // 4. Parse mb_timeout_ms (Default: 1000ms)
+    snprintf(key, sizeof(key), "%s:mb_timeout_ms", section);
+    mb_attr->mb_timeout_ms = (uint32_t)iniparser_getint(ini, key, 1000);
+    
+    // Optional: Validate timeout is positive
+    if (mb_attr->mb_timeout_ms == 0) {
+        fprintf(stderr, "[WARN] Modbus timeout is 0 for section: %s, setting to default 1000ms\n", section);
+        mb_attr->mb_timeout_ms = 1000;
+    }
+
+    // 5. Parse mb_retry_cnt (Default: 0)
+    snprintf(key, sizeof(key), "%s:mb_retry_cnt", section);
+    int retry_val = iniparser_getint(ini, key, 0);
+    if (retry_val < 0) {
+        fprintf(stderr, "Invalid retry count %d for section: %s, using 0\n", retry_val, section);
+        retry_val = 0;
+    }
+    mb_attr->mb_retry_cnt = (uint8_t)retry_val;
+
+    // 6. Parse mb_mac with format validation (XX:XX:XX:XX:XX:XX)
+    snprintf(key, sizeof(key), "%s:mb_mac", section);
+    const char *mac_str = iniparser_getstring(ini, key, "00:00:00:00:00:00");
+    
+    // Expect exactly 6 bytes parsed
+    int parsed_bytes = sscanf(mac_str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+           &mb_attr->mb_mac[0], &mb_attr->mb_mac[1], &mb_attr->mb_mac[2],
+           &mb_attr->mb_mac[3], &mb_attr->mb_mac[4], &mb_attr->mb_mac[5]);
+           
+    if (parsed_bytes != 6) {
+        fprintf(stderr, "Invalid ModbusTCP MAC address format for section: %s (expected XX:XX:XX:XX:XX:XX, got: %s)\n", section, mac_str);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
 /**
  * @brief Initialize IoT devices from INI configuration file (iot_dev.ini)
  * @param engine Pointer to BackendEngine instance (stores parsed IoT devices in iot_dev_set)
@@ -1294,6 +1387,9 @@ int engine_init_iot_devices(BackendEngine *engine) {
                 break;
             case IOT_PROTO_TYPE_POWERLINK:
                 proto_parse_result = parse_powerlink_attr(ini, section, &dev->specific_attr.plk_attr);
+                break;
+            case IOT_PROTO_TYPE_MODBUSTCP:
+                proto_parse_result = parse_modbustcp_attr(ini, section, &dev->specific_attr.mb_attr);
                 break;
             default:
                 proto_parse_result = BACKEND_PROXY_PROCESS_ERROR;
@@ -1516,6 +1612,21 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         error_print("engine_init_iot_sessions failed: only one modbusTCP device is supported in backendengine!\n");
                         goto init_iot_sess_error;
                     }
+
+                    backend_modbustcp_sess =  malloc(sizeof(IoTBackendSession));
+
+                    if(NULL == backend_modbustcp_sess){
+                        error_print("engine_init_iot_sessions failed: insufficient memory for allocating backend_modbustcp_sess instance!\n");
+                        goto init_iot_sess_error;
+                    }
+
+                    ret = engine_init_modbustcp_session(iot_dev, backend_modbustcp_sess);
+
+                    if(BACKEND_PROXY_PROCESS_OK != ret){
+                        error_print("engine_init_iot_sessions failed: failed to initialize engine_init_modbustcp_session instance!\n");
+                        goto init_iot_sess_error;
+                    }
+
                     break;
                 default:
                     error_print("engine_init_iot_sessions failed: unsupported device type!\n");
