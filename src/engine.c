@@ -2559,7 +2559,53 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
  * @see engine_iot_dev_run()
  */
 void engine_iot_can_run(IoTBackendSession *sess){
-    
+    utils_print("In %s\n", __func__);
+    int                     ret;
+    uint8_t                 data[1024];
+    IotMsgBuffer            msg_buf;
+    GeneralProxyMsgHeader   proxy_msg_hdr;
+    uint8_t                 res_buf[100] = {0};
+    uint8_t                 *res_ptr;
+
+
+    ret = BACKEND_PROXY_PROCESS_ERROR;
+    do{
+        memset(&msg_buf, 0, sizeof(IotMsgBuffer));
+        memset(data, 0, sizeof(data));
+        msg_buf.data = data;
+        msg_buf.len  = sizeof(data);
+
+        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            error_print("engine_iot_can_run returned: no bluetooth data available yet!\n");
+            return;
+        }else if(BACKEND_PROXY_PROCESS_ERROR){
+            error_print("engine_iot_can_run failed: receive bluetooth data error!\n");
+        }else{
+            memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
+            proxy_msg_hdr.outer_header.frontend_sess_id = 0;
+            proxy_msg_hdr.outer_header.backend_sess_id = 0;
+            proxy_msg_hdr.outer_header.proxy_msg_type = PROXY_MSG_TYPE_IOT;
+
+            proxy_msg_hdr.inner_header.iot_hdr.dev_port_id  = 0;
+            proxy_msg_hdr.inner_header.iot_hdr.opcode       = 0;
+            proxy_msg_hdr.inner_header.iot_hdr.proto_type   = IOT_PROTO_TYPE_CAN;
+            proxy_msg_hdr.inner_header.iot_hdr.proto_ver    = 1;
+            proxy_msg_hdr.inner_header.iot_hdr.payload_len  = msg_buf.len + get_iot_addr_length(IOT_PROTO_TYPE_CAN);
+
+            proxy_msg_hdr.iot_addr_len                      = get_iot_addr_length(IOT_PROTO_TYPE_CAN);
+            proxy_msg_hdr.iot_addr.addr_type                = IOT_PROTO_TYPE_CAN;
+            proxy_msg_hdr.iot_addr.addr_info.can_addr.bus_id = 0;
+            proxy_msg_hdr.iot_addr.addr_info.can_addr.can_id = msg_buf.addr.addr_info.can_addr.can_id;
+            proxy_msg_hdr.iot_addr.addr_info.can_addr.port   = msg_buf.addr.addr_info.can_addr.port;
+            res_ptr = res_buf;
+            build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
+            //msg_buf.addr;
+        }
+
+
+
+    }while(BACKEND_PROXY_PROCESS_OK == ret);
+
 }
 
 
@@ -2606,7 +2652,57 @@ void engine_iot_can_run(IoTBackendSession *sess){
  * 
  * @see engine_iot_dev_run()
  */
-void engine_iot_modbustcp_run(IoTBackendSession *sess){}
+void engine_iot_modbustcp_run(IoTBackendSession *sess){
+    utils_print("In %s\n", __func__);
+    int                     ret;
+    uint8_t                 data[1024];
+    IotMsgBuffer            msg_buf;
+    GeneralProxyMsgHeader   proxy_msg_hdr;
+    uint8_t                 res_buf[100] = {0};
+    uint8_t                 *res_ptr;
+
+    ret = BACKEND_PROXY_PROCESS_ERROR;
+
+do{
+        memset(&msg_buf, 0, sizeof(IotMsgBuffer));
+        memset(data, 0, sizeof(data));
+        msg_buf.data = data;
+        msg_buf.len  = sizeof(data);
+
+        if(BACKEND_PROXY_PROCESS_AGAIN == ret){
+            error_print("engine_iot_modbustcp_run returned: no ModbusTCP data available yet!\n");
+            return;
+        }else if(BACKEND_PROXY_PROCESS_ERROR){
+            error_print("engine_iot_modbustcp_run failed: receive ModbusTCP data error!\n");
+        }else{
+            memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
+            proxy_msg_hdr.outer_header.frontend_sess_id = 0;
+            proxy_msg_hdr.outer_header.backend_sess_id = 0;
+            proxy_msg_hdr.outer_header.proxy_msg_type = PROXY_MSG_TYPE_IOT;
+
+            proxy_msg_hdr.inner_header.iot_hdr.dev_port_id  = 0;
+            proxy_msg_hdr.inner_header.iot_hdr.opcode       = 0;
+            proxy_msg_hdr.inner_header.iot_hdr.proto_type   = IOT_PROTO_TYPE_MODBUSTCP;
+            proxy_msg_hdr.inner_header.iot_hdr.proto_ver    = 1;
+            proxy_msg_hdr.inner_header.iot_hdr.payload_len  = msg_buf.len + get_iot_addr_length(IOT_PROTO_TYPE_MODBUSTCP);
+
+            proxy_msg_hdr.iot_addr_len                                  = get_iot_addr_length(IOT_PROTO_TYPE_MODBUSTCP);
+            proxy_msg_hdr.iot_addr.addr_type                            = IOT_PROTO_TYPE_MODBUSTCP;
+            proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.port       = msg_buf.addr.addr_info.modbus_tcp_addr.port;
+            proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.reg_addr   = msg_buf.addr.addr_info.modbus_tcp_addr.reg_addr;
+            proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.reg_num    = msg_buf.addr.addr_info.modbus_tcp_addr.reg_num;
+            proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.unit_id    = msg_buf.addr.addr_info.modbus_tcp_addr.unit_id;
+            memcpy(proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.ip, msg_buf.addr.addr_info.modbus_tcp_addr.ip, sizeof(msg_buf.addr.addr_info.modbus_tcp_addr.ip));
+            res_ptr = res_buf;
+            build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
+            //msg_buf.addr;
+        }
+
+
+
+    }while(BACKEND_PROXY_PROCESS_OK == ret);
+
+}
 
 
 
