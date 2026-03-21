@@ -862,6 +862,8 @@ int parse_proxy_protocol_and_print(const uint8_t *buffer) {
                 case IOT_PROTO_TYPE_MODBUSTCP: {
                     const IotModbusTcpAddr *addr = (const IotModbusTcpAddr *)addr_ptr;
                     printf("IP=%u.%u.%u.%u, Port=%u\n", addr->ip[0], addr->ip[1], addr->ip[2], addr->ip[3], addr->port);
+                    printf("    UnitID=%u, RegAddr=%hu, RegNum=%hu\n",
+                           addr->unit_id, addr->reg_addr, addr->reg_num);
                     break;
                 }
             }
@@ -1146,6 +1148,8 @@ void print_iot_addr_details(const IotAddr *addr) {
             {
                 const IotModbusTcpAddr *mb = &addr->addr_info.modbus_tcp_addr;
                 printf("  IP:   %u.%u.%u.%u\n  Port: %u\n", mb->ip[0], mb->ip[1], mb->ip[2], mb->ip[3], mb->port);
+                printf("    UnitID=%u, RegAddr=%hu, RegNum=%hu\n",
+                           mb->unit_id, mb->reg_addr, mb->reg_num);
             }
             break;
         default:

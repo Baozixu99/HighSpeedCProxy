@@ -2020,6 +2020,11 @@ int backend_proxy_iot_msg_process(uint16_t frontend_sess_id, uint16_t backend_se
             ret = backend_proxy_powerlink_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
             break;
         case IOT_PROTO_TYPE_MODBUSTCP:
+            if(msg_len < sizeof(IotMsgHeader)+ sizeof(IotModbusTcpAddr)){
+                error_print("backend_proxy_iot_msg_process failed: invalid msg_len for ModbusTCP protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+            ret = backend_proxy_modbustcp_msg_process(frontend_sess_id, backend_sess_id, iot_msg_hdr, iot_data);
             break;
         default:
             error_print("backend_proxy_iot_msg_process failed: unsupported protocol type!\n");
@@ -2115,7 +2120,39 @@ int backend_proxy_can_msg_process(uint16_t frontend_sess_id,
                                   uint16_t backend_sess_id,
                                   IotMsgHeader *iot_header,
                                   uint8_t *iot_data){
-    return BACKEND_PROXY_PROCESS_OK;
+    utils_print("In %s\n", __func__);
+    IoTBackendSession   *iot_sess;
+    IotCanAddr          *can_addr;
+    uint8_t             *iot_payload;
+    IotMsgBuffer        iot_msg_buf;
+    int                 ret;
+
+    iot_sess = backend_can_sess;
+    (void)iot_sess;
+    
+    can_addr         = (IotCanAddr *)iot_data;
+    iot_payload     = iot_data + sizeof(IotBtAddr);
+
+    (void)can_addr;
+    (void)iot_payload;
+
+    if(iot_header->payload_len > BACKEND_CAN_MAX_PAYLOAD){
+        error_print("backend_proxy_can_msg_process failed: message length exceeds the maximum limit!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    memset(&iot_msg_buf, 0, sizeof(iot_msg_buf));
+    iot_msg_buf.addr.addr_info.can_addr.bus_id = can_addr->bus_id;
+    iot_msg_buf.addr.addr_info.can_addr.can_id = can_addr->can_id;
+    iot_msg_buf.addr.addr_info.can_addr.port   = can_addr->port;
+    iot_msg_buf.data                           = iot_payload;
+    iot_msg_buf.len                            = iot_header->payload_len;
+
+
+    ret = iot_sess->send_to_remote(iot_sess, &iot_msg_buf);
+
+
+    return ret;
 }
 
 /**
@@ -2144,6 +2181,8 @@ int backend_proxy_zigbee_msg_process(uint16_t frontend_sess_id,
                                      uint16_t backend_sess_id,
                                      IotMsgHeader *iot_header,
                                      uint8_t *iot_data){
+    
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -2232,7 +2271,36 @@ int backend_proxy_modbustcp_msg_process(uint16_t frontend_sess_id,
                                         uint16_t backend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data){
-    return BACKEND_PROXY_PROCESS_OK;
+    utils_print("In %s\n", __func__);
+    IoTBackendSession   *iot_sess;
+    IotModbusTcpAddr    *modbus_tcp_addr;
+    uint8_t             *iot_payload;
+    IotMsgBuffer        iot_msg_buf;
+    int                 ret;
+
+    iot_sess = backend_modbustcp_sess;
+    (void)iot_sess;
+    
+    modbus_tcp_addr  = (IotModbusTcpAddr *)iot_data;
+    iot_payload      = iot_data + sizeof(IotModbusTcpAddr);
+
+    if(iot_header->payload_len > BACKEND_MODBUS_TCP_MAX_PAYLOAD){
+        error_print("backend_proxy_modbustcp_msg_process failed: message length exceeds the maximum limit!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    memset(&iot_msg_buf, 0, sizeof(iot_msg_buf));
+    memcpy(&iot_msg_buf.addr.addr_info.modbus_tcp_addr.ip, &modbus_tcp_addr->ip, sizeof(modbus_tcp_addr->ip));
+    iot_msg_buf.addr.addr_info.modbus_tcp_addr.port     = modbus_tcp_addr->port;
+    iot_msg_buf.addr.addr_info.modbus_tcp_addr.reg_addr = modbus_tcp_addr->reg_addr;
+    iot_msg_buf.addr.addr_info.modbus_tcp_addr.reg_num  = modbus_tcp_addr->reg_num;
+    iot_msg_buf.addr.addr_info.modbus_tcp_addr.unit_id  = modbus_tcp_addr->unit_id;
+    iot_msg_buf.data                                    = iot_payload;
+    iot_msg_buf.len                                     = iot_header->payload_len;
+
+    ret = iot_sess->send_to_remote(iot_sess, &iot_msg_buf);
+
+    return ret;
 }
 
 

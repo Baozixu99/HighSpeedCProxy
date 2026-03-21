@@ -696,6 +696,9 @@ typedef struct {
 typedef struct {
     uint8_t ip[4];       /**< IPv4 address (e.g., 192.168.1.10) */
     uint16_t port;       /**< TCP port number (Default: 502) */
+    uint8_t  unit_id;      /**< Modbus unit ID (slave ID) */
+    uint16_t reg_addr;     /**< Start address of target register */
+    uint16_t reg_num;      /**< Total registers for read/write operations */
 } __attribute__((packed)) IotModbusTcpAddr;
 
 

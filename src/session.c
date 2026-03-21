@@ -4,7 +4,8 @@
 #include <linux/can/raw.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
-#include <sys/socket.h> 
+#include <sys/socket.h>
+#include <modbus/modbus.h>
 #include "session.h"
 #include "dev.h"
 #include "common_utils.h"
@@ -419,7 +420,7 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
 
     // 5. Conditional Binding (Mirroring Bluetooth Logic)
     // Only bind if the device is in Server Mode (working_mode == 1)
-    if (1 == dev->config.working_mode) {
+    if (IOT_WORK_MODE_SERVER == dev->config.working_mode) {
         if (bind(sk, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
             error_print("engine_init_can_session failed: bind failed!\n");
             close(sk);
@@ -428,7 +429,7 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
         
         // Optional: In server mode, we might want to receive all frames
         setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
-    } else {
+    } else if(IOT_WORK_MODE_CLIENT == dev->config.working_mode){
         // Client/Proxy Mode:
         // We do NOT bind. The socket is created and resolved to "can0" index,
         // but not bound to it. This allows the proxy to send data dynamically
@@ -441,8 +442,13 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
         // we might still need to set filters, but we skip the bind() call.
         // Clearing filter just in case, though effect without bind varies by driver.
         setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+    }else{
+        error_print("engine_init_can_session failed: unsupported working mode!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    sess->working_mode = dev->config.working_mode;
     // 6. Assign File Descriptor
     sess->dev_fd = sk;
 
@@ -569,10 +575,33 @@ int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
+    modbus_t *ctx;
     if(NULL == dev || NULL == sess){
         error_print("engine_init_modbustcp_session failed: invalid input parameters!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+
+    
+    sess->bound_dev         = dev;
+    sess->send_to_remote    = modbustcp_send_to_remote;
+    sess->recv_from_remote  = modbustcp_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_MODBUSTCP;
+
+    sess->pri_data = NULL;
+
+    if (IOT_WORK_MODE_CLIENT == dev->config.working_mode){
+        ctx = modbus_new_tcp("192.168.1.101", dev->specific_attr.mb_attr.mb_port);
+
+        if (ctx == NULL) {
+            utils_print("engine_init_modbustcp_session failed: faild to create the Modbus TCP context!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        sess->pri_data = (void *)ctx;
+        fcntl(modbus_get_socket(ctx), F_SETFL, O_NONBLOCK);
+    }
+
+    sess->working_mode = dev->config.working_mode;
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -875,6 +904,21 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
  * @note Updates sess->tx_packets/tx_bytes and device statistics on success
  */
 int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
+    utils_print("In %s\n", __func__);
+    struct can_frame    frame;
+    int                 snd_bytes;
+
+    frame.can_id  = msg_buf->addr.addr_info.can_addr.can_id;
+    frame.can_dlc = msg_buf->len;
+    memcpy(frame.data, msg_buf->data, msg_buf->len);
+
+    snd_bytes = write(sess->dev_fd, &frame, sizeof(struct can_frame));
+
+    if (snd_bytes < 0) {
+        error_print("can_send_to_remote failed: failed to send CAN frame to remote!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -896,6 +940,41 @@ int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
  * @note Automatically skips error frames based on CAN mode (can_mode)
  */
 int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
+    utils_print("In %s\n", __func__);
+    struct can_frame    frame;
+    int                 rcv_size;
+    
+    if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+        rcv_size = read(sess->dev_fd, &frame, sizeof(struct can_frame));
+
+        if (rcv_size > 0) {
+            msg_buf->addr.addr_type                 = IOT_PROTO_TYPE_CAN;
+            msg_buf->addr.addr_info.can_addr.can_id = frame.can_id;
+            msg_buf->len                            = rcv_size;
+            memcpy(msg_buf->data, frame.data, rcv_size);
+        }else if(0 == rcv_size){
+            error_print("can_recv_from_remote failed: Connection closed by peer!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }else{
+            error_print("rcv_size < 0!\n");
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // In non-blocking mode, no data available is a normal condition.
+                return BACKEND_PROXY_PROCESS_AGAIN;
+            } 
+            else if (errno == EINTR) {
+                // Interrupted by a signal. Usually retryable; returning AGAIN lets the upper layer decide.
+                return BACKEND_PROXY_PROCESS_AGAIN;
+            } 
+            else {
+                // Real error (e.g., ECONNRESET, EBADF, etc.)
+                error_print("can_recv_from_remote: Recv failed with system error!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+        }
+
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -1040,6 +1119,26 @@ int powerlink_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
  * @note Updates session tx statistics and ModbusTCP device status on success
  */
 int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
+    utils_print("%s \n", __func__);
+    modbus_t    *ctx;
+    uint16_t    regs[10]; 
+    uint16_t    reg_addr;
+    int         ret;
+
+    if (IOT_WORK_MODE_CLIENT == sess->working_mode){
+        ctx         = (modbus_t *)sess->pri_data;
+        reg_addr    = msg_buf->addr.addr_info.modbus_tcp_addr.reg_addr;
+
+        memcpy(regs, msg_buf->data, msg_buf->len);
+
+        ret = modbus_write_register(ctx, reg_addr, regs[0]);
+
+        if(-1 == ret){
+            error_print("modbustcp_send_to_remote failed: fail to send data to remote!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -1061,5 +1160,7 @@ int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
  * @note Automatically validates UnitID to prevent unauthorized ModbusTCP data
  */
 int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
+
+    
     return BACKEND_PROXY_PROCESS_OK;
 }

@@ -6,10 +6,13 @@ TARGET  := cproxy
 ARCH ?= 
 
 #compile and lib parameter
-LIBS    := -L ./lib/bt/bluez/usr/lib -lbluetooth
+#LIBS    := -L ./lib/bt/bluez/usr/lib -lbluetooth
+LIBS    := -L ./lib/bt/bluez/usr/lib -lbluetooth \
+           -L ./lib/modbusTCP/lib -lmodbus
+
 LDFLAGS :=
 DEFINES :=
-INCLUDE := -I./include -I./senario_inc -I ./lib/bt/bluez/usr/include/
+INCLUDE := -I./include -I./senario_inc -I ./lib/bt/bluez/usr/include/ -I ./lib/modbusTCP/include/
 CFLAGS  := -g -Wall -Werror -O0 $(DEFINES) $(INCLUDE)
 CXXFLAGS:= $(CFLAGS)
 
