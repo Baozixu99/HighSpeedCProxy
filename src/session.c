@@ -1160,7 +1160,41 @@ int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
  * @note Automatically validates UnitID to prevent unauthorized ModbusTCP data
  */
 int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
+    utils_print("%s \n", __func__);
+    modbus_t    *ctx;
+    uint16_t    regs[10]; 
+    uint16_t    reg_addr, reg_num;
+    int         ret;
 
+
+    if (IOT_WORK_MODE_CLIENT == sess->working_mode){
+        ctx = sess->pri_data;
+
+        if (NULL == ctx || NULL == msg_buf){
+            error_print("modbustcp_recv_from_remote failed: invalid parameters!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        reg_addr    = 0;
+        reg_num     = 1;
+        ret = modbus_read_registers(ctx, reg_addr, reg_num, regs);
+        
+        if (-1 == ret ){
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                error_print("modbustcp_recv_from_remote failed: system error happens!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }else{
+                error_print("modbustcp_recv_from_remote failed: no data!\n");
+                return BACKEND_PROXY_PROCESS_AGAIN;
+            }
+        }
+
+        msg_buf->addr.addr_type                            = IOT_PROTO_TYPE_MODBUSTCP;
+        msg_buf->addr.addr_info.modbus_tcp_addr.reg_addr   = reg_addr;
+        msg_buf->addr.addr_info.modbus_tcp_addr.reg_num    = reg_num;
+        msg_buf->len                                       = sizeof(uint16_t);
+        memcpy(msg_buf->data, regs, sizeof(uint16_t));
+    }
     
     return BACKEND_PROXY_PROCESS_OK;
 }

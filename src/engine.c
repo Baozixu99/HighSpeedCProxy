@@ -2558,7 +2558,9 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
  * 
  * @see engine_iot_dev_run()
  */
-void engine_iot_can_run(IoTBackendSession *sess){}
+void engine_iot_can_run(IoTBackendSession *sess){
+    
+}
 
 
 
@@ -2817,12 +2819,19 @@ void engine_iot_dev_run(struct BackendEngine_ *eng){
  * IoTBackendSession *backend_zigbee_sess;
  * IoTBackendSession *backend_lora_sess;
  * IoTBackendSession *backend_powerlink_sess;
+ * IoTBackendSession *backend_modbustcp_sess;
  */
     utils_print("In %s\n", __func__);
     if(NULL != backend_bluetooth_sess)
         engine_iot_bluetooth_run(backend_bluetooth_sess);
     
+    if(NULL != backend_can_sess){
+        engine_iot_can_run(backend_can_sess);
+    }
 
+    if(NULL != backend_modbustcp_sess){
+        engine_iot_modbustcp_run(backend_modbustcp_sess);
+    }
 
 }
 
