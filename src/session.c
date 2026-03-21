@@ -853,7 +853,7 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
             }
 
              if (remote_addr.l2_family != AF_BLUETOOTH) {
-                error_print("get_l2cap_peer_info failed: Socket is not a Bluetooth L2CAP socket!\n");
+                error_print("bluetooth_recv_from_remote failed: Socket is not a Bluetooth L2CAP socket!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
             }
 
@@ -862,7 +862,7 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
             ba2str(&remote_addr.l2_bdaddr, (char *)msg_buf->addr.addr_info.bt_addr.mac);
             return BACKEND_PROXY_PROCESS_OK;
         }else if(0 == rcv_size){
-            error_print("get_l2cap_peer_info failed: Connection closed by peer!\n");
+            error_print("bluetooth_recv_from_remote failed: Connection closed by peer!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }else{
             error_print("rcv_size < 0!\n");
@@ -876,7 +876,7 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
             } 
             else {
                 // Real error (e.g., ECONNRESET, EBADF, etc.)
-                error_print("read_bluetooth_nonblocking: Recv failed with system error!\n");
+                error_print("bluetooth_recv_from_remote: recv failed with system error!\n");
                 return BACKEND_PROXY_PROCESS_ERROR;
             }
 
