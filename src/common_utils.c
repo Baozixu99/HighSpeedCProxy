@@ -622,7 +622,7 @@ void proxy_data_msg_content_dump(const uint8_t* header){
  */
 int parse_proxy_protocol_and_print(const uint8_t *buffer) {
     if (!buffer) {
-        printf("[PROXY_PARSE_ERR] Input buffer is NULL.\n");
+        printf("[PROXY_PARSE_ERR] buffer is NULL.\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
