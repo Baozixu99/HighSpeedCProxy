@@ -2491,6 +2491,7 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
         }else if(BACKEND_PROXY_PROCESS_ERROR){
             error_print("engine_iot_bluetooth_run failed: receive bluetooth data error!\n");
         }else{
+            utils_print("Receive bluetooth data!\n");
             memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;
             proxy_msg_hdr.outer_header.backend_sess_id = 0;
