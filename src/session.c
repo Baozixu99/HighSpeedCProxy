@@ -265,7 +265,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
 
     // 1. Create Socket
     // Fixed to SOCK_DGRAM for connectionless communication
-    sk = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);;
+    sk = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);
     if (sk < 0) {
         error_print("engine_init_bluetooth_session failed: socket creation failed!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -308,7 +308,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
         rem_addr.l2_psm = htobs(0x1001);
         str2ba(dest, &rem_addr.l2_bdaddr);
 
-        tv.tv_sec   = 5;
+        tv.tv_sec   = 3;
         tv.tv_usec  = 0;
         setsockopt(sk, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         setsockopt(sk, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -335,12 +335,13 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+#if 0
     if (fcntl(sk, F_SETFL, flags | O_NONBLOCK) == -1) {
         error_print("engine_init_bluetooth_session failed: failed to set non-blocking mode!\n");
         close(sk);
         return BACKEND_PROXY_PROCESS_ERROR;
     }
-
+#endif
     // Assign the file descriptor to the session
     // Note: Remote address is not resolved here. 
     // The proxy frontend will provide the destination address dynamically during data transmission.
