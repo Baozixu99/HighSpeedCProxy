@@ -5,7 +5,7 @@
 uint8_t global_amp_tx_buf[HYPERAMP_MSG_HDR_PLUS_MAX_SIZE];
 
 int backend_proxy_msg_process(uint8_t *msg){
-    printf("In %s-0\n", __func__);
+    printf("In %s-0, address of message is %p \n", __func__, msg);
     ProxyMsgHeader *proxy_msg_hdr;
     int proxy_proto_ver, msg_len, ret;
     ProxyMsgType msg_type;
@@ -375,7 +375,7 @@ int backend_proxy_sess_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     payload_len = sess_msg_hdr->payload_len;
     msg_data = msg + sizeof(SessMsgHeader);
 
-    utils_print("In %s\n", __func__);
+    utils_print("In %s, the addrss of msg is %p\n", __func__, msg);
     utils_print("In %s, version = %d, msg_type = %d, action type = %d, ip version = %d, payload len = %d, address = %p\n", 
                  __func__, version, msg_type, action_type, ip_version, payload_len, &sess_msg_hdr);
  #if 0
@@ -785,7 +785,7 @@ int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
     struct SharedMemoryPool         *mem_pool;
     struct SessMsgSeg               *msg_seg;
 
-    printf("In %s-0\n", __func__);
+    printf("In %s-0, address of msg is %p \n", __func__, msg);
 
     eng = get_global_backend_engine();
 

@@ -719,6 +719,7 @@ int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
     }
     
     parse_proxy_protocol_and_print(data);
+    printf("The address of message is %p\n", data);
     // Update tail
     uint16_t new_tail = queue->tail + 1;
     if (new_tail >= queue->capacity) {
