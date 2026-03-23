@@ -718,6 +718,7 @@ int hyperamp_queue_dequeue(volatile HyperampShmQueue *queue,
         *actual_len = read_len;
     }
     
+    parse_proxy_protocol_and_print(data);
     // Update tail
     uint16_t new_tail = queue->tail + 1;
     if (new_tail >= queue->capacity) {
