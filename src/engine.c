@@ -2489,7 +2489,7 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
             error_print("engine_iot_bluetooth_run returned: no bluetooth data available yet!\n");
             return;
-        }else if(BACKEND_PROXY_PROCESS_ERROR){
+        }else if(BACKEND_PROXY_PROCESS_ERROR == ret){
             error_print("engine_iot_bluetooth_run failed: receive bluetooth data error!\n");
         }else{
             utils_print("Receive bluetooth data!\n");

@@ -822,7 +822,7 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
  */
 int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
     utils_print("In %s\n", __func__);
-    ssize_t             rcv_size;
+    int                 rcv_size;
     struct sockaddr_l2  remote_addr;
     socklen_t           addr_len;
     int                 ret;
@@ -840,7 +840,7 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
      * receive data successfully.
      */
         if (rcv_size > 0) {
-            utils_print("Receove bluetooth data, recv_size = %ld!\n", rcv_size);
+            utils_print("Receive bluetooth data, recv_size = %d!\n", rcv_size);
             msg_buf->len = rcv_size;
             addr_len = sizeof(remote_addr);
             memset(&remote_addr, 0, addr_len);
@@ -951,6 +951,7 @@ int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int tim
         rcv_size = read(sess->dev_fd, &frame, sizeof(struct can_frame));
 
         if (rcv_size > 0) {
+            utils_print("Receive CAN data, recv_size = %d!\n", rcv_size);
             msg_buf->addr.addr_type                 = IOT_PROTO_TYPE_CAN;
             msg_buf->addr.addr_info.can_addr.can_id = frame.can_id;
             msg_buf->len                            = rcv_size;
@@ -1192,6 +1193,7 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
             }
         }
 
+        utils_print("Receive ModbusTcp data\n");
         msg_buf->addr.addr_type                            = IOT_PROTO_TYPE_MODBUSTCP;
         msg_buf->addr.addr_info.modbus_tcp_addr.reg_addr   = reg_addr;
         msg_buf->addr.addr_info.modbus_tcp_addr.reg_num    = reg_num;
