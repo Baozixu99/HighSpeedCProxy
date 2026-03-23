@@ -785,7 +785,7 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
 #endif
 
     if(IOT_WORK_MODE_CLIENT == sess->working_mode){
-        snd_size = send(sess->dev_fd, msg_buf->data, msg_buf->len, 0);
+        snd_size = write(sess->dev_fd, msg_buf->data, msg_buf->len);
 
         if(snd_size < 0){
             error_print("bluetooth_send_to_remote failed: unable to send bluetooth message to remode!\n");
@@ -833,7 +833,7 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
     utils_print("Bluetooth session working mode = %d\n", sess->working_mode);
 
     if(IOT_WORK_MODE_CLIENT == sess->working_mode){
-        rcv_size = recv(sess->dev_fd, msg_buf->data, msg_buf->len, 0);
+        rcv_size = read(sess->dev_fd, msg_buf->data, msg_buf->len);
 
     /*
      * receive data successfully.
@@ -866,7 +866,7 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
             error_print("bluetooth_recv_from_remote failed: Connection closed by peer!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }else{
-            error_print("rcv_size < 0!\n");
+            utils_print("rcv_size < 0!, errno = %d, error_info = %s\n", errno, strerror(errno));
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // In non-blocking mode, no data available is a normal condition.
                 return BACKEND_PROXY_PROCESS_AGAIN;
