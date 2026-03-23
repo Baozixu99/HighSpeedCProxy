@@ -308,7 +308,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
         rem_addr.l2_psm = htobs(0x1001);
         str2ba(dest, &rem_addr.l2_bdaddr);
 
-        tv.tv_sec   = 3;
+        tv.tv_sec   = 30;
         tv.tv_usec  = 0;
         setsockopt(sk, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         setsockopt(sk, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
