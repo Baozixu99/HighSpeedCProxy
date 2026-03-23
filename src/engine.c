@@ -2491,7 +2491,7 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
             return;
         }else if(BACKEND_PROXY_PROCESS_ERROR == ret){
             error_print("engine_iot_bluetooth_run failed: receive bluetooth data error!\n");
-        }else{
+        }else if(BACKEND_PROXY_PROCESS_OK == ret){
             utils_print("Receive bluetooth data!\n");
             memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;
@@ -2512,6 +2512,8 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
             res_ptr = res_buf;
             build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
             //msg_buf.addr;
+        }else{
+            error_print("Unsupported return value!\n");
         }
 
     }while(BACKEND_PROXY_PROCESS_OK == ret);
@@ -2580,9 +2582,9 @@ void engine_iot_can_run(IoTBackendSession *sess){
         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
             error_print("engine_iot_can_run returned: no bluetooth data available yet!\n");
             return;
-        }else if(BACKEND_PROXY_PROCESS_ERROR){
+        }else if(BACKEND_PROXY_PROCESS_ERROR == ret){
             error_print("engine_iot_can_run failed: receive bluetooth data error!\n");
-        }else{
+        }else if(BACKEND_PROXY_PROCESS_OK == ret){
             memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;
             proxy_msg_hdr.outer_header.backend_sess_id = 0;
@@ -2602,6 +2604,8 @@ void engine_iot_can_run(IoTBackendSession *sess){
             res_ptr = res_buf;
             build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
             //msg_buf.addr;
+        }else{
+            error_print("Unsupported return value!\n");
         }
 
 
@@ -2674,9 +2678,9 @@ do{
         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
             error_print("engine_iot_modbustcp_run returned: no ModbusTCP data available yet!\n");
             return;
-        }else if(BACKEND_PROXY_PROCESS_ERROR){
+        }else if(BACKEND_PROXY_PROCESS_ERROR == ret){
             error_print("engine_iot_modbustcp_run failed: receive ModbusTCP data error!\n");
-        }else{
+        }else if (BACKEND_PROXY_PROCESS_OK == ret){
             memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;
             proxy_msg_hdr.outer_header.backend_sess_id = 0;
@@ -2920,8 +2924,10 @@ void engine_iot_dev_run(struct BackendEngine_ *eng){
  * IoTBackendSession *backend_modbustcp_sess;
  */
     utils_print("In %s\n", __func__);
-    if(NULL != backend_bluetooth_sess)
+    if(NULL != backend_bluetooth_sess){
+        utils_print("The address of the engine_iot_bluetooth_run is %p\n", backend_bluetooth_sess);
         engine_iot_bluetooth_run(backend_bluetooth_sess);
+    }
     
     if(NULL != backend_can_sess){
         engine_iot_can_run(backend_can_sess);
