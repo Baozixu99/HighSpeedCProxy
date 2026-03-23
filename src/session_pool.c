@@ -1126,6 +1126,7 @@ int high_speed_data_process_f2b(struct BackendSession *sess)
  *         - BACKEND_PROXY_PROCESS_ERROR: Critical error occurred (implied by allocation failure handling)
  */
 int high_speed_data_process_b2f(struct BackendSession *sess){
+    utils_print("%s\n", __func__);
     BackendEngine                   *eng;
     struct SharedMemoryPoolQueue    *tx_queue;
     struct SessMsgSeg               *cur_seg, *next_seg;
@@ -1206,6 +1207,7 @@ int high_speed_data_process_b2f(struct BackendSession *sess){
  *         - BACKEND_PROXY_PROCESS_ERROR: Critical error occurred (e.g., socket read failure)
  */
 int high_speed_data_process_nns(struct BackendSession *sess){
+    utils_print("%s\n", __func__);
     int fd, bytes_available, ret;
     struct SessMsgSeg *cur_seg;
     uint8_t           *msg_data;
