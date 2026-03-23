@@ -8,11 +8,11 @@ ARCH ?=
 #compile and lib parameter
 #LIBS    := -L ./lib/bt/bluez/usr/lib -lbluetooth
 LIBS    := -L ./lib/bt/bluez/usr/lib -lbluetooth \
-           -L ./lib/modbusTCP/lib -lmodbus
+           -L ./lib/modbusTCP/lib -Wl,-Bstatic -lmodbus -Wl,-Bdynamic
 
 LDFLAGS :=
 DEFINES :=
-INCLUDE := -I./include -I./senario_inc -I ./lib/bt/bluez/usr/include/ -I ./lib/modbusTCP/include/
+INCLUDE := -I./include -I./senario_inc -I./lib/bt/bluez/usr/include/ -I./lib/modbusTCP/include/
 CFLAGS  := -g -Wall -Werror -O0 $(DEFINES) $(INCLUDE)
 CXXFLAGS:= $(CFLAGS)
 
