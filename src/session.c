@@ -335,7 +335,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-#if 0
+#if 1
     if (fcntl(sk, F_SETFL, flags | O_NONBLOCK) == -1) {
         error_print("engine_init_bluetooth_session failed: failed to set non-blocking mode!\n");
         close(sk);
