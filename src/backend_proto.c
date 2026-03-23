@@ -814,13 +814,18 @@ int backend_proxy_data_msg_process(uint16_t frontend_sess_id, uint16_t backend_s
 
     printf("frontend id = %d, backend id = %d\n", sess->frontend_sess_id, sess->backend_sess_id);
     printf("In %s-3\n", __func__);
-    msg_seg = sess_msg_seg_alloc(data_len, SESS_MSG_SEG_SHARED_MEM, msg, mem_pool);
+    msg_seg = sess_msg_seg_alloc(data_len, SESS_MSG_SEG_DYNAMIC_ALLOC, msg, mem_pool);
     printf("In %s-4\n", __func__);
     if(NULL == msg_seg){
         error_print("backend_proxy_data_msg_process failed: insurficient memory resource for allocing message segment!");
         return BACKEND_PROXY_PROCESS_ERROR;   
     }
 
+    if(SESS_MSG_SEG_DYNAMIC_ALLOC == msg_seg->type){
+        memcpy(msg_seg->data, msg, data_len);
+    }
+
+    utils_print("msg is %s, msg_seg->data is %s\n", msg, msg_seg->data);
 /*
  * Insert the message segment into the front-to-end message queue.
  */
