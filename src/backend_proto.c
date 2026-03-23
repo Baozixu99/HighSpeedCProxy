@@ -99,7 +99,9 @@ int backend_proxy_msg_process(uint8_t *msg){
 /*
  * When msg_type is PROXY_MSG_TYPE_IOT, execute the backend_proxy_iot_msg_process.
  */
+        printf("In %s-12\n", __func__);
         ret = backend_proxy_iot_msg_process(frontend_sess_id, backend_sess_id, msg_len, msg_ptr);
+        printf("In %s-13\n", __func__);
     }else{
         error_print("backend_proxy_msg_process failed: unsupported message type!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -2070,6 +2072,11 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
     IotMsgBuffer        iot_msg_buf;
     int                 ret;
 
+    if(NULL == backend_bluetooth_sess){
+        error_print("backend_proxy_bluetooth_msg_process failed: bluetooth session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     iot_sess = backend_bluetooth_sess;
     (void)iot_sess;
     
@@ -2129,6 +2136,11 @@ int backend_proxy_can_msg_process(uint16_t frontend_sess_id,
     IotMsgBuffer        iot_msg_buf;
     int                 ret;
 
+    if(NULL == backend_can_sess){
+        error_print("backend_proxy_can_msg_process failed: CAN session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     iot_sess = backend_can_sess;
     (void)iot_sess;
     
@@ -2184,6 +2196,10 @@ int backend_proxy_zigbee_msg_process(uint16_t frontend_sess_id,
                                      IotMsgHeader *iot_header,
                                      uint8_t *iot_data){
     
+    if(NULL == backend_zigbee_sess){
+        error_print("backend_proxy_zigbee_msg_process failed: ZigBee session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -2214,6 +2230,11 @@ int backend_proxy_lora_msg_process(uint16_t frontend_sess_id,
                                    uint16_t backend_sess_id,
                                    IotMsgHeader *iot_header,
                                    uint8_t *iot_data){
+    if(NULL == backend_lora_sess){
+        error_print("backend_proxy_lora_msg_process failed: LoRa session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }                            
+    
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -2243,6 +2264,11 @@ int backend_proxy_powerlink_msg_process(uint16_t frontend_sess_id,
                                         uint16_t backend_sess_id,
                                         IotMsgHeader *iot_header,
                                         uint8_t *iot_data){
+    if(NULL == backend_powerlink_sess){
+        error_print("backend_proxy_powerlink_msg_process failed: PowerLink session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }           
+
     return BACKEND_PROXY_PROCESS_OK;
 }
 
@@ -2279,6 +2305,12 @@ int backend_proxy_modbustcp_msg_process(uint16_t frontend_sess_id,
     uint8_t             *iot_payload;
     IotMsgBuffer        iot_msg_buf;
     int                 ret;
+
+
+    if(NULL == backend_modbustcp_sess){
+        error_print("backend_proxy_modbustcp_msg_process failed: ModbusTcp session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
 
     iot_sess = backend_modbustcp_sess;
     (void)iot_sess;
