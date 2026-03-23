@@ -2483,6 +2483,7 @@ void engine_iot_bluetooth_run(IoTBackendSession *sess){
         msg_buf.data = data;
         msg_buf.len  = sizeof(data);
 
+        utils_print("size of buffer for storing bluetooth data is %d\n", msg_buf.len);
         ret = sess->recv_from_remote(sess, &msg_buf, 0);
 
         if(BACKEND_PROXY_PROCESS_AGAIN == ret){

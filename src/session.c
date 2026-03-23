@@ -833,12 +833,14 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
     utils_print("Bluetooth session working mode = %d\n", sess->working_mode);
 
     if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+        utils_print("sess->dev_fd = %d, msg_buf->len = %d\n", sess->dev_fd, msg_buf->len);
         rcv_size = read(sess->dev_fd, msg_buf->data, msg_buf->len);
 
     /*
      * receive data successfully.
      */
         if (rcv_size > 0) {
+            utils_print("Receove bluetooth data, recv_size = %ld!\n", rcv_size);
             msg_buf->len = rcv_size;
             addr_len = sizeof(remote_addr);
             memset(&remote_addr, 0, addr_len);
