@@ -2152,9 +2152,7 @@ int backend_proxy_can_msg_process(uint16_t frontend_sess_id,
     can_addr         = (IotCanAddr *)iot_data;
     iot_payload     = iot_data + sizeof(IotBtAddr);
 
-    (void)can_addr;
-    (void)iot_payload;
-
+    utils_print("iot_header->payload_len = %d\n", iot_header->payload_len);
     if(iot_header->payload_len > BACKEND_CAN_MAX_PAYLOAD){
         error_print("backend_proxy_can_msg_process failed: message length exceeds the maximum limit!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -2167,9 +2165,10 @@ int backend_proxy_can_msg_process(uint16_t frontend_sess_id,
     iot_msg_buf.data                           = iot_payload;
     iot_msg_buf.len                            = iot_header->payload_len;
 
+    utils_print("bus_id = %d, can_id = %d, port = %d, data = %s, len = %d\n", iot_msg_buf.addr.addr_info.can_addr.bus_id, iot_msg_buf.addr.addr_info.can_addr.can_id,
+                iot_msg_buf.addr.addr_info.can_addr.port, iot_msg_buf.data, iot_msg_buf.len);
 
     ret = iot_sess->send_to_remote(iot_sess, &iot_msg_buf);
-
 
     return ret;
 }

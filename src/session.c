@@ -378,6 +378,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
+    utils_print("In %s\n", __func__);
     int sk;
     struct sockaddr_can addr;
     struct ifreq ifr;
@@ -911,9 +912,11 @@ int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
     struct can_frame    frame;
     int                 snd_bytes;
 
+    memset(&frame, 0, sizeof(struct can_frame));
     frame.can_id  = msg_buf->addr.addr_info.can_addr.can_id;
     frame.can_dlc = msg_buf->len;
     memcpy(frame.data, msg_buf->data, msg_buf->len);
+    utils_print("CAN ID = %d, can_dlc = %d, data = %s\n", frame.can_id, frame.can_dlc, frame.data);
 
     snd_bytes = write(sess->dev_fd, &frame, sizeof(struct can_frame));
 
@@ -921,6 +924,8 @@ int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
         error_print("can_send_to_remote failed: failed to send CAN frame to remote!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+
+    utils_print("snd_bytes = %d\n", snd_bytes);
 
     return BACKEND_PROXY_PROCESS_OK;
 }
@@ -948,6 +953,7 @@ int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int tim
     int                 rcv_size;
     
     if(IOT_WORK_MODE_CLIENT == sess->working_mode){
+        memset(&frame, 0, sizeof(struct can_frame));
         rcv_size = read(sess->dev_fd, &frame, sizeof(struct can_frame));
 
         if (rcv_size > 0) {
