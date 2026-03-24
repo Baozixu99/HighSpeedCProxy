@@ -628,11 +628,13 @@ int parse_proxy_protocol_and_print(const uint8_t *buffer) {
 
     /* 1. Parse Proxy Header */
     const ProxyMsgHeader *hdr = (const ProxyMsgHeader *)buffer;
-    
+
+#if 0    
     if (hdr->version != 1) {
         printf("[PROXY_PARSE_ERR] Invalid protocol version: %u (Expected 1).\n", hdr->version);
         return BACKEND_PROXY_PROCESS_ERROR;
     }
+#endif
 
     const uint8_t *payload_start = buffer + sizeof(ProxyMsgHeader);
     

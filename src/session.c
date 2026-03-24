@@ -974,12 +974,15 @@ int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int tim
         memset(&frame, 0, sizeof(struct can_frame));
         rcv_size = read(sess->dev_fd, &frame, sizeof(struct can_frame));
 
+        utils_print("rcv_size = %d\n", rcv_size);
+
         if (rcv_size > 0) {
             utils_print("Receive CAN data, recv_size = %d!\n", rcv_size);
             msg_buf->addr.addr_type                 = IOT_PROTO_TYPE_CAN;
             msg_buf->addr.addr_info.can_addr.can_id = frame.can_id;
             msg_buf->len                            = rcv_size;
             memcpy(msg_buf->data, frame.data, rcv_size);
+            return BACKEND_PROXY_PROCESS_OK;
         }else if(0 == rcv_size){
             error_print("can_recv_from_remote failed: Connection closed by peer!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
