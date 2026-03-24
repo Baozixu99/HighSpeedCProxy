@@ -377,6 +377,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
  * @warning Device hardware initialization must be completed before calling
  * @warning Session memory is managed externally, do not free in this function
  */
+#if 0
 int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
     utils_print("In %s\n", __func__);
     int sk, flags;
@@ -422,6 +423,7 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
     }
 
     utils_print("can0 interface index: %d\n", ifr.ifr_ifindex);
+
 
 // 4. Prepare Address Structure
     addr.can_family     = AF_CAN;
@@ -474,6 +476,115 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
 
     return BACKEND_PROXY_PROCESS_OK;
 }
+#endif
+
+int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
+    utils_print("In %s\n", __func__);
+    int sk, flags;
+    struct sockaddr_can addr;
+    struct ifreq ifr;
+
+    /* 1. Validate input parameters */
+    if (NULL == dev || NULL == sess) {
+        error_print("engine_init_can_session failed: invalid input parameters!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    /* 2. Bind context and assign function pointers */
+    sess->bound_dev = dev;
+    sess->send_to_remote    = can_send_to_remote;
+    sess->recv_from_remote  = can_recv_from_remote;
+    sess->sess_type         = IOT_PROTO_TYPE_CAN;
+
+    /* 3. Create CAN RAW socket */
+    sk = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+    if (sk < 0) {
+        error_print("engine_init_can_session failed: socket creation failed!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    utils_print("CAN socket created successfully!\n");
+
+    /* Set fixed interface name to can0 */
+    memset(&ifr, 0, sizeof(ifr));
+    strcpy(ifr.ifr_name, "can0");
+
+    /* ==============================================
+     * Step 1: Check if can0 interface is UP and running
+     * Applies to BOTH Client and Server modes
+     * ============================================== */
+    if (ioctl(sk, SIOCGIFFLAGS, &ifr) < 0) {
+        error_print("engine_init_can_session failed: cannot get flags for can0 interface!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if (!(ifr.ifr_flags & IFF_UP)) {
+        error_print("engine_init_can_session failed: can0 interface is DOWN (not started)!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    utils_print("can0 interface is UP and running!\n");
+
+    /* ==============================================
+     * Step 2: Get interface index after validation
+     * ============================================== */
+    memset(&ifr, 0, sizeof(ifr));
+    strcpy(ifr.ifr_name, "can0");
+    if (ioctl(sk, SIOCGIFINDEX, &ifr) < 0) {
+        error_print("engine_init_can_session failed: cannot get index for can0 interface!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    utils_print("can0 interface index: %d\n", ifr.ifr_ifindex);
+
+    /* 4. Prepare CAN address structure */
+    addr.can_family     = AF_CAN;
+    addr.can_ifindex    = ifr.ifr_ifindex;
+
+    /* 5. Bind socket based on working mode */
+    if (IOT_WORK_MODE_SERVER == dev->config.working_mode) {
+        if (bind(sk, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            error_print("engine_init_can_session failed: bind failed!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }
+    else if (IOT_WORK_MODE_CLIENT == dev->config.working_mode) {
+        if (bind(sk, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            error_print("engine_init_can_session failed: bind failed!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        utils_print("Bind CAN socket to interface successfully!\n");
+
+        /* Set socket to non-blocking mode */
+        flags = fcntl(sk, F_GETFL);
+        if (flags == -1) {
+            utils_print("engine_init_can_session failed: fcntl(F_GETFL) failed: %s\n", strerror(errno));
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        if (fcntl(sk, F_SETFL, flags | O_NONBLOCK) == -1) {
+            error_print("engine_init_can_session failed: failed to set non-blocking mode!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        utils_print("CAN socket set to non-blocking mode successfully!\n");
+    }
+    else {
+        error_print("engine_init_can_session failed: unsupported working mode!\n");
+        close(sk);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    sess->working_mode = dev->config.working_mode;
+    sess->dev_fd = sk;
+
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
 
 /**
  * @brief Initialize ZigBee communication session for IoT device
