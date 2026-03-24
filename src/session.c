@@ -1078,6 +1078,7 @@ int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
  */
 int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int timeout_ms){
     utils_print("In %s\n", __func__);
+    utils_print("working_mode = %d\n", sess->working_mode);
     struct can_frame    frame;
     int                 rcv_size;
     
@@ -1117,7 +1118,7 @@ int can_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, int tim
 
     }
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return BACKEND_PROXY_PROCESS_ERROR;
 }
 
 /**
