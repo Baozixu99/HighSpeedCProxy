@@ -437,7 +437,7 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
         }
         
         // Optional: In server mode, we might want to receive all frames
-        setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+//        setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
     } else if(IOT_WORK_MODE_CLIENT == dev->config.working_mode){
         if (bind(sk, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
             error_print("engine_init_can_session failed: bind failed!\n");
