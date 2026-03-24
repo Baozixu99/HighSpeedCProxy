@@ -1242,7 +1242,7 @@ int build_proxy_iot_message(GeneralProxyMsgHeader *header,
     }
 
 
-    print_general_proxy_msg_header(header);
+//    print_general_proxy_msg_header(header);
 
 /*
  * Fill IoT header.

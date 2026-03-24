@@ -2559,11 +2559,14 @@ void engine_iot_can_run(IoTBackendSession *sess){
         msg_buf.data = data;
         msg_buf.len  = sizeof(data);
 
+        utils_print("size of buffer for storing CAN data is %d\n", msg_buf.len);
+        ret = sess->recv_from_remote(sess, &msg_buf, 0);
+
         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
-            error_print("engine_iot_can_run returned: no bluetooth data available yet!\n");
+            error_print("engine_iot_can_run returned: no CAN data available yet!\n");
             return;
         }else if(BACKEND_PROXY_PROCESS_ERROR == ret){
-            error_print("engine_iot_can_run failed: receive bluetooth data error!\n");
+            error_print("engine_iot_can_run failed: receive CAN data error!\n");
         }else if(BACKEND_PROXY_PROCESS_OK == ret){
             memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;

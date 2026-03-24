@@ -308,7 +308,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
         rem_addr.l2_psm = htobs(0x1001);
         str2ba(dest, &rem_addr.l2_bdaddr);
 
-        tv.tv_sec   = 30;
+        tv.tv_sec   = 5;
         tv.tv_usec  = 0;
         setsockopt(sk, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         setsockopt(sk, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -379,7 +379,7 @@ int engine_init_bluetooth_session(IotDevice *dev, IoTBackendSession *sess) {
  */
 int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
     utils_print("In %s\n", __func__);
-    int sk;
+    int sk, flags;
     struct sockaddr_can addr;
     struct ifreq ifr;
 
@@ -402,13 +402,15 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
-    // 4. Prepare Address Structure
-    addr.can_family = AF_CAN;
+    utils_print("create CAN socket successfully!\n");
+
+    
     
     // Fixed Interface Name: "can0"
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, "can0", IFNAMSIZ - 1);
-    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+//    strncpy(ifr.ifr_name, "can0", IFNAMSIZ - 1);
+//    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+    strcpy(ifr.ifr_name, "can0");
 
     // Get Interface Index for "can0"
     // This is required even if we don't bind immediately, to ensure the interface exists
@@ -418,7 +420,12 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
         close(sk);
         return BACKEND_PROXY_PROCESS_ERROR;
     }
-    addr.can_ifindex = ifr.ifr_ifindex;
+
+    utils_print("can0 interface index: %d\n", ifr.ifr_ifindex);
+
+// 4. Prepare Address Structure
+    addr.can_family     = AF_CAN;
+    addr.can_ifindex    = ifr.ifr_ifindex;
 
     // 5. Conditional Binding (Mirroring Bluetooth Logic)
     // Only bind if the device is in Server Mode (working_mode == 1)
@@ -432,18 +439,29 @@ int engine_init_can_session(IotDevice *dev, IoTBackendSession *sess) {
         // Optional: In server mode, we might want to receive all frames
         setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
     } else if(IOT_WORK_MODE_CLIENT == dev->config.working_mode){
-        // Client/Proxy Mode:
-        // We do NOT bind. The socket is created and resolved to "can0" index,
-        // but not bound to it. This allows the proxy to send data dynamically
-        // without being stuck in a specific receive context, similar to the 
-        // unbound Bluetooth client socket behavior.
-        // Note: To receive in client mode without bind, specific routing or 
-        // sendto usage is typically required, but this matches the requested pattern.
-        
-        // Even in client mode, if we expect to receive responses on this socket,
-        // we might still need to set filters, but we skip the bind() call.
-        // Clearing filter just in case, though effect without bind varies by driver.
-        setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+        if (bind(sk, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            error_print("engine_init_can_session failed: bind failed!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+//        setsockopt(sk, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+        utils_print("bind CAN socket to interface successfully!\n");
+
+        /* Get current file status flags */
+        flags = fcntl(sk, F_GETFL);
+        if (flags == -1) {
+            utils_print("fcntl(F_GETFL) failed for CAN socket: %s\n", strerror(errno));
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        if(fcntl(sk, F_SETFL, flags | O_NONBLOCK) == -1) {
+            error_print("engine_init_can_session failed: failed to set non-blocking mode!\n");
+            close(sk);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        utils_print("Set CAN socket to non-blocking mode successfully!\n");
+
     }else{
         error_print("engine_init_can_session failed: unsupported working mode!\n");
         close(sk);
