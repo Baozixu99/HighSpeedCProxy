@@ -897,7 +897,7 @@ int bluetooth_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
     IotSockNode         *node, *next_node; 
 
     utils_print("MAC address = %s, port = %d\n", msg_buf->addr.addr_info.bt_addr.mac, msg_buf->addr.addr_info.bt_addr.port);
-    utils_print("Bluetooth message = %s\n", msg_buf->data);
+    utils_print("Bluetooth message = %s, length = %d\n", msg_buf->data, msg_buf->len);
 
     memset(&remote_addr, 0, sizeof(remote_addr));
     remote_addr.l2_family = AF_BLUETOOTH;
@@ -1036,11 +1036,15 @@ int bluetooth_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
  * @note Automatically applies CAN filter (can_filter_id) before sending
  * @note Updates sess->tx_packets/tx_bytes and device statistics on success
  */
+#if 0
 int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
     utils_print("In %s\n", __func__);
     struct can_frame    frame;
     int                 snd_bytes;
 
+    (void)frame;
+    (void)snd_bytes;
+#if 1
     memset(&frame, 0, sizeof(struct can_frame));
     frame.can_id  = msg_buf->addr.addr_info.can_addr.can_id;
     frame.can_dlc = msg_buf->len;
@@ -1055,6 +1059,48 @@ int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
     }
 
     utils_print("snd_bytes = %d\n", snd_bytes);
+#endif
+    return BACKEND_PROXY_PROCESS_OK;
+}
+#endif
+
+int can_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf) {
+    utils_print("In %s\n", __func__);
+    struct can_frame    frame;
+    int                 snd_bytes;
+
+    /* Validate input parameters */
+    if (sess == NULL || msg_buf == NULL) {
+        error_print("can_send_to_remote failed: invalid input parameters\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    /* Security check: CAN frame data length cannot exceed 8 bytes */
+    uint8_t can_dlc = msg_buf->len;
+    if (can_dlc > CAN_MAX_DLEN) {
+        utils_print("can_send_to_remote failed: data length %u exceeds CAN maximum limit (8 bytes)\n", can_dlc);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    /* Initialize CAN frame structure */
+    memset(&frame, 0, sizeof(struct can_frame));
+    frame.can_id  = msg_buf->addr.addr_info.can_addr.can_id;
+    frame.can_dlc = can_dlc;
+
+    /* Safely copy payload data to CAN frame */
+    memcpy(frame.data, msg_buf->data, can_dlc);
+
+    /* Print CAN frame information (safe for binary data) */
+    utils_print("CAN ID: 0x%X, DLC: %u\n", frame.can_id, frame.can_dlc);
+
+    /* Send CAN frame through socket */
+    snd_bytes = write(sess->dev_fd, &frame, sizeof(struct can_frame));
+    if (snd_bytes < 0) {
+        error_print("can_send_to_remote failed: failed to write CAN frame to socket\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    utils_print("CAN frame sent successfully, transmitted bytes: %d\n", snd_bytes);
 
     return BACKEND_PROXY_PROCESS_OK;
 }

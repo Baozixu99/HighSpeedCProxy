@@ -2130,6 +2130,7 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
  * @note Validates CAN frame length (0-8 for CAN 2.0, 0-64 for CAN FD)
  * @note Applies CAN filter (from IotDevice.specific_attr.can_attr) before processing
  */
+#if 0
 int backend_proxy_can_msg_process(uint16_t frontend_sess_id, 
                                   uint16_t backend_sess_id,
                                   IotMsgHeader *iot_header,
@@ -2150,7 +2151,7 @@ int backend_proxy_can_msg_process(uint16_t frontend_sess_id,
     (void)iot_sess;
     
     can_addr         = (IotCanAddr *)iot_data;
-    iot_payload     = iot_data + sizeof(IotBtAddr);
+    iot_payload     = iot_data + sizeof(IotCanAddr);
 
     utils_print("iot_header->payload_len = %d\n", iot_header->payload_len);
     if(iot_header->payload_len > BACKEND_CAN_MAX_PAYLOAD){
@@ -2172,6 +2173,69 @@ int backend_proxy_can_msg_process(uint16_t frontend_sess_id,
 
     return ret;
 }
+#endif
+
+int backend_proxy_can_msg_process(uint16_t frontend_sess_id, 
+                                  uint16_t backend_sess_id,
+                                  IotMsgHeader *iot_header,
+                                  uint8_t *iot_data){
+    utils_print("In %s\n", __func__);
+    IoTBackendSession   *iot_sess;
+    IotCanAddr          *can_addr;
+    uint8_t             *iot_payload;
+    IotMsgBuffer        iot_msg_buf;
+    int                 ret;
+
+    (void)iot_sess;
+    (void)can_addr;
+    (void)iot_payload;
+    (void)iot_msg_buf;
+    (void)ret;
+
+    if(NULL == backend_can_sess){
+        error_print("backend_proxy_can_msg_process failed: CAN session does not initialize!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+    
+    utils_print("backend_can_sess has been initialized!\n");
+
+    iot_sess = backend_can_sess;
+    (void)iot_sess;
+    
+    can_addr         = (IotCanAddr *)iot_data;
+    iot_payload     = iot_data + sizeof(IotCanAddr);
+
+    utils_print("iot_header->payload_len = %d\n", iot_header->payload_len);
+    if(iot_header->payload_len > BACKEND_CAN_MAX_PAYLOAD){
+        error_print("backend_proxy_can_msg_process failed: message length exceeds the maximum limit!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(iot_header->payload_len < sizeof(IotCanAddr)){
+        error_print("backend_proxy_can_msg_process failed: invalied payload length!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    memset(&iot_msg_buf, 0, sizeof(iot_msg_buf));
+    iot_msg_buf.addr.addr_info.can_addr.bus_id = can_addr->bus_id;
+    iot_msg_buf.addr.addr_info.can_addr.can_id = can_addr->can_id;
+    iot_msg_buf.addr.addr_info.can_addr.port   = can_addr->port;
+    iot_msg_buf.data                           = iot_payload;
+    iot_msg_buf.len                            = iot_header->payload_len - sizeof(IotCanAddr);
+
+    utils_print("bus_id = %d, can_id = %d, port = %d, data = %s, len = %d\n", iot_msg_buf.addr.addr_info.can_addr.bus_id, iot_msg_buf.addr.addr_info.can_addr.can_id,
+                iot_msg_buf.addr.addr_info.can_addr.port, iot_msg_buf.data, iot_msg_buf.len);
+
+
+#if 1
+    ret = iot_sess->send_to_remote(iot_sess, &iot_msg_buf);
+
+    return ret;
+#endif
+//    return BACKEND_PROXY_PROCESS_OK;
+}
+
 
 /**
  * @brief Zigbee-specific IoT proxy message processing
