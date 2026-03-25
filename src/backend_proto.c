@@ -2096,11 +2096,19 @@ int backend_proxy_bluetooth_msg_process(uint16_t frontend_sess_id,
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+
+    if(iot_header->payload_len < sizeof(IotBtAddr)){
+        error_print("backend_proxy_bluetooth_msg_process failed: message length is too small!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
     memset(&iot_msg_buf, 0, sizeof(iot_msg_buf));
     memcpy(iot_msg_buf.addr.addr_info.bt_addr.mac, bt_addr->mac, sizeof(bt_addr->mac));
     iot_msg_buf.addr.addr_info.bt_addr.port = bt_addr->port;
     iot_msg_buf.data                        = iot_payload;
-    iot_msg_buf.len                         = iot_header->payload_len;
+    iot_msg_buf.len                         = iot_header->payload_len - sizeof(IotBtAddr);
+
+    utils_print("data = %s, len = %d\n", iot_msg_buf.data, iot_msg_buf.len);
 
 
     ret = iot_sess->send_to_remote(iot_sess, &iot_msg_buf);
