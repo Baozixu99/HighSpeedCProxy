@@ -4,6 +4,7 @@
 #include <stdint.h> 
 #include <sys/queue.h>
 #include <sys/epoll.h>
+#include <modbus/modbus.h>
 #include "uthash.h"
 #include "poller.h"
 #include "shared_mem_io.h"
@@ -721,5 +722,40 @@ int cleanup_lora_iot_session(IotDevice *dev, IoTBackendSession *sess);
  * @warning For internal IoT session cleanup only, called by backend_cleanup_iot_session()
  */
 int cleanup_powerlink_iot_session(IotDevice *dev, IoTBackendSession *sess);
+
+
+/**
+ * @brief Build raw Modbus TCP request for reading holding registers (Function 0x03)
+ * @param raw_msg Pointer to output buffer for storing constructed Modbus TCP message
+ * @param start_addr Start address of target holding registers
+ * @param reg_num Number of holding registers to read
+ * @return int Total length of built Modbus TCP message
+ *         - Positive value: Message length constructed successfully
+ *
+ * @note Constructs standard Modbus TCP request including MBAP header and PDU.
+ *       Fixed transaction ID 0x0001 and unit ID 0x01 are used by default.
+ *       All address and length fields follow big-endian byte order.
+ *
+ * @warning Only for Modbus TCP protocol, not applicable to Modbus RTU.
+ */
+int modbus_tcp_build_read_holding_registers_msg(uint8_t *raw_msg, int start_addr, int reg_num);
+
+
+/**
+ * @brief Parse received Modbus TCP response and extract register values
+ * @param rsp Pointer to received raw Modbus TCP response buffer
+ * @param rsp_len Length of received Modbus TCP response
+ * @param out_regs Pointer to output buffer for storing parsed register values
+ * @return int Number of successfully parsed registers
+ *         - Positive value: Count of parsed registers
+ *         - (-1): Invalid response or parsing failure
+ *
+ * @note Extracts register data from response after MBAP header and function code.
+ *       Automatically converts big-endian network bytes to host 16-bit values.
+ *
+ * @warning Input buffer must contain complete and valid Modbus TCP response.
+ */
+int modbus_tcp_parse_registers_from_response(uint8_t *rsp, int rsp_len, uint16_t *out_regs);
+
 
 #endif

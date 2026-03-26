@@ -463,7 +463,15 @@ create_sess_error:
  */
     dev_id = para->dev_id;
 
-
+/*
+ * Check whether there exist available network device.
+ */
+    if(0 == engine->dev_num){
+        error_print("high_speed_create_sess_active failed: no available network device!\n");
+        resp_dat.status = SESS_OP_STATUS_FAIL;
+        resp_dat.code   = SESS_OP_CODE_DEVICE_ERROR;
+        goto create_sess_error;
+    }
 /*
  * If the device ID equals 0xFF, it means the backend engine should take responsibility for choosing the most appropriate high-speed network device on which the 
  * new session is established.
@@ -483,6 +491,8 @@ create_sess_error:
  * Get the namespace ID to which the selected high-speed network device is set.
  */
 //    hs_dev = &engine->dev_set[dev_id];
+
+
     ns_id = GET_NS_ID(engine->dev_set, dev_id);
     if(ERROR_NAMESPACE_ID == ns_id){
         error_print("high_speed_create_sess_active failed: failed to obtain the namespace ID that the selected high-speed network device belongs to!");

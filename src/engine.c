@@ -509,6 +509,7 @@ int create_hs_net_dev_tcp_listener(BackendEngine *eng, struct HighSpeedNetDevice
  * dev_status =     1
  * ns_id      =     100
  */
+#if 0
 int engine_init_hs_net_dev(BackendEngine *eng){
     struct HighSpeedNetDeviceSet *set = NULL;
     struct HighSpeedNetDevice *hs_dev;
@@ -765,6 +766,243 @@ hs_net_error:
 
     if(NULL != set)
         free(set);
+
+    return BACKEND_PROXY_PROCESS_ERROR;
+}
+#endif
+
+int engine_init_hs_net_dev(BackendEngine *eng){
+    struct HighSpeedNetDeviceSet *set = NULL;
+    struct HighSpeedNetDevice *hs_dev;
+    dictionary *ini = NULL; // Initialize to NULL to prevent wild pointer if loading fails
+    int dev_num = 0;        // Default number of devices is 0
+    int dev_name_len, cnt = 0, cnt_node;
+    const char *dev_name, *ip_addr;
+    int ip_type, dev_id, dev_type, dev_status, ns_id, tcp_port;
+    const char *ns_name;
+    struct in_addr in4_addr;
+    struct in6_addr in6_addr;
+    union IPAddress *ip_data;
+
+    char dev_pro_item[MAX_DEV_NAME + MAX_DEVICE_PROPERTY_NAME_LENGTH];
+
+    // 1. Allocate memory for the device set
+    set = malloc(sizeof(struct HighSpeedNetDeviceSet));
+    if(NULL == set){
+        error_print("engine_init_hs_net_dev() failed: allocating memory for device set failed!");
+        goto hs_net_error;
+    }
+
+    // [CRITICAL CHANGE]: Immediately zero-initialize the allocated memory.
+    // This ensures that if no config file is found, the structure content is all zeros.
+    memset(set, 0, sizeof(struct HighSpeedNetDeviceSet));
+
+    // 2. Attempt to load the configuration file
+    ini = iniparser_load(HS_NET_DEV_CFG);
+    
+    // [CRITICAL CHANGE]: Handle missing or failed config file load
+    if (NULL == ini) {
+        // According to requirements: Do not treat this as a fatal error.
+        // Treat it as "no configuration" and use default values (0 devices).
+        // Log a warning instead of an error, and do NOT jump to hs_net_error 
+        // (which would free the memory we just allocated).
+        error_print("engine_init_hs_net_dev(): Warning - INI file not found or failed to open. Using default empty configuration.");
+        
+        // dev_num is already 0, so the parsing loop below will be skipped naturally.
+    } 
+    else {
+        // Execute original parsing logic ONLY if the config file loaded successfully
+        dev_num = iniparser_getnsec(ini);
+        
+        if(0 == dev_num){
+            error_print("engine_init_hs_net_dev() failed: no high-speed network device information exists in the INI file!\n");
+            goto hs_net_error; // File exists but is empty -> treated as error
+        }
+
+        utils_print("dev_num = %d\n", dev_num);
+
+        if(dev_num > MAX_HS_DEV_NUM){
+            error_print("engine_init_hs_net_dev() failed: the number of high-speed network device exceeds MAX_HS_DEV_NUM!\n");
+            goto hs_net_error;
+        }
+
+        /*
+         * Initialize high speed network devices one by one.
+         */
+        eng->active_mask = 0;
+        for(; cnt < dev_num; cnt++){
+            dev_name = iniparser_getsecname(ini, cnt);
+            if (dev_name == NULL) continue; // Defensive programming
+            
+            dev_name_len = strlen(dev_name);
+            utils_print("dev_name = %s, dev_name_len = %d\n", dev_name, dev_name_len);
+
+            if(dev_name_len > MAX_DEV_NAME){
+                error_print("engine_init_hs_net_dev() failed: high-speed network device name in INI file exceeds maximum length!");
+                goto hs_net_error;
+            }
+
+            hs_dev = &set->hs_net_dev[cnt];
+            // Safe string copy ensuring null-termination
+            snprintf(hs_dev->name, sizeof(hs_dev->name), "%s", dev_name);
+
+            memset(dev_pro_item, 0, sizeof(dev_pro_item));
+            snprintf(dev_pro_item, sizeof(dev_pro_item), "%s:ip_addr", dev_name);
+            
+            ip_addr = iniparser_getstring(ini, dev_pro_item, NULL);
+
+            if(NULL == ip_addr){
+                error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device without an IP address configured in the INI file!\n");
+                goto hs_net_error;
+            }
+
+            ip_type = DEV_IP_TYPE(ip_addr);
+            if(SESS_NON_IP_PROTO == ip_type){
+                error_print("engine_init_hs_net_dev() failed: there is at least one high-speed network device with an invalid IP address string configured in the INI file!\n");
+                goto hs_net_error;
+            }else if(SESS_IPV4_PROTO == ip_type){
+                if (inet_pton(AF_INET, ip_addr, &in4_addr) != 1) {
+                     error_print("engine_init_hs_net_dev() failed: invalid IPv4 format.\n");
+                     goto hs_net_error;
+                }
+                ip_data = &hs_dev->address;
+                COPY_IN_TO_IPV4(&ip_data->ipv4_addr, &in4_addr);
+            }else{
+                if (inet_pton(AF_INET6, ip_addr, &in6_addr) != 1) {
+                     error_print("engine_init_hs_net_dev() failed: invalid IPv6 format.\n");
+                     goto hs_net_error;
+                }
+                ip_data = &hs_dev->address;
+                COPY_IN6_TO_IPV6(&ip_data->ipv6_addr, &in6_addr);
+            }
+
+            // Get dev_id
+            memset(dev_pro_item, 0, sizeof(dev_pro_item));
+            snprintf(dev_pro_item, sizeof(dev_pro_item), "%s:dev_id", dev_name);
+            dev_id = iniparser_getint(ini, dev_pro_item, -1);
+
+            if(-1 == dev_id){
+                error_print("engine_init_hs_net_dev() failed: dev_id missing or invalid.\n");
+                goto hs_net_error;
+            }
+            hs_dev->dev_id = dev_id;
+
+            // Get dev_type
+            memset(dev_pro_item, 0, sizeof(dev_pro_item));
+            snprintf(dev_pro_item, sizeof(dev_pro_item), "%s:dev_type", dev_name);
+            dev_type = iniparser_getint(ini, dev_pro_item, -1);
+
+            if(!IS_VALID_HS_NET_DEV_TYPE(dev_type)){
+                error_print("engine_init_hs_net_dev() failed: dev_type invalid.\n");
+                goto hs_net_error;
+            }
+            hs_dev->dev_type = dev_type;
+
+            // Get dev_status
+            memset(dev_pro_item, 0, sizeof(dev_pro_item));
+            snprintf(dev_pro_item, sizeof(dev_pro_item), "%s:dev_status", dev_name);
+            dev_status = iniparser_getint(ini, dev_pro_item, -1);
+
+            if(!IS_VALID_HS_NET_DEV_STATUS(dev_status)){
+                error_print("engine_init_hs_net_dev() failed: dev_status invalid.\n");
+                goto hs_net_error;
+            }
+
+            if(HS_NET_DEV_ACTIVE == dev_status){
+                eng->active_mask |= 1u << cnt;
+            }
+            hs_dev->dev_status = dev_status;
+
+            // Get ns_name
+            memset(dev_pro_item, 0, sizeof(dev_pro_item));
+            snprintf(dev_pro_item, sizeof(dev_pro_item), "%s:ns_name", dev_name);
+            ns_name = iniparser_getstring((const dictionary*)ini, (const char*)dev_pro_item, NULL);
+            
+            if(NULL == ns_name){
+                error_print("engine_init_hs_net_dev() failed: ns_name missing for device.\n");
+                goto hs_net_error;
+            }
+            hs_dev->ns_name = ns_name;
+
+            ns_id = open_named_netns(hs_dev->ns_name);
+            
+            if(ERROR_NAMESPACE_ID == ns_id){
+                error_print("engine_init_hs_net_dev() failed: open_named_netns failed.\n");
+                goto hs_net_error;
+            }
+            hs_dev->ns_id = ns_id;
+            
+            // Initialize queues
+            TAILQ_INIT(&hs_dev->tcp_node_queue);
+            TAILQ_INIT(&hs_dev->udp_node_queue);
+            TAILQ_INIT(&hs_dev->free_node_queue);
+
+            // Get optional tcp_listening_port
+            memset(dev_pro_item, 0, sizeof(dev_pro_item));
+            snprintf(dev_pro_item, sizeof(dev_pro_item), "%s:tcp_listening_port", dev_name);
+            tcp_port = iniparser_getint(ini, dev_pro_item, -1);
+
+            hs_dev->tcp_listening_port = 0;
+            hs_dev->tcp_listener       = -1;
+
+            if(tcp_port > 0){
+                hs_dev->tcp_listening_port = tcp_port;
+                // TODO: Create listening socket logic here if needed
+            }
+
+            // Allocate SessionNodes
+            cnt_node = 0;
+            for (; cnt_node < MAX_SESS_NODE_NUM; cnt_node++){
+                struct SessionNode *node = (struct SessionNode *)malloc(sizeof(struct SessionNode));
+                if (node == NULL) {
+                    error_print("engine_init_hs_net_dev() failed: malloc SessionNode failed.\n");
+                    // Cleanup nodes already allocated for this specific device
+                    struct SessionNode *tmp_node = NULL;
+                    struct SessionNode *next_node = NULL;
+                    TAILQ_FOREACH_SAFE(tmp_node, &hs_dev->free_node_queue, entry, next_node) {
+                        TAILQ_REMOVE(&hs_dev->free_node_queue, tmp_node, entry);
+                        free(tmp_node);
+                    }
+                    goto hs_net_error;
+                }
+                node->sess = NULL;
+                TAILQ_INSERT_TAIL(&hs_dev->free_node_queue, node, entry);
+            }
+        } // End of device loop
+    } // End of else (config file loaded successfully)
+
+    // Assign the device set to the engine
+    eng->dev_set = set;
+    eng->dev_num = cnt; // If loop was skipped, cnt is 0, which is correct
+
+    // Free configuration dictionary memory (if it was loaded)
+    if(ini != NULL) {
+        iniparser_freedict(ini);
+        ini = NULL;
+    }
+
+    return BACKEND_PROXY_PROCESS_OK;
+
+hs_net_error:
+    // Cleanup resources on error
+    if(ini != NULL) {
+        iniparser_freedict(ini);
+    }
+    
+    if(set != NULL) {
+        // Cleanup SessionNodes allocated for devices processed before the error occurred
+        // to prevent memory leaks.
+        for(int i = 0; i < cnt; i++) {
+             struct SessionNode *tmp_node = NULL;
+             struct SessionNode *next_node = NULL;
+             TAILQ_FOREACH_SAFE(tmp_node, &set->hs_net_dev[i].free_node_queue, entry, next_node) {
+                 TAILQ_REMOVE(&set->hs_net_dev[i].free_node_queue, tmp_node, entry);
+                 free(tmp_node);
+            }
+        }
+        
+        free(set);
+    }
 
     return BACKEND_PROXY_PROCESS_ERROR;
 }
@@ -2652,7 +2890,7 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
 
     ret = BACKEND_PROXY_PROCESS_ERROR;
 
-do{
+    do{
         memset(&msg_buf, 0, sizeof(IotMsgBuffer));
         memset(data, 0, sizeof(data));
         msg_buf.data = data;

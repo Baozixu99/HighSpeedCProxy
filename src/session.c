@@ -5,7 +5,6 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <modbus/modbus.h>
 #include "session.h"
 #include "dev.h"
 #include "common_utils.h"
@@ -833,12 +832,17 @@ int engine_init_powerlink_session(IotDevice *dev, IoTBackendSession *sess){
  * @warning Session memory is managed externally, do not free in this function
  */
 int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
+    utils_print("In %s\n", __func__);
     modbus_t *ctx;
     if(NULL == dev || NULL == sess){
         error_print("engine_init_modbustcp_session failed: invalid input parameters!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
+    printf("Libmodbus version (macro): %d.%d.%d\n", 
+           LIBMODBUS_VERSION_MAJOR, 
+           LIBMODBUS_VERSION_MINOR, 
+           LIBMODBUS_VERSION_MICRO);
     
     sess->bound_dev         = dev;
     sess->send_to_remote    = modbustcp_send_to_remote;
@@ -848,15 +852,18 @@ int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
     sess->pri_data = NULL;
 
     if (IOT_WORK_MODE_CLIENT == dev->config.working_mode){
+        utils_print("mb_port = %d\n", dev->specific_attr.mb_attr.mb_port);
         ctx = modbus_new_tcp("192.168.1.101", dev->specific_attr.mb_attr.mb_port);
 
         if (ctx == NULL) {
-            utils_print("engine_init_modbustcp_session failed: faild to create the Modbus TCP context!\n");
+            error_print("engine_init_modbustcp_session failed: faild to create the Modbus TCP context!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
         sess->pri_data = (void *)ctx;
         fcntl(modbus_get_socket(ctx), F_SETFL, O_NONBLOCK);
+    }else{
+        error_print("engine_init_modbustcp_session failed: do not support server mode yet!\n");
     }
 
     sess->working_mode = dev->config.working_mode;
@@ -1483,8 +1490,14 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
     uint16_t    reg_addr, reg_num;
     int         ret;
 
+    (void)ctx;
+    (void)regs;
+    (void)reg_addr;
+    (void)reg_num;
+    (void)ret;
 
     if (IOT_WORK_MODE_CLIENT == sess->working_mode){
+#if 0
         ctx = sess->pri_data;
 
         if (NULL == ctx || NULL == msg_buf){
@@ -1512,7 +1525,89 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
         msg_buf->addr.addr_info.modbus_tcp_addr.reg_num    = reg_num;
         msg_buf->len                                       = sizeof(uint16_t);
         memcpy(msg_buf->data, regs, sizeof(uint16_t));
+
+        return BACKEND_PROXY_PROCESS_OK;
+#endif
     }
     
-    return BACKEND_PROXY_PROCESS_OK;
+    return BACKEND_PROXY_PROCESS_ERROR;
+}
+
+
+
+
+/**
+ * @brief Build raw Modbus TCP request for reading holding registers (Function 0x03)
+ * @param raw_msg Pointer to output buffer for storing constructed Modbus TCP message
+ * @param start_addr Start address of target holding registers
+ * @param reg_num Number of holding registers to read
+ * @return int Total length of built Modbus TCP message
+ *         - Positive value: Message length constructed successfully
+ *
+ * @note Constructs standard Modbus TCP request including MBAP header and PDU.
+ *       Fixed transaction ID 0x0001 and unit ID 0x01 are used by default.
+ *       All address and length fields follow big-endian byte order.
+ *
+ * @warning Only for Modbus TCP protocol, not applicable to Modbus RTU.
+ */
+int modbus_tcp_build_read_holding_registers_msg(uint8_t *raw_msg, int start_addr, int reg_num){
+    int msg_len = 0;
+
+    // MBAP Header (7 bytes)
+    raw_msg[msg_len++] = 0x00;
+    raw_msg[msg_len++] = 0x01;
+    raw_msg[msg_len++] = 0x00;
+    raw_msg[msg_len++] = 0x00;
+    raw_msg[msg_len++] = 0x00;
+    raw_msg[msg_len++] = 0x06;
+    raw_msg[msg_len++] = 0x01;
+
+    // Function code: Read Holding Registers
+    raw_msg[msg_len++] = 0x03;
+
+    // Start address (big-endian)
+    raw_msg[msg_len++] = (start_addr >> 8) & 0xFF;
+    raw_msg[msg_len++] = start_addr & 0xFF;
+
+    // Register count (big-endian)
+    raw_msg[msg_len++] = (reg_num >> 8) & 0xFF;
+    raw_msg[msg_len++] = reg_num & 0xFF;
+
+    return msg_len;
+}
+
+
+/**
+ * @brief Parse received Modbus TCP response and extract register values
+ * @param rsp Pointer to received raw Modbus TCP response buffer
+ * @param rsp_len Length of received Modbus TCP response
+ * @param out_regs Pointer to output buffer for storing parsed register values
+ * @return int Number of successfully parsed registers
+ *         - Positive value: Count of parsed registers
+ *         - (-1): Invalid response or parsing failure
+ *
+ * @note Extracts register data from response after MBAP header and function code.
+ *       Automatically converts big-endian network bytes to host 16-bit values.
+ *
+ * @warning Input buffer must contain complete and valid Modbus TCP response.
+ */
+int modbus_tcp_parse_registers_from_response(uint8_t *rsp, int rsp_len, uint16_t *out_regs){
+    if (rsp_len < 9) {
+        fprintf(stderr, "modbus_tcp_parse: Response too short\n");
+        return -1;
+    }
+
+    if (rsp[7] != 0x03) {
+        fprintf(stderr, "modbus_tcp_parse: Invalid function code\n");
+        return -1;
+    }
+
+    int data_bytes = rsp[8];
+    int reg_count = data_bytes / 2;
+
+    for (int i = 0; i < reg_count; i++) {
+        out_regs[i] = (rsp[9 + i*2] << 8) | rsp[10 + i*2];
+    }
+
+    return reg_count;
 }
