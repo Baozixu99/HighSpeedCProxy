@@ -873,7 +873,8 @@ int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
         sess->pri_data = (void *)ctx;
         fcntl(modbus_get_socket(ctx), F_SETFL, O_NONBLOCK);
 #endif
-        modbus_set_response_timeout(ctx, 1, 0);  
+        modbus_set_response_timeout(ctx, 1, 0); 
+        sess->pri_data = (void *)ctx;
     }else{
         error_print("engine_init_modbustcp_session failed: do not support server mode yet!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
@@ -1532,7 +1533,30 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
 
         if(IOT_SESS_STATE_PENDING  == sess->sess_state){
             utils_print("Should read remote register!\n");
-        }
+
+            ctx = sess->pri_data;
+
+            if (NULL == ctx || NULL == msg_buf){
+                error_print("modbustcp_recv_from_remote failed: invalid parameters!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            ret = modbus_read_registers(ctx, 0, 1, regs);
+            utils_print("ret = %d\n", ret);
+
+            if(ret > 0){
+                utils_print("Read remote register successully!\n");
+                memcpy(msg_buf->data, regs, sizeof(uint16_t) * ret);
+                msg_buf->len = sizeof(uint16_t) * ret;
+                sess->sess_state = IOT_SESS_STATE_IDLE;
+                return BACKEND_PROXY_PROCESS_OK;
+            }else{
+                utils_print("Failed to read remote register!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+
+        }// if(IOT_SESS_STATE_PENDING  == sess->sess_state)
 #if 0
         ctx = sess->pri_data;
 

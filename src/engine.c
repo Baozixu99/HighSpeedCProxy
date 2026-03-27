@@ -2888,6 +2888,10 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
     uint8_t                 res_buf[100] = {0};
     uint8_t                 *res_ptr;
 
+    (void)res_buf;
+    (void)res_ptr;
+    (void)proxy_msg_hdr;
+
     ret = BACKEND_PROXY_PROCESS_ERROR;
 
     do{
@@ -2896,12 +2900,18 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
         msg_buf.data = data;
         msg_buf.len  = sizeof(data);
 
+        utils_print("size of buffer for storing Modbus TCP data is %d\n", msg_buf.len);
+        ret = sess->recv_from_remote(sess, &msg_buf, 0);
+
         if(BACKEND_PROXY_PROCESS_AGAIN == ret){
             error_print("engine_iot_modbustcp_run returned: no ModbusTCP data available yet!\n");
             return;
         }else if(BACKEND_PROXY_PROCESS_ERROR == ret){
             error_print("engine_iot_modbustcp_run failed: receive ModbusTCP data error!\n");
         }else if (BACKEND_PROXY_PROCESS_OK == ret){
+            utils_print("Receive Modbus TCP data!\n");
+
+            utils_print("msg_buf.len = %d\n", msg_buf.len);
             memset(&proxy_msg_hdr, 0, sizeof(GeneralProxyMsgHeader));
             proxy_msg_hdr.outer_header.frontend_sess_id = 0;
             proxy_msg_hdr.outer_header.backend_sess_id = 0;
@@ -2912,7 +2922,7 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
             proxy_msg_hdr.inner_header.iot_hdr.proto_type   = IOT_PROTO_TYPE_MODBUSTCP;
             proxy_msg_hdr.inner_header.iot_hdr.proto_ver    = 1;
             proxy_msg_hdr.inner_header.iot_hdr.payload_len  = msg_buf.len + get_iot_addr_length(IOT_PROTO_TYPE_MODBUSTCP);
-
+#if 0
             proxy_msg_hdr.iot_addr_len                                  = get_iot_addr_length(IOT_PROTO_TYPE_MODBUSTCP);
             proxy_msg_hdr.iot_addr.addr_type                            = IOT_PROTO_TYPE_MODBUSTCP;
             proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.port       = msg_buf.addr.addr_info.modbus_tcp_addr.port;
@@ -2923,6 +2933,7 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
             res_ptr = res_buf;
             build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
             //msg_buf.addr;
+    #endif
         }
 
 
