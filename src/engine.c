@@ -1864,6 +1864,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         break;
                     }
 
+                    memset(backend_modbustcp_sess, 0, sizeof(IoTBackendSession));
                     ret = engine_init_modbustcp_session(iot_dev, backend_modbustcp_sess);
                     if(BACKEND_PROXY_PROCESS_OK != ret){
                         error_print("engine_init_iot_sessions: init modbusTCP session failed, skip!\n");
@@ -1871,6 +1872,7 @@ int engine_init_iot_sessions(BackendEngine *engine){
                         backend_modbustcp_sess = NULL;
                         break;
                     }
+                    backend_modbustcp_sess->eng = engine;
                     success_count++;
                     break;
 
@@ -2922,7 +2924,18 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
             proxy_msg_hdr.inner_header.iot_hdr.proto_type   = IOT_PROTO_TYPE_MODBUSTCP;
             proxy_msg_hdr.inner_header.iot_hdr.proto_ver    = 1;
             proxy_msg_hdr.inner_header.iot_hdr.payload_len  = msg_buf.len + get_iot_addr_length(IOT_PROTO_TYPE_MODBUSTCP);
-#if 0
+
+            utils_print("port = %d, reg_addr = %d, reg_num = %d, unit_id = %d\n", 
+                        msg_buf.addr.addr_info.modbus_tcp_addr.port, 
+                        msg_buf.addr.addr_info.modbus_tcp_addr.reg_addr, 
+                        msg_buf.addr.addr_info.modbus_tcp_addr.reg_num,
+                        msg_buf.addr.addr_info.modbus_tcp_addr.unit_id);
+            utils_print("ip[0] = %d, ip[1] = %d, ip[2] = %d, ip[3] = %d\n", 
+                        msg_buf.addr.addr_info.modbus_tcp_addr.ip[0],
+                        msg_buf.addr.addr_info.modbus_tcp_addr.ip[1],
+                        msg_buf.addr.addr_info.modbus_tcp_addr.ip[2],
+                        msg_buf.addr.addr_info.modbus_tcp_addr.ip[3]);
+
             proxy_msg_hdr.iot_addr_len                                  = get_iot_addr_length(IOT_PROTO_TYPE_MODBUSTCP);
             proxy_msg_hdr.iot_addr.addr_type                            = IOT_PROTO_TYPE_MODBUSTCP;
             proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.port       = msg_buf.addr.addr_info.modbus_tcp_addr.port;
@@ -2931,9 +2944,11 @@ void engine_iot_modbustcp_run(IoTBackendSession *sess){
             proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.unit_id    = msg_buf.addr.addr_info.modbus_tcp_addr.unit_id;
             memcpy(proxy_msg_hdr.iot_addr.addr_info.modbus_tcp_addr.ip, msg_buf.addr.addr_info.modbus_tcp_addr.ip, sizeof(msg_buf.addr.addr_info.modbus_tcp_addr.ip));
             res_ptr = res_buf;
-            build_proxy_general_message(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
-            //msg_buf.addr;
-    #endif
+
+            utils_print("====> sess->eng = %p\n", sess->eng);
+#if 1
+            build_proxy_general_message_tmp(sess->eng, &proxy_msg_hdr, msg_buf.data, msg_buf.len, &res_ptr, MEMORY_ALLOC_AMPQUEUE, NULL);
+#endif
         }
 
 

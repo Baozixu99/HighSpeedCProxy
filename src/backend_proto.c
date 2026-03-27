@@ -1219,6 +1219,7 @@ int build_proxy_iot_message(GeneralProxyMsgHeader *header,
                             const uint8_t *payload, 
                             size_t payload_len, 
                             uint8_t **result_msg) {
+    utils_print("In %s\n", __func__);
     
     /*
      * 1. Basic Parameter Validation (Safety Check)
@@ -1566,6 +1567,205 @@ int build_proxy_general_message(BackendEngine *engine, GeneralProxyMsgHeader *he
             return BACKEND_PROXY_PROCESS_ERROR;
         }
     }
+    return BACKEND_PROXY_PROCESS_OK;
+}
+
+
+
+int build_proxy_general_message_tmp(BackendEngine *engine, GeneralProxyMsgHeader *header, 
+                                const uint8_t *payload, size_t payload_len, uint8_t **result_msg, 
+                                MemoryAllocMode alloc_mode, struct SharedMemoryPoolQueue *ring_buf){
+    utils_print("In %s\n", __func__);
+    uint8_t         *msg_buf;
+    uint64_t        mem_addr;
+    uint16_t        proxy_msg_payload_len;
+    ProxyMsgType    outer_msg_type;
+    ProxyMsgHeader  *proxy_msg_hdr;
+    DevMsgHeader    *dev_hdr;
+    StrgyMsgHeader  *strgy_hdr;
+    SessMsgHeader   *sess_hdr;
+    int             ret, alloc_size, sub_iot_hdr_len;
+
+    (void)msg_buf;
+    (void)mem_addr;
+    (void)proxy_msg_payload_len;
+    (void)outer_msg_type;
+    (void)proxy_msg_hdr;
+    (void)dev_hdr;
+    (void)strgy_hdr;
+    (void)sess_hdr;
+    (void)ret;
+    (void)alloc_size;
+    (void)sub_iot_hdr_len;
+
+    print_general_proxy_msg_header(header);
+
+/*
+ * Check the validity of the input parameters.
+ */
+    if(NULL == header || NULL == payload || NULL == result_msg){
+        error_print("build_proxy_general_message failed: input(s) for generating proxy message is/are NULL!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+
+    if(NULL == engine || NULL == engine->mem_pool){
+        error_print("build_proxy_general_message failed: backend engine is NULL or its memory pool is uninitialized!");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+#if 1
+
+/*
+ * Allocate shared-memory for storing the proxy message.
+ */
+    if(MEMORY_ALLOC_SHARED == alloc_mode){
+        if(NULL == ring_buf){
+            error_print("build_proxy_general_message failed: MEMORY_ALLOC_SHARED mode requires a non-NULL ring buffer (FIFO queue)!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        utils_print("before SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, virt addr = %ld\n", ring_buf->header, ring_buf->tail, ring_buf->virt_addr1);
+        SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
+        utils_print("after SHM_POOL_QUEUE_ALLOC_FROM_HEADER, header = %d, tail = %d, memaddr = %ld\n", ring_buf->header, ring_buf->tail, mem_addr);
+
+        if(ERROR_SHARED_MEM_ADDR == mem_addr){
+            error_print("build_proxy_general_message failed: shared memory FIFO queue is full, cannot allocate new block!");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        msg_buf         = (uint8_t *)mem_addr;
+        *result_msg     = msg_buf;
+
+//        SHM_POOL_QUEUE_LOOKUP_VIRTADDR(ring_buf, 1, 1, &mem_addr);
+//        SHM_POOL_QUEUE_ALLOC_FROM_HEADER(ring_buf, &mem_addr);
+    }else if(MEMORY_ALLOC_CALLER == alloc_mode){
+        /*
+ * Frontend protocol should allocate memory dynamically.
+ */
+        alloc_size = sizeof(ProxyMsgHeader) + header->outer_header.payload_len;
+        msg_buf         = malloc(alloc_size);
+
+        if(NULL == msg_buf){
+            error_print("build_proxy_general_message failed: insufficient memory for allocation!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }else if(MEMORY_ALLOC_AMPQUEUE  == alloc_mode){
+        if(NULL == engine->hyper_tx_queue){
+            error_print("build_proxy_general_message failed: HyperAMP TX queue is not initialized!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+        memset(global_amp_tx_buf, 0, sizeof(global_amp_tx_buf));
+        msg_buf         = global_amp_tx_buf;
+        *result_msg     = msg_buf;
+    }else{
+        error_print("build_proxy_general_message failed: unsupported allocte mode!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * Fill the proxy message header.
+ */
+
+    proxy_msg_hdr                       = (ProxyMsgHeader *)msg_buf;
+    proxy_msg_hdr->version              = header->outer_header.version;
+    proxy_msg_hdr->proxy_msg_type       = outer_msg_type = header->outer_header.proxy_msg_type;
+    proxy_msg_hdr->frontend_sess_id     = header->outer_header.frontend_sess_id;
+    proxy_msg_hdr->backend_sess_id      = header->outer_header.backend_sess_id;
+    
+    utils_print("In %s, version = %d, proxy_msg_type = %d, frontend_sess_id = %d, backend_sess_id = %d, payload_len = %d\n", __func__,
+                proxy_msg_hdr->version, proxy_msg_hdr->proxy_msg_type, proxy_msg_hdr->frontend_sess_id, proxy_msg_hdr->backend_sess_id, proxy_msg_hdr->payload_len);
+    msg_buf += sizeof(ProxyMsgHeader);
+    switch(outer_msg_type) {
+        case PROXY_MSG_TYPE_DEV:
+            dev_hdr               = &header->inner_header.dev_hdr;
+            proxy_msg_payload_len = sizeof(DevMsgHeader);
+            utils_print("In %s, before enter build_proxy_dev_message\n", __func__);
+            ret = build_proxy_dev_message(dev_hdr, payload, payload_len, &msg_buf);
+            break;
+        case PROXY_MSG_TYPE_STRGY:
+            strgy_hdr             = &header->inner_header.strgy_hdr;
+            proxy_msg_payload_len = sizeof(StrgyMsgHeader);
+            utils_print("In %s, before enter build_proxy_strgy_message\n", __func__);
+            ret = build_proxy_strgy_message(strgy_hdr, payload, payload_len, &msg_buf);
+            break;
+        case PROXY_MSG_TYPE_SESS:
+            sess_hdr              = &header->inner_header.sess_hdr;
+            proxy_msg_payload_len = sizeof(SessMsgHeader);
+            utils_print("In %s, before enter build_proxy_sess_message, ip version = %d\n",  __func__, sess_hdr->ip_version);
+            ret = build_proxy_sess_message(sess_hdr, payload, payload_len, &msg_buf);
+            break;
+        case PROXY_MSG_TYPE_DATA:
+            proxy_msg_payload_len = 0;
+            ret = build_proxy_data_message(proxy_msg_hdr, payload, payload_len, &msg_buf);
+            utils_print("In %s, after build_proxy_data_message, the return value is %d\n", __func__, ret);
+            break;
+#if 1
+        case PROXY_MSG_TYPE_IOT:
+            sub_iot_hdr_len = 0;
+            if(IOT_PROTO_TYPE_BLUETOOTH == header->inner_header.iot_hdr.proto_type){
+                sub_iot_hdr_len = sizeof(IotBtAddr);
+            }else if(IOT_PROTO_TYPE_CAN == header->inner_header.iot_hdr.proto_type){
+                sub_iot_hdr_len = sizeof(IotCanAddr);
+            }else if(IOT_PROTO_TYPE_ZIGBEE == header->inner_header.iot_hdr.proto_type){
+                sub_iot_hdr_len = sizeof(IotZigbeeAddr);
+            }else if(IOT_PROTO_TYPE_LORA == header->inner_header.iot_hdr.proto_type){
+                sub_iot_hdr_len = sizeof(IotLoraAddr);
+            }else if(IOT_PROTO_TYPE_POWERLINK == header->inner_header.iot_hdr.proto_type){
+                sub_iot_hdr_len = sizeof(IotPowerLinkAddr);
+            }else if(IOT_PROTO_TYPE_MODBUSTCP == header->inner_header.iot_hdr.proto_type){
+                sub_iot_hdr_len = sizeof(IotModbusTcpAddr);
+            }else{
+                error_print("build_proxy_general_message failed: unsupported IoT protocol!\n");
+                return BACKEND_PROXY_PROCESS_ERROR;
+            }
+
+            proxy_msg_payload_len = sizeof(IotMsgHeader) + sub_iot_hdr_len;
+
+            ret = build_proxy_iot_message(header, payload, payload_len, &msg_buf);
+            utils_print("In %s, after build_proxy_iot_message, the return value is %d\n", __func__, ret);
+            break;
+#endif
+        default:
+/*
+ * Message type is not supported!.
+ */
+            error_print("build_proxy_general_message failed: message type is not supported!");
+            free_shared_mem(engine->mem_pool, mem_addr);
+            return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(BACKEND_PROXY_PROCESS_OK != ret){
+        error_print("build_proxy_general_message failed: failed to build proxy message!");
+//        free_shared_mem(engine->mem_pool, mem_addr);
+        SHM_POOL_QUEUE_HEAD_ROLLBACK(ring_buf);
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+/*
+ * Compute the payload length and fill it into the corresponding field of the proxy message header.
+ */
+    
+    proxy_msg_hdr->payload_len = payload_len + proxy_msg_payload_len;
+
+
+/*
+ * In MEMORY_ALLOC_AMPQUEUE mode, the created message should be pushed into the HyperAMP shared queue.
+ */
+    if(MEMORY_ALLOC_AMPQUEUE == alloc_mode){
+        msg_buf -= sizeof(ProxyMsgHeader);         
+        ret = hyperamp_queue_enqueue(engine->hyper_tx_queue, HYPERAMP_ZONE_ID_Linux, msg_buf, payload_len + proxy_msg_payload_len + sizeof(ProxyMsgHeader), engine->hyper_amp_data_region);
+
+        if(HYPERAMP_OK == ret){
+            return BACKEND_PROXY_PROCESS_OK;
+        }else if(HYPERAMP_AGAIN == ret){
+            return BACKEND_PROXY_PROCESS_AGAIN;
+        }else{
+            error_print("build_proxy_general_message failed: faild to push message into the HyperAmp queue!\n");
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+    }
+#endif
     return BACKEND_PROXY_PROCESS_OK;
 }
 

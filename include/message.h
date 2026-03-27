@@ -864,6 +864,10 @@ int build_proxy_sess_message(SessMsgHeader *header, const uint8_t *payload, size
 int build_proxy_data_message(ProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 // int build_proxy_iot_message(GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, uint8_t **result_msg);
 
+
+int build_proxy_general_message_tmp(struct BackendEngine_ *engine, GeneralProxyMsgHeader *header, const uint8_t *payload, size_t payload_len, 
+                                uint8_t **result_msg, MemoryAllocMode alloc_mode, struct SharedMemoryPoolQueue *ring_buf);
+
 /**
  * @brief Build IoT proxy message (supports 3-layer structure: ProxyMsgHeader + IotMsgHeader + IotAddr + payload)
  * 

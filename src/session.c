@@ -1552,15 +1552,17 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
                 (void)ipv4_port_tuple;
                 (void)ip_port_str;
 
+                msg_buf->addr.addr_type                             = IOT_PROTO_TYPE_MODBUSTCP;
+                msg_buf->addr.addr_info.modbus_tcp_addr.port        = ipv4_port_tuple.port;
+                msg_buf->addr.addr_info.modbus_tcp_addr.reg_addr    = 0;
+                msg_buf->addr.addr_info.modbus_tcp_addr.reg_num     = 1;
+                msg_buf->addr.addr_info.modbus_tcp_addr.unit_id     = 0;
                 memcpy(msg_buf->addr.addr_info.modbus_tcp_addr.ip, ipv4_port_tuple.ipv4_addr.data, sizeof(ipv4_port_tuple.ipv4_addr.data));
-                msg_buf->addr.addr_info.modbus_tcp_addr.port = ipv4_port_tuple.port;
-                msg_buf->addr.addr_info.modbus_tcp_addr.reg_addr = 0;
-
-
 
                 memcpy(msg_buf->data, regs, sizeof(uint16_t) * ret);
                 msg_buf->len = sizeof(uint16_t) * ret;
                 sess->sess_state = IOT_SESS_STATE_IDLE;
+                utils_print("modbustcp_recv_from_remote finished!\n");
                 return BACKEND_PROXY_PROCESS_OK;
             }else{
                 utils_print("Failed to read remote register!\n");
