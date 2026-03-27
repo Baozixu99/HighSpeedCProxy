@@ -702,6 +702,22 @@ typedef struct {
 } __attribute__((packed)) IotModbusTcpAddr;
 
 
+/**
+ * @enum IotModbusCmd
+ * @brief Modbus TCP message command type
+ */
+typedef enum {
+    IOT_MODBUS_CMD_WRITE_REQ  = 0,  /**< Write request command */
+    IOT_MODBUS_CMD_WRITE_RESP = 1,  /**< Write response command */
+    IOT_MODBUS_CMD_READ_REQ   = 2,  /**< Read request command */
+    IOT_MODBUS_CMD_READ_RESP  = 3   /**< Read response command */
+} IotModbusCmd;
+
+typedef struct {
+    uint8_t  cmd;          /* 0: WRITE-CMD, 1: WRITE-RESP; 2: READ-CMD, 3: READ_RESP */
+    uint16_t value;        /* value to be sent or receive */
+}__attribute__((packed)) IotModbusTcpMsg;
+
 /* -------------------------- Unified IoT Address Structure -------------------------- */
 /**
  * @brief Unified IoT device address structure (type + union address)

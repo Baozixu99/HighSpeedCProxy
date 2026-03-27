@@ -848,6 +848,7 @@ int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
     sess->send_to_remote    = modbustcp_send_to_remote;
     sess->recv_from_remote  = modbustcp_recv_from_remote;
     sess->sess_type         = IOT_PROTO_TYPE_MODBUSTCP;
+    sess->sess_state        = IOT_SESS_STATE_IDLE;
 
     sess->pri_data = NULL;
 
@@ -860,10 +861,22 @@ int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
             return BACKEND_PROXY_PROCESS_ERROR;
         }
 
+        if (modbus_connect(ctx) == -1) {
+            error_print("Connection failed!\n");
+            modbus_free(ctx);
+            return BACKEND_PROXY_PROCESS_ERROR;
+        }
+
+        utils_print("Connected to Modbus TCP server!\n");
+
+#if 0
         sess->pri_data = (void *)ctx;
         fcntl(modbus_get_socket(ctx), F_SETFL, O_NONBLOCK);
+#endif
+        modbus_set_response_timeout(ctx, 1, 0);  
     }else{
         error_print("engine_init_modbustcp_session failed: do not support server mode yet!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
     }
 
     sess->working_mode = dev->config.working_mode;
@@ -1444,12 +1457,28 @@ int powerlink_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
  */
 int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_buf){
     utils_print("%s \n", __func__);
-    modbus_t    *ctx;
-    uint16_t    regs[10]; 
-    uint16_t    reg_addr;
-    int         ret;
+    modbus_t            *ctx;
+    uint16_t            regs[10]; 
+    uint16_t            reg_addr;
+    IotModbusTcpMsg     *modbus_tcp_msg;
+    int                 ret;
+
+    (void)ctx;
+    (void)regs;
+    (void)reg_addr;
+    (void)modbus_tcp_msg;
+    (void)ret;
 
     if (IOT_WORK_MODE_CLIENT == sess->working_mode){
+        modbus_tcp_msg = (IotModbusTcpMsg *)msg_buf->data;
+
+        utils_print("cmd = %d\n", modbus_tcp_msg->cmd);
+
+        if(IOT_MODBUS_CMD_READ_REQ == modbus_tcp_msg->cmd){
+            sess->sess_state = IOT_SESS_STATE_PENDING;
+        }
+
+#if 0
         ctx         = (modbus_t *)sess->pri_data;
         reg_addr    = msg_buf->addr.addr_info.modbus_tcp_addr.reg_addr;
 
@@ -1461,9 +1490,11 @@ int modbustcp_send_to_remote(IoTBackendSession *sess, const IotMsgBuffer *msg_bu
             error_print("modbustcp_send_to_remote failed: fail to send data to remote!\n");
             return BACKEND_PROXY_PROCESS_ERROR;
         }
+#endif
+        return BACKEND_PROXY_PROCESS_OK;
     }
 
-    return BACKEND_PROXY_PROCESS_OK;
+    return BACKEND_PROXY_PROCESS_ERROR;
 }
 
 /**
@@ -1497,6 +1528,11 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
     (void)ret;
 
     if (IOT_WORK_MODE_CLIENT == sess->working_mode){
+        utils_print("sess->sess_state = %d\n", sess->sess_state);
+
+        if(IOT_SESS_STATE_PENDING  == sess->sess_state){
+            utils_print("Should read remote register!\n");
+        }
 #if 0
         ctx = sess->pri_data;
 

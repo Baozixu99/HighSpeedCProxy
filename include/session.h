@@ -500,6 +500,33 @@ typedef enum IotWorkMode_ {
     IOT_WORK_MODE_SERVER = 1
 } IotWorkMode;
 
+
+/**
+ * @enum IotSessState
+ * @brief Session state enumeration for Modbus TCP communication
+ *
+ * Defines the operational states of a communication session,
+ * indicating whether the session is idle or waiting for a response.
+ */
+typedef enum IotSessState_ {
+    /**
+     * @brief Session is idle
+     *
+     * The session has completed the previous operation or has no pending events.
+     * It is ready to accept new requests.
+     */
+    IOT_SESS_STATE_IDLE     = 0,
+
+    /**
+     * @brief Session is pending
+     *
+     * The session is waiting for a response from the Modbus server.
+     * No new requests should be sent until this state changes.
+     */
+    IOT_SESS_STATE_PENDING  = 1
+} IotSessState;
+
+
 /**
  * @brief IoT backend session object (for Bluetooth/CAN/Zigbee/LoRa/OpenPowerLink)
  * @note Each IoT device has exactly one corresponding session (1:1 mapping)
@@ -511,6 +538,7 @@ typedef struct IoTBackendSession_ {
     int                 sess_role;
     int                 dev_id;              // Associated IoT device ID (global unique)
     int                 sess_id;             // IoT session ID (same as device's sess_id)
+    int                 sess_state;
     IotWorkMode         working_mode;        // Session working mode (client/gateway)
     
     // 2. Link state management (simplified for IoT 1:1 mapping)

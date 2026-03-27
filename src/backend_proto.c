@@ -2394,8 +2394,15 @@ int backend_proxy_modbustcp_msg_process(uint16_t frontend_sess_id,
     modbus_tcp_addr  = (IotModbusTcpAddr *)iot_data;
     iot_payload      = iot_data + sizeof(IotModbusTcpAddr);
 
+    utils_print("iot_header->payload_len = %d\n", iot_header->payload_len);
+
     if(iot_header->payload_len > BACKEND_MODBUS_TCP_MAX_PAYLOAD){
         error_print("backend_proxy_modbustcp_msg_process failed: message length exceeds the maximum limit!\n");
+        return BACKEND_PROXY_PROCESS_ERROR;
+    }
+
+    if(iot_header->payload_len < sizeof(IotModbusTcpAddr)){
+        error_print("backend_proxy_modbustcp_msg_process failed: invalied payload length!\n");
         return BACKEND_PROXY_PROCESS_ERROR;
     }
 
