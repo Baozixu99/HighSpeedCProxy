@@ -47,7 +47,7 @@ struct BackendSessionPoolOps {
     void (*destroy_pool)(struct BackendSessionPool *s_pool);
 };
 
-struct BackendSessionPool  *high_speed_pool;
+extern struct BackendSessionPool *high_speed_pool;
 int high_speed_init_pool(struct BackendSessionPool *pool); 
 void high_speed_deinit_pool(struct BackendSessionPool *pool);
 

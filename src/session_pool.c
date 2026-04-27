@@ -41,6 +41,8 @@ struct BackendSessionPoolOps high_speed_pool_ops = {
     .destroy_pool           = high_speed_destroy_pool
 };
 
+struct BackendSessionPool *high_speed_pool = NULL;
+
 struct BackendSessionPool *get_backend_high_speed_pool(){
     return high_speed_pool;
 }

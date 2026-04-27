@@ -52,7 +52,7 @@
      * 
      * @note  Currently simplified to a DMB barrier only (original cache cleaning code commented out)
      */
-    inline void hyperamp_cache_clean(volatile void *addr, size_t size) {
+    void hyperamp_cache_clean(volatile void *addr, size_t size) {
         (void)addr; (void)size;
         __asm__ volatile("dmb sy" ::: "memory");
     }
@@ -69,7 +69,7 @@
      * 
      * @note  Currently simplified to a DMB barrier only (original cache invalidation code commented out)
      */
-    inline void hyperamp_cache_invalidate(volatile void *addr, size_t size) {
+    void hyperamp_cache_invalidate(volatile void *addr, size_t size) {
         (void)addr; (void)size;
         __asm__ volatile("dmb sy" ::: "memory");
     }
@@ -78,12 +78,12 @@
     #define HYPERAMP_DMB()   __asm__ volatile("mfence" ::: "memory")
     #define HYPERAMP_ISB()   __asm__ volatile("" ::: "memory")
     
-    static inline void hyperamp_cache_clean(volatile void *addr, size_t size) {
+    void hyperamp_cache_clean(volatile void *addr, size_t size) {
         (void)addr; (void)size;
         __asm__ volatile("mfence" ::: "memory");
     }
     
-    static inline void hyperamp_cache_invalidate(volatile void *addr, size_t size) {
+    void hyperamp_cache_invalidate(volatile void *addr, size_t size) {
         (void)addr; (void)size;
         __asm__ volatile("mfence" ::: "memory");
     }
