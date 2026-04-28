@@ -21,7 +21,7 @@ int main(void)
     uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
 
     // Create a new Modbus TCP context
-    ctx = modbus_new_tcp("192.168.1.101", TCP_PORT);
+    ctx = modbus_new_tcp("192.168.137.2", TCP_PORT);
     if (ctx == NULL) {
         fprintf(stderr, "Failed to create the Modbus TCP context: %s\n", modbus_strerror(errno));
         return -1;

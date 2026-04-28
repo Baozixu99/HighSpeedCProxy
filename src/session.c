@@ -854,7 +854,7 @@ int engine_init_modbustcp_session(IotDevice *dev, IoTBackendSession *sess){
 
     if (IOT_WORK_MODE_CLIENT == dev->config.working_mode){
         utils_print("mb_port = %d\n", dev->specific_attr.mb_attr.mb_port);
-        ctx = modbus_new_tcp("192.168.1.101", dev->specific_attr.mb_attr.mb_port);
+        ctx = modbus_new_tcp("192.168.137.2", dev->specific_attr.mb_attr.mb_port);
 
         if (ctx == NULL) {
             error_print("engine_init_modbustcp_session failed: faild to create the Modbus TCP context!\n");
@@ -1547,7 +1547,7 @@ int modbustcp_recv_from_remote(IoTBackendSession *sess, IotMsgBuffer *msg_buf, i
             if(ret > 0){
                 utils_print("Read remote register successully!\n");
                 IPv4PortTuple           ipv4_port_tuple;
-                char                    ip_port_str[] = "192.168.1.101:502";
+                char                    ip_port_str[] = "192.168.137.2:502";
                 IPV4_PORT_STR_TO_TUPLE(ip_port_str, ipv4_port_tuple);
                 (void)ipv4_port_tuple;
                 (void)ip_port_str;

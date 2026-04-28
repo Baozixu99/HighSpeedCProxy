@@ -29,7 +29,7 @@ static int test_udp_connectivity(int fd) {
     char recv_buf[1024];
     socklen_t addr_len;
     int ret;
-    const char *target_ip = "192.168.1.101";
+    const char *target_ip = "192.168.137.2";
     int target_port = 8888;
 
     utils_print("[UDP TEST] Starting connectivity test to %s:%d...\n", target_ip, target_port);
