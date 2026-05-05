@@ -2150,7 +2150,7 @@ int engine_init_hyperamp_queue(BackendEngine *eng){
  * hyper_tx_queue, and the underlying data region. The backend engine later retrieves
  * these pointers from g_ctx to establish cross-environment communication with the seL4 frontend.
  */
-    ret = hyperamp_linux_init(0, 0);
+    ret = hyperamp_linux_init(SHM_CH1_PADDR, 0);
 
     if(HYPERAMP_ERROR == ret){
         error_print("engine_init_hyperamp_queue failed: hyperamp_linux_init returned error\n");

@@ -325,16 +325,25 @@ int hyperamp_queue_release_slot(volatile HyperampShmQueue *queue,
 
 /* ==================== Configuration Definitions ==================== */
 
-/* Shared memory physical address - New HyperAMP layout (bidirectional communication) */
-// Actually only need to use mmap base address SHM_START_PADDR + SHM_DATA_SIZE
-// Phytium platform
-// #define SHM_START_PADDR          0xDE000000UL  // Shared memory base physical address
-// i.MX8MP platform
-#define SHM_START_PADDR             0x7E000000UL  // Shared memory base physical address
-#define SHM_QUEUE_SIZE              (4 * 1024)    // 4KB Queue control area (actual ~4068 bytes)
-#define SHM_DATA_SIZE               (4 * 1024 * 1024)  // 4MB Data area
+/* Shared memory physical address - Compact multi-channel HyperAMP layout */
+// i.MX8MP platform (base must match hvisor/seL4 kernel config)
+#define SHM_START_PADDR             0x7E000000UL  // CH0 base physical address
+#define SHM_CH0_PADDR               SHM_START_PADDR
+#define SHM_CH1_PADDR               (SHM_START_PADDR + 0x200000UL)
+#define SHM_CH2_PADDR               (SHM_START_PADDR + 0x300000UL)
 
-#define SHM_TOTAL_SIZE              (SHM_QUEUE_SIZE * 2 + SHM_DATA_SIZE)  // Total ~4.01MB
+#define SHM_QUEUE_SIZE              (4 * 1024)    // 4KB per queue control area
+#define SHM_DATA_REGION_OFFSET      (SHM_QUEUE_SIZE * 2)  // RX(4KB)+TX(4KB)
+
+/* Total size per channel */
+#define SHM_CH0_TOTAL_SIZE          (2 * 1024 * 1024)
+#define SHM_CH1_TOTAL_SIZE          (1 * 1024 * 1024)
+#define SHM_CH2_TOTAL_SIZE          (1 * 1024 * 1024)
+
+/* Usable data-region size per channel (excluding 2x4KB queues) */
+#define SHM_CH0_DATA_SIZE           (SHM_CH0_TOTAL_SIZE - SHM_DATA_REGION_OFFSET)
+#define SHM_CH1_DATA_SIZE           (SHM_CH1_TOTAL_SIZE - SHM_DATA_REGION_OFFSET)
+#define SHM_CH2_DATA_SIZE           (SHM_CH2_TOTAL_SIZE - SHM_DATA_REGION_OFFSET)
 
 /* Queue configuration */
 #define DEFAULT_QUEUE_CAPACITY      256

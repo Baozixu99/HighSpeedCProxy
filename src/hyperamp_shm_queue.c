@@ -988,9 +988,32 @@ int hyperamp_linux_init(uint64_t phys_addr, int is_creator)
     printf("[HyperAMP] ========================================\n");
     printf("[HyperAMP] Mode: %s\n", is_creator ? "CREATOR" : "CONNECTOR");
     printf("[HyperAMP] Physical address: 0x%lx\n", phys_addr);
+
+    /* Select mapping size based on channel base address */
+    size_t map_size = SHM_CH0_TOTAL_SIZE;
+    size_t data_size = SHM_CH0_DATA_SIZE;
+    if (phys_addr == SHM_CH1_PADDR) {
+        map_size = SHM_CH1_TOTAL_SIZE;
+        data_size = SHM_CH1_DATA_SIZE;
+    } else if (phys_addr == SHM_CH2_PADDR) {
+        map_size = SHM_CH2_TOTAL_SIZE;
+        data_size = SHM_CH2_DATA_SIZE;
+    }
+
+    /* Compute a safe queue capacity for the selected channel.
+     * Note: enqueue/dequeue uses (idx + 1) * block_size addressing.
+     */
+    uint16_t queue_capacity = DEFAULT_QUEUE_CAPACITY;
+    uint16_t max_capacity = (uint16_t)(data_size / DEFAULT_BLOCK_SIZE);
+    if (max_capacity > 0) {
+        max_capacity -= 1;
+    }
+    if (queue_capacity > max_capacity) {
+        queue_capacity = max_capacity;
+    }
     
-    // Map physical memory (from TX Queue start address, map entire region)
-    if (map_physical_memory(phys_addr, SHM_TOTAL_SIZE) != HYPERAMP_OK) {
+    // Map physical memory (map selected channel region only)
+    if (map_physical_memory(phys_addr, map_size) != HYPERAMP_OK) {
         return HYPERAMP_ERROR;
     }
     
@@ -1010,23 +1033,23 @@ int hyperamp_linux_init(uint64_t phys_addr, int is_creator)
            g_ctx.tx_queue, phys_addr + SHM_QUEUE_SIZE);
     printf("[HyperAMP]   RX Queue:    %p (phys: 0x%lx)\n", 
            g_ctx.rx_queue, phys_addr);
-    printf("[HyperAMP]   Data Region: %p (phys: 0x%lx, size: %d bytes)\n", 
-           g_ctx.data_region, phys_addr + 2 * SHM_QUEUE_SIZE, SHM_DATA_SIZE);
+        printf("[HyperAMP]   Data Region: %p (phys: 0x%lx, size: %zu bytes)\n", 
+            g_ctx.data_region, phys_addr + 2 * SHM_QUEUE_SIZE, data_size);
     
     // Initialize queue configurations
     HyperampQueueConfig tx_config = {
         .map_mode = HYPERAMP_MAP_MODE_CONTIGUOUS_BOTH,
-        .capacity = DEFAULT_QUEUE_CAPACITY,
+        .capacity = queue_capacity,
         .block_size = DEFAULT_BLOCK_SIZE,
-        .phy_addr = phys_addr,  // TX Queue base address
+        .phy_addr = phys_addr + SHM_QUEUE_SIZE,  // TX Queue (Linux -> seL4)
         .virt_addr = (uint64_t)g_ctx.tx_queue,
     };
     
     HyperampQueueConfig rx_config = {
         .map_mode = HYPERAMP_MAP_MODE_CONTIGUOUS_BOTH,
-        .capacity = DEFAULT_QUEUE_CAPACITY,
+        .capacity = queue_capacity,
         .block_size = DEFAULT_BLOCK_SIZE,
-        .phy_addr = phys_addr + SHM_QUEUE_SIZE,  // RX Queue address
+        .phy_addr = phys_addr,  // RX Queue (seL4 -> Linux)
         .virt_addr = (uint64_t)g_ctx.rx_queue,
     };
 
@@ -1050,7 +1073,7 @@ int hyperamp_linux_init(uint64_t phys_addr, int is_creator)
         
         // Clear data region
         printf("[HyperAMP] Clearing data region...\n");
-        hyperamp_safe_memset(g_ctx.data_region, 0, SHM_DATA_SIZE);
+        hyperamp_safe_memset(g_ctx.data_region, 0, data_size);
     } else {
         // Wait for queues to be initialized (check capacity field instead of magic, 
         // as magic field is beyond 4KB boundary)
@@ -1081,7 +1104,8 @@ int hyperamp_linux_init(uint64_t phys_addr, int is_creator)
         uint16_t tx_cap = hyperamp_safe_read_u16(g_ctx.tx_queue, offsetof(HyperampShmQueue, capacity));
         uint16_t rx_cap = hyperamp_safe_read_u16(g_ctx.rx_queue, offsetof(HyperampShmQueue, capacity));
         
-        printf("[HyperAMP] TX capacity=%u (expected 256), RX capacity=%u (expected 256)\n", tx_cap, rx_cap);
+         printf("[HyperAMP] TX capacity=%u (expected %u), RX capacity=%u (expected %u)\n",
+             tx_cap, queue_capacity, rx_cap, queue_capacity);
         
         // Debug: Print raw bytes at queue headers
         printf("[HyperAMP] DEBUG: TX Queue raw bytes at offset 0-15:\n");
@@ -1102,7 +1126,7 @@ int hyperamp_linux_init(uint64_t phys_addr, int is_creator)
             printf("[HyperAMP] INFO: Queues not yet initialized by seL4\n");
             printf("[HyperAMP] Will wait for seL4 to initialize them...\n");
             // Don't return error, let backend simulator keep polling
-        } else if (tx_cap == 256 && rx_cap == 256) {
+        } else if (tx_cap == queue_capacity && rx_cap == queue_capacity) {
             printf("[HyperAMP] ? Found initialized queue(s), ready for communication\n");
         } else {
             printf("[HyperAMP] WARNING: Unexpected capacity values (may indicate wrong address or corrupted memory)\n");
